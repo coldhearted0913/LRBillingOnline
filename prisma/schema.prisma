@@ -1,0 +1,61 @@
+// Prisma Schema for LR Billing App
+// Database: SQLite (file-based, no server needed)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./lr_billing.db"
+}
+
+model LR {
+  id                    String   @id @default(cuid())
+  
+  // Main LR Fields
+  lrNo                  String   @unique @map("lr_no")
+  lrDate                String   @map("lr_date")
+  vehicleType           String   @map("vehicle_type")
+  vehicleNumber         String?  @map("vehicle_number")
+  
+  // Location Fields
+  fromLocation          String?  @map("from_location")
+  toLocation            String?   @map("to_location")
+  materialSupplyTo      String?  @map("material_supply_to")
+  
+  // Weight & Cargo
+  loadedWeight          String?  @map("loaded_weight")
+  emptyWeight           String?  @map("empty_weight")
+  descriptionOfGoods    String?  @map("description_of_goods")
+  quantity              String?
+  
+  // Gate Entry Details
+  koelGateEntryNo       String?  @map("koel_gate_entry_no")
+  koelGateEntryDate     String?  @map("koel_gate_entry_date")
+  weightslipNo          String?  @map("weightslip_no")
+  
+  // Invoice Details
+  totalNoOfInvoices     String?  @map("total_no_of_invoices")
+  invoiceNo             String?  @map("invoice_no")
+  
+  // GRR Details
+  grrNo                 String?  @map("grr_no")
+  grrDate               String?  @map("grr_date")
+  
+  // Status tracking
+  status                String   @default("LR Done") @map("status")
+  
+  // Bill-specific fields for Rework and Additional Bills
+  billSubmissionDate    String?  @map("bill_submission_date")
+  billNumber           String?  @map("bill_number")
+  deliveryLocations    String?  @map("delivery_locations") // JSON string
+  amount               Float?   @map("amount")
+  
+  // Timestamps
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  
+  @@map("lrs")
+}
+
