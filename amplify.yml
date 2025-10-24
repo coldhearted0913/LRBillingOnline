@@ -4,6 +4,7 @@ frontend:
     preBuild:
       commands:
         - npm ci
+        - echo "DATABASE_URL is ${DATABASE_URL:0:30}..."
         - npx prisma generate
         - npx prisma db push --accept-data-loss
     build:
