@@ -16,6 +16,10 @@ frontend:
     build:
       commands:
         - npm run build
+        - echo "Copying .env.production to standalone build..."
+        - cp .env.production .next/standalone/.env.production || echo "Standalone not found, continuing..."
+        - cp .env.production .next/.env.production || echo "Could not copy to .next"
+        - echo "Environment file copied"
   artifacts:
     baseDirectory: .next
     files:
