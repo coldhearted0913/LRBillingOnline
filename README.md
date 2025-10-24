@@ -199,16 +199,38 @@ Change the `Inter` font to any Google Font
 
 ## 🚀 Deployment
 
-### Build for Production
+### ⚡ NEW: AWS Deployment Ready!
+
+**Your app is now configured for AWS deployment with PostgreSQL!**
+
+🎯 **Quick Start:** See `START_HERE.md` for 30-minute deployment guide
+
+📚 **Documentation:**
+- `START_HERE.md` - Overview and orientation
+- `QUICK_START_AWS.md` - Fast 30-minute AWS deployment
+- `MIGRATION_GUIDE.md` - Detailed migration information
+- `PRE_DEPLOYMENT_CHECKLIST.md` - Step-by-step verification
+- `README_DEPLOYMENT.md` - Complete migration summary
+
+### Local Development
 ```bash
-npm run build
-npm start
+npm run dev     # Development server
+npm run build   # Production build
+npm start       # Production server
 ```
 
-### Deploy Options
-- **Vercel**: `vercel deploy`
-- **Netlify**: `netlify deploy`
-- **AWS/Azure/GCP**: Standard Node.js deployment
+### Deploy to AWS Amplify
+1. Create PostgreSQL database (Neon.tech - free)
+2. Run `SETUP_POSTGRES.bat`
+3. Push to GitHub
+4. Deploy on AWS Amplify Console
+
+**Total time: ~30 minutes to go live!**
+
+### Other Deploy Options
+- **Railway**: `railway up` (supports SQLite)
+- **Render**: Connect GitHub repo
+- **Vercel**: Requires PostgreSQL migration
 
 ## 🆚 Desktop App vs Web App
 
@@ -251,11 +273,14 @@ For issues or questions:
 
 ## 🚀 Future Enhancements
 
+Completed:
+- [x] PDF/Excel export ✅
+- [x] Batch bill generation with templates ✅
+- [x] Cloud database (PostgreSQL) ✅
+- [x] AWS deployment ready ✅
+
 Potential features to add:
 - [ ] User authentication
-- [ ] PDF/Excel export
-- [ ] Batch bill generation with templates
-- [ ] Cloud database (MongoDB/PostgreSQL)
 - [ ] Real-time updates with WebSockets
 - [ ] Advanced search and filters
 - [ ] Data analytics and charts

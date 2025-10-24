@@ -4,10 +4,10 @@ import path from 'path';
 
 // AWS S3 Configuration
 const S3_CONFIG = {
-  region: process.env.AWS_REGION || 'ap-south-1',
-  bucket: process.env.AWS_BUCKET_NAME || 'lr-billing-invoices-mangesh',
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.S3_REGION || 'ap-south-1',
+  bucket: process.env.S3_BUCKET_NAME || 'lr-billing-invoices-mangesh',
+  accessKeyId: process.env.S3_ACCESS_KEY_ID,
+  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
 };
 
 let s3Client: S3Client | null = null;
