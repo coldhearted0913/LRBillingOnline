@@ -9,8 +9,6 @@ const nextConfig = {
     S3_REGION: process.env.S3_REGION,
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
   },
-  // Enable standalone output for better serverless compatibility
-  output: 'standalone',
 }
 
 module.exports = nextConfig
