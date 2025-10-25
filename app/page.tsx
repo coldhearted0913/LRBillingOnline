@@ -77,7 +77,8 @@ export default function Dashboard() {
     if (status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [status, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
   
   // Show loading while checking session
   if (status === 'loading') {
