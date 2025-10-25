@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { ArrowLeft, FileText, Truck, Calendar, MapPin, Hash, Save, Check, Download } from 'lucide-react';
-import { VEHICLE_AMOUNTS, FROM_LOCATIONS, TO_LOCATIONS, ADDITIONAL_BILL_AMOUNTS, MATERIAL_SUPPLY_LOCATIONS, ADDITIONAL_BILL_FROM_LOCATIONS, ADDITIONAL_BILL_TO_LOCATIONS, LR_PREFIX } from '@/lib/constants';
+import { VEHICLE_AMOUNTS, FROM_LOCATIONS, TO_LOCATIONS, ADDITIONAL_BILL_AMOUNTS, ADDITIONAL_BILL_FROM_LOCATIONS, ADDITIONAL_BILL_TO_LOCATIONS, LR_PREFIX } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -748,7 +748,7 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
                     Delivery Locations
                   </Label>
                   <div className="grid grid-cols-2 gap-3">
-                    {MATERIAL_SUPPLY_LOCATIONS.map(location => (
+                    {ADDITIONAL_BILL_TO_LOCATIONS.map(location => (
                       <label key={location} className="flex items-center space-x-2 cursor-pointer">
                         <input
                           type="checkbox"
