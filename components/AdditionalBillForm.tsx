@@ -128,7 +128,7 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
       // Convert LR data to Additional Bill format
       const additionalBillEntries = validLrData.map(lr => {
         // Extract consignees and convert to delivery locations
-        const consignees = lr['Consignee'] ? lr['Consignee'].split('/').map(c => c.trim()).filter(c => c.length > 0) : [];
+        const consignees = lr['Consignee'] ? lr['Consignee'].split('/').map((c: string) => c.trim()).filter((c: string) => c.length > 0) : [];
         
         // Calculate amount based on vehicle type and consignee count
         const vehicleType = lr['Vehicle Type'] || 'PICKUP';
