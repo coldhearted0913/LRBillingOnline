@@ -1,0 +1,165 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // Get current user to check role
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    // Only CEO can delete users
+    if (!currentUser || currentUser.role !== "CEO") {
+      return NextResponse.json(
+        { error: "Forbidden. Only CEO can delete users." },
+        { status: 403 }
+      );
+    }
+
+    // Check if trying to delete themselves
+    const userToDelete = await prisma.user.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!userToDelete) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    if (userToDelete.id === currentUser.id) {
+      return NextResponse.json(
+        { error: "Cannot delete your own account" },
+        { status: 400 }
+      );
+    }
+
+    // Delete user
+    await prisma.user.delete({
+      where: { id: params.id },
+    });
+
+    return NextResponse.json(
+      { message: "User deleted successfully" },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error("Error deleting user:", error);
+    return NextResponse.json(
+      { error: "Failed to delete user" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    // Get current user to check role
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    // Only CEO can update user roles
+    if (!currentUser || currentUser.role !== "CEO") {
+      return NextResponse.json(
+        { error: "Forbidden. Only CEO can update user roles." },
+        { status: 403 }
+      );
+    }
+
+    const { role } = await request.json();
+
+    if (!["WORKER", "MANAGER", "CEO"].includes(role)) {
+      return NextResponse.json(
+        { error: "Invalid role" },
+        { status: 400 }
+      );
+    }
+
+    // Check if trying to change their own role
+    if (params.id === currentUser.id) {
+      return NextResponse.json(
+        { error: "Cannot change your own role. At least one CEO must remain admin." },
+        { status: 400 }
+      );
+    }
+
+    // Fetch target user to check if they are CEO
+    const targetUser = await prisma.user.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // CEO cannot change other CEO's roles
+    if (targetUser.role === "CEO") {
+      return NextResponse.json(
+        { error: "Cannot change role of another CEO. CEO roles can only be managed by system administrator." },
+        { status: 403 }
+      );
+    }
+
+    // CEO cannot promote anyone to CEO role
+    if (role === "CEO") {
+      return NextResponse.json(
+        { error: "Cannot promote users to CEO role. CEO roles can only be managed by system administrator." },
+        { status: 403 }
+      );
+    }
+
+    // Update user role
+    const updatedUser = await prisma.user.update({
+      where: { id: params.id },
+      data: { role },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+      },
+    });
+
+    return NextResponse.json(
+      { user: updatedUser },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error("Error updating user role:", error);
+    return NextResponse.json(
+      { error: "Failed to update user role" },
+      { status: 500 }
+    );
+  }
+}

@@ -16,6 +16,32 @@ const ensureInvoiceDir = (submissionDate: string) => {
   return folder;
 };
 
+// Helper function to extract first alphabetic word from text
+const extractFirstWord = (text: string): string => {
+  if (!text) return '';
+  let word = '';
+  let foundAlpha = false;
+  
+  for (let char of text) {
+    if (/[a-zA-Z]/.test(char)) {
+      word += char;
+      foundAlpha = true;
+    } else if (foundAlpha) {
+      break;
+    }
+  }
+  
+  return word || '';
+};
+
+// Get display TO value from consignee (same logic as dashboard)
+const getToValue = (consignee: string): string => {
+  if (!consignee || consignee.trim() === '') return '';
+  const consignees = consignee.split('/').map(c => c.trim());
+  const firstWords = consignees.map(c => extractFirstWord(c)).filter(w => w.length > 0);
+  return firstWords.length > 0 ? firstWords.join('/') : '';
+};
+
 // Copy template file
 const getTemplate = async (templateName: string): Promise<ExcelJS.Workbook> => {
   const templatePath = path.join(TEMPLATES_DIR, templateName);
@@ -44,7 +70,6 @@ export const generateLRFile = async (
   
   // Cell mapping
   const cellMap: { [key: string]: string } = {
-    'Material Supply To': 'F6',
     'LR Date': 'F8',
     'Vehicle Type': 'F12',
     'Vehicle Number': 'F14',
@@ -71,7 +96,7 @@ export const generateLRFile = async (
       }
     }
     
-    if (field === 'Koel Gate Entry No' && !lrData['Material Supply To']?.includes('KOEL')) {
+    if (field === 'Koel Gate Entry No' && !lrData['Consignor']?.includes('KOEL')) {
       value = '99';
     }
     
@@ -84,6 +109,12 @@ export const generateLRFile = async (
       }
     }
   });
+  
+  // Cell F6: Write TO value (first word of consignee)
+  const toValue = getToValue(lrData['Consignee'] || '');
+  if (toValue) {
+    worksheet.getCell('F6').value = toValue.toUpperCase();
+  }
   
   // Save file
   const safeFileName = lrData['LR No'].replace(/[\/\\:*?"<>|]/g, '-');
@@ -169,10 +200,13 @@ export const updateFinalSubmissionSheet = async (
   const vehicleType = lrData['Vehicle Type'];
   let headingRow = 0;
   
+  console.log('[FINAL-SHEET] Looking for vehicle type:', vehicleType);
+  
   for (let r = 1; r <= worksheet.rowCount; r++) {
     const cellValue = worksheet.getCell(r, 1).value?.toString().trim().toUpperCase();
     if (cellValue === vehicleType.toUpperCase()) {
       headingRow = r;
+      console.log(`[FINAL-SHEET] Found vehicle type "${vehicleType}" at row ${r}`);
       break;
     }
   }
@@ -185,34 +219,64 @@ export const updateFinalSubmissionSheet = async (
   let insertRow = headingRow + 2; // Skip heading and header row
   const vehicleHeadings = ['PICKUP', 'TRUCK', 'TOROUS'];
   
+  console.log(`[FINAL-SHEET] Starting insertion search from row ${insertRow}`);
+  
   while (insertRow <= worksheet.rowCount + 1) {
     const cellVal = worksheet.getCell(insertRow, 1).value?.toString().trim().toUpperCase();
+    const cell2Val = worksheet.getCell(insertRow, 2).value;
     
     // If we hit another vehicle heading, insert here
     if (cellVal && vehicleHeadings.includes(cellVal)) {
+      console.log(`[FINAL-SHEET] Hit another vehicle heading "${cellVal}", inserting at row ${insertRow}`);
       break;
     }
     
     // If row is empty, insert here
-    if (!worksheet.getCell(insertRow, 2).value) {
+    if (!cell2Val) {
+      console.log(`[FINAL-SHEET] Found empty row, inserting at row ${insertRow}`);
       break;
     }
     
     insertRow++;
   }
   
+  console.log(`[FINAL-SHEET] Inserting LR ${lrData['LR No']} at row ${insertRow}`);
+  
   // Insert new row
   worksheet.insertRow(insertRow, []);
   
-  // Copy formatting from previous row
-  if (insertRow > headingRow + 2) {
-    const sourceRow = worksheet.getRow(insertRow - 1);
-    const targetRow = worksheet.getRow(insertRow);
-    
-    sourceRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-      const targetCell = targetRow.getCell(colNumber);
-      targetCell.style = { ...cell.style };
-    });
+  // Copy formatting from header row (first data row after vehicle heading)
+  const headerRow = headingRow + 1; // Header row is right after vehicle heading
+  const sourceRow = worksheet.getRow(headerRow);
+  const targetRow = worksheet.getRow(insertRow);
+  
+  // Copy all cell formatting (borders, fonts, fills, alignment, etc.)
+  sourceRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    const targetCell = targetRow.getCell(colNumber);
+    if (cell.style) {
+      // Copy font but exclude bold
+      let fontStyle = undefined;
+      if (cell.style.font) {
+        fontStyle = {
+          ...cell.style.font,
+          bold: false, // Never copy bold, always use regular weight
+        };
+      }
+      
+      targetCell.style = {
+        ...cell.style,
+        font: fontStyle,
+        border: cell.style.border ? { ...cell.style.border } : undefined,
+        fill: cell.style.fill ? { ...cell.style.fill } : undefined,
+        alignment: cell.style.alignment ? { ...cell.style.alignment } : undefined,
+        numFmt: cell.style.numFmt,
+      };
+    }
+  });
+  
+  // Copy row height if it exists
+  if (sourceRow.height) {
+    targetRow.height = sourceRow.height;
   }
   
   // Calculate serial number
@@ -234,11 +298,19 @@ export const updateFinalSubmissionSheet = async (
   worksheet.getCell(insertRow, 5).value = amount; // Amount
   worksheet.getCell(insertRow, 6).value = lrData['LR No'].toUpperCase(); // Bill No
   
+  console.log(`[FINAL-SHEET] Written row ${insertRow}:`, {
+    srNo,
+    lrNo: lrData['LR No'],
+    vehicleType: vehicleType,
+    amount
+  });
+  
   // Update submission date
   worksheet.getCell('B5').value = submissionDate;
   
   // Save file
   await workbook.xlsx.writeFile(finalSheetPath);
+  console.log(`[FINAL-SHEET] Saved to: ${finalSheetPath}`);
   
   return finalSheetPath;
 };
@@ -325,8 +397,8 @@ export const generateReworkBill = async (data: any, submissionDate: string): Pro
   
   entries.forEach((entry: any, index: number) => {
     // Fill in the data for each entry
-    // Column A (Serial No) - Leave empty
-    // Column B - Leave empty (no bill no per row)
+    // Column A - Leave empty
+    worksheet.getCell(currentRow, 2).value = index + 1; // Column B - Auto-increment serial number starting from 1
     worksheet.getCell(currentRow, 3).value = entry['LR Date'] || ''; // C - LR Date
     // Clean LR No: remove any existing MT/25-26/ prefix(es) and add it once
     const lrNo = entry['LR No'] || '';
@@ -375,8 +447,8 @@ export const generateAdditionalBill = async (data: any, submissionDate: string):
   
   entries.forEach((entry: any, index: number) => {
     // Fill in the data for each entry
-    // Column A (Serial No) - Leave empty
-    // Column B - Leave empty (no bill no per row)
+    // Column A - Leave empty
+    worksheet.getCell(currentRow, 2).value = index + 1; // Column B - Auto-increment serial number starting from 1
     worksheet.getCell(currentRow, 3).value = entry['LR Date'] || ''; // C - LR Date
     // Clean LR No: remove any existing MT/25-26/ prefix(es) and add it once
     const lrNo = entry['LR No'] || '';
@@ -386,7 +458,10 @@ export const generateAdditionalBill = async (data: any, submissionDate: string):
     worksheet.getCell(currentRow, 5).value = entry['Vehicle No'] || ''; // E - Vehicle No
     worksheet.getCell(currentRow, 6).value = entry['Vehicle Type'] || ''; // F - Vehicle Type
     worksheet.getCell(currentRow, 7).value = entry['FROM'] || ''; // G - FROM
-    worksheet.getCell(currentRow, 8).value = entry['Delivery Locations']?.join(', ') || ''; // H - Destination
+    // H - Destination: Extract first words from delivery locations (same logic as dashboard TO column)
+    const deliveryLocations = entry['Delivery Locations'] || [];
+    const firstWords = deliveryLocations.map(location => extractFirstWord(location)).filter(w => w.length > 0);
+    worksheet.getCell(currentRow, 8).value = firstWords.join('/') || ''; // H - Destination
     worksheet.getCell(currentRow, 9).value = entry['Amount'] || 0; // I - Amount
     
     // Move to next row for next entry

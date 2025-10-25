@@ -7,7 +7,8 @@ import {
   LR_PREFIX, 
   FROM_LOCATIONS, 
   TO_LOCATIONS, 
-  MATERIAL_SUPPLY_LOCATIONS,
+  CONSIGNOR_LOCATIONS,
+  CONSIGNEE_LOCATIONS,
   VEHICLE_AMOUNTS,
   LR_STATUS_OPTIONS,
   STATUS_COLORS
@@ -27,7 +28,8 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const [formData, setFormData] = useState<Partial<LRData>>({
     'FROM': '',
     'TO': '',
-    'Material Supply To': '',
+    'Consignor': '',
+    'Consignee': '',
     'LR Date': new Date().toISOString().split('T')[0],
     'Vehicle Type': '',
     'Vehicle Number': '',
@@ -46,30 +48,46 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     'status': 'LR Done',
   });
   
-  const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
+  const [selectedConsignors, setSelectedConsignors] = useState<string[]>([]);
+  const [selectedConsignees, setSelectedConsignees] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   
   // Load editing data
   useEffect(() => {
     if (editingLr) {
       setFormData(editingLr);
-      if (editingLr['Material Supply To']) {
-        setSelectedMaterials(editingLr['Material Supply To'].split('/'));
+      if (editingLr['Consignor']) {
+        setSelectedConsignors(editingLr['Consignor'].split('/').map(c => c.trim()).filter(c => c));
+      }
+      if (editingLr['Consignee']) {
+        setSelectedConsignees(editingLr['Consignee'].split('/').map(c => c.trim()).filter(c => c));
       }
     }
   }, [editingLr]);
   
-  // Handle material selection
-  const toggleMaterial = (material: string) => {
-    const newMaterials = selectedMaterials.includes(material)
-      ? selectedMaterials.filter(m => m !== material)
-      : [...selectedMaterials, material];
+  // Handle consignor selection
+  const toggleConsignor = (consignor: string) => {
+    const newConsignors = selectedConsignors.includes(consignor)
+      ? selectedConsignors.filter(c => c !== consignor)
+      : [...selectedConsignors, consignor];
     
-    setSelectedMaterials(newMaterials);
+    setSelectedConsignors(newConsignors);
     setFormData(prev => ({
       ...prev,
-      'Material Supply To': newMaterials.join('/'),
-      'Koel Gate Entry No': newMaterials.includes('KOEL') ? '' : '99',
+      'Consignor': newConsignors.join('/'),
+    }));
+  };
+
+  // Handle consignee selection
+  const toggleConsignee = (consignee: string) => {
+    const newConsignees = selectedConsignees.includes(consignee)
+      ? selectedConsignees.filter(c => c !== consignee)
+      : [...selectedConsignees, consignee];
+    
+    setSelectedConsignees(newConsignees);
+    setFormData(prev => ({
+      ...prev,
+      'Consignee': newConsignees.join('/'),
     }));
   };
   
@@ -96,19 +114,60 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate
+    // Validate required fields and scroll to first invalid
     if (!formData['LR No'] || formData['LR No'] === LR_PREFIX) {
       alert('Please enter a valid LR Number');
+      document.getElementById('lrNo')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('lrNo')?.focus();
       return;
     }
     
     if (!formData['LR Date']) {
       alert('Please select LR Date');
+      document.getElementById('lrDate')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('lrDate')?.focus();
+      return;
+    }
+    
+    if (!formData['FROM']) {
+      alert('Please select FROM location');
+      document.getElementById('from')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('from')?.focus();
+      return;
+    }
+    
+    if (!formData['TO']) {
+      alert('Please select TO location');
+      document.getElementById('to')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('to')?.focus();
+      return;
+    }
+    
+    if (selectedConsignors.length === 0) {
+      alert('Please select at least one Consignor');
+      // Scroll to consignor section
+      document.getElementById('consignor')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    
+    if (selectedConsignees.length === 0) {
+      alert('Please select at least one Consignee');
+      // Scroll to consignee section
+      document.getElementById('consignee')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     
     if (!formData['Vehicle Type']) {
       alert('Please select Vehicle Type');
+      document.getElementById('vehicleType')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('vehicleType')?.focus();
+      return;
+    }
+
+    // Check if Consignor and Consignee are the same
+    if (formData['Consignor'] && formData['Consignee'] && formData['Consignor'] === formData['Consignee']) {
+      alert('Consignor and Consignee cannot be the same');
+      document.getElementById('consignor')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     
@@ -155,7 +214,8 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       setFormData({
         'FROM': '',
         'TO': '',
-        'Material Supply To': '',
+        'Consignor': '',
+        'Consignee': '',
         'LR Date': new Date().toISOString().split('T')[0],
         'Vehicle Type': '',
         'Vehicle Number': '',
@@ -173,31 +233,63 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
         'Quantity': '',
         'status': 'LR Done',
       });
-      setSelectedMaterials([]);
+      setSelectedConsignors([]);
+      setSelectedConsignees([]);
     }
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white">
+      <div className="sticky top-0 z-50 bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white shadow-lg">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+            <div className="flex items-center gap-4">
+              <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl shadow-lg">
                 <FileText className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold">
+                <h1 className="text-3xl font-bold tracking-tight">
                   {editingLr ? 'Edit LR' : 'Create New LR'}
                 </h1>
-                <p className="text-blue-100 text-sm">{editingLr ? 'Update existing LR details' : 'Enter LR information'}</p>
+                <p className="text-blue-100 text-sm mt-1">{editingLr ? 'Update LR details' : 'Enter LR information to get started'}</p>
               </div>
             </div>
-            <Button onClick={onBack} variant="secondary">
+            <Button 
+              onClick={onBack} 
+              variant="secondary"
+              className="bg-white/20 hover:bg-white/30 text-white border-0"
+            >
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
+              Back to Dashboard
             </Button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Progress Indicator */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">1</div>
+              <span className="font-medium">Route</span>
+            </div>
+            <div className="h-1 flex-1 bg-gradient-to-r from-blue-600 to-blue-300"></div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">2</div>
+              <span className="font-medium">Vehicle</span>
+            </div>
+            <div className="h-1 flex-1 bg-gradient-to-r from-blue-600 to-blue-300"></div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">3</div>
+              <span className="font-medium">Cargo</span>
+            </div>
+            <div className="h-1 flex-1 bg-gradient-to-r from-blue-600 to-blue-300"></div>
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">4</div>
+              <span className="font-medium">Details</span>
+            </div>
           </div>
         </div>
       </div>
@@ -206,15 +298,17 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       <div className="container mx-auto px-4 py-8">
         <form onSubmit={handleSubmit}>
           {/* Route Information */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-blue-600" />
+          <Card className="mb-6 border-0 shadow-md hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <div className="bg-blue-600 text-white p-2 rounded-lg">
+                  <MapPin className="h-4 w-4" />
+                </div>
                 Route Information
               </CardTitle>
-              <CardDescription>Origin and destination details</CardDescription>
+              <CardDescription className="text-gray-600 mt-1">Select origin, destination, and parties</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <Label htmlFor="from">FROM</Label>
@@ -222,7 +316,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                     id="from"
                     value={formData['FROM'] || ''}
                     onChange={(e) => handleChange('FROM', e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   >
                     <option value="">Select origin...</option>
                     {FROM_LOCATIONS.map(loc => (
@@ -237,7 +331,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                     id="to"
                     value={formData['TO'] || ''}
                     onChange={(e) => handleChange('TO', e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   >
                     <option value="">Select destination...</option>
                     {TO_LOCATIONS.map(loc => (
@@ -246,53 +340,100 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   </select>
                 </div>
                 
-                <div className="md:col-span-2">
-                  <Label>Material Supply To</Label>
+                <div id="consignor">
+                  <Label htmlFor="consignor">Consignor</Label>
                   <div className="flex flex-wrap gap-2 mb-3 mt-2">
-                    {selectedMaterials.map(material => (
-                      <Badge key={material} variant="default" className="px-3 py-1.5">
-                        {material}
+                    {selectedConsignors.map(consignor => (
+                      <Badge key={consignor} variant="default" className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all">
+                        {consignor}
                         <button
                           type="button"
-                          onClick={() => toggleMaterial(material)}
-                          className="ml-2 text-white/80 hover:text-white"
+                          onClick={() => toggleConsignor(consignor)}
+                          className="ml-2 text-white/80 hover:text-white font-bold"
                         >
                           ×
                         </button>
                       </Badge>
                     ))}
-                    {selectedMaterials.length === 0 && (
-                      <p className="text-sm text-muted-foreground">No locations selected</p>
+                    {selectedConsignors.length === 0 && (
+                      <p className="text-sm text-gray-400 italic">No locations selected yet</p>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {MATERIAL_SUPPLY_LOCATIONS.map(material => (
+                    {CONSIGNOR_LOCATIONS.map(consignor => (
                       <Button
-                        key={material}
+                        key={consignor}
                         type="button"
-                        onClick={() => toggleMaterial(material)}
-                        variant={selectedMaterials.includes(material) ? "default" : "outline"}
+                        onClick={() => toggleConsignor(consignor)}
+                        variant={selectedConsignors.includes(consignor) ? "default" : "outline"}
                         size="sm"
+                        className={`text-xs transition-all ${
+                          selectedConsignors.includes(consignor)
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
+                            : 'hover:border-blue-500 hover:text-blue-600'
+                        }`}
                       >
-                        {material}
+                        {consignor}
                       </Button>
                     ))}
                   </div>
                 </div>
+                
+                <div id="consignee">
+                  <Label htmlFor="consignee">Consignee</Label>
+                  <div className="flex flex-wrap gap-2 mb-3 mt-2">
+                    {selectedConsignees.map(consignee => (
+                      <Badge key={consignee} variant="default" className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white shadow-sm transition-all">
+                        {consignee}
+                        <button
+                          type="button"
+                          onClick={() => toggleConsignee(consignee)}
+                          className="ml-2 text-white/80 hover:text-white font-bold"
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    ))}
+                    {selectedConsignees.length === 0 && (
+                      <p className="text-sm text-gray-400 italic">No locations selected yet</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {CONSIGNEE_LOCATIONS.map(consignee => (
+                      <Button
+                        key={consignee}
+                        type="button"
+                        onClick={() => toggleConsignee(consignee)}
+                        variant={selectedConsignees.includes(consignee) ? "default" : "outline"}
+                        size="sm"
+                        className={`text-xs transition-all ${
+                          selectedConsignees.includes(consignee)
+                            ? 'bg-green-600 hover:bg-green-700 text-white shadow-md'
+                            : 'hover:border-green-500 hover:text-green-600'
+                        }`}
+                      >
+                        {consignee}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                
               </div>
             </CardContent>
           </Card>
           
           {/* Vehicle & LR Details */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Truck className="h-5 w-5 text-blue-600" />
+          <Card className="mb-6 border-0 shadow-md hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-purple-50 to-transparent pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <div className="bg-purple-600 text-white p-2 rounded-lg">
+                  <Truck className="h-4 w-4" />
+                </div>
                 Vehicle & LR Details
               </CardTitle>
-              <CardDescription>LR number and vehicle information</CardDescription>
+              <CardDescription className="text-gray-600 mt-1">LR number and vehicle information</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <Label htmlFor="lrNo">LR No *</Label>
@@ -322,7 +463,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                     id="vehicleType"
                     value={formData['Vehicle Type'] || ''}
                     onChange={(e) => handleChange('Vehicle Type', e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
                     required
                   >
                     <option value="">Select vehicle type...</option>
@@ -339,6 +480,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                     value={formData['Vehicle Number'] || ''}
                     onChange={(e) => handleChange('Vehicle Number', e.target.value.toUpperCase())}
                     placeholder="e.g., MH12AB1234"
+                    className="border-gray-300 focus:ring-purple-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -346,15 +488,17 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
           </Card>
           
           {/* Cargo Details */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-blue-600" />
+          <Card className="mb-6 border-0 shadow-md hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-orange-50 to-transparent pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <div className="bg-orange-600 text-white p-2 rounded-lg">
+                  <Package className="h-4 w-4" />
+                </div>
                 Cargo Details
               </CardTitle>
-              <CardDescription>Weight and goods description</CardDescription>
+              <CardDescription className="text-gray-600 mt-1">Weight and goods information</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <Label htmlFor="loadedWeight">Loaded Weight (KG)</Label>
@@ -474,15 +618,17 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
           </Card>
           
           {/* Gate Entry & Documentation */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-blue-600" />
+          <Card className="mb-6 border-0 shadow-md hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-red-50 to-transparent pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <div className="bg-red-600 text-white p-2 rounded-lg">
+                  <FileText className="h-4 w-4" />
+                </div>
                 Gate Entry & Documentation
               </CardTitle>
-              <CardDescription>Entry passes and invoice details</CardDescription>
+              <CardDescription className="text-gray-600 mt-1">Entry passes and invoice details</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <Label htmlFor="koelGateEntry">Koel Gate Entry No</Label>
@@ -490,8 +636,6 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                     id="koelGateEntry"
                     value={formData['Koel Gate Entry No'] || '99'}
                     onChange={(e) => handleChange('Koel Gate Entry No', e.target.value)}
-                    readOnly={!selectedMaterials.includes('KOEL')}
-                    className={!selectedMaterials.includes('KOEL') ? 'bg-muted' : ''}
                   />
                 </div>
                 
@@ -546,17 +690,17 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
           </Card>
           
           {/* Action Buttons */}
-          <Card>
+          <Card className="border-0 shadow-md bg-gradient-to-r from-blue-50 to-purple-50">
             <CardContent className="pt-6">
               <div className="flex flex-wrap gap-3">
                 <Button
                   type="submit"
                   disabled={loading}
                   size="lg"
-                  className="min-w-[150px]"
+                  className="min-w-[150px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all"
                 >
                   <Save className="mr-2 h-5 w-5" />
-                  {loading ? 'Saving...' : editingLr ? 'Update LR' : 'Save LR'}
+                  {loading ? '⏳ Saving...' : editingLr ? '✏️ Update LR' : '💾 Save LR'}
                 </Button>
                 
                 <Button
@@ -564,6 +708,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   onClick={clearForm}
                   variant="outline"
                   size="lg"
+                  className="border-gray-300 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
                 >
                   <Trash2 className="mr-2 h-5 w-5" />
                   Clear Form
@@ -574,7 +719,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   onClick={onBack}
                   variant="secondary"
                   size="lg"
-                  className="ml-auto"
+                  className="ml-auto bg-gray-200 hover:bg-gray-300 text-gray-800 transition-colors"
                 >
                   <ArrowLeft className="mr-2 h-5 w-5" />
                   Back to Dashboard

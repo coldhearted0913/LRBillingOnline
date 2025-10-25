@@ -55,9 +55,12 @@ export async function POST(request: NextRequest) {
           console.log('S3 upload skipped or failed:', s3Error);
         }
         
-        // Update LR status to "Bill Done" after successful generation
+        // Update LR status to "Bill Done" and submission date after successful generation
         try {
-          await updateLR(lrNo, { ...lrData, status: 'Bill Done' });
+          await updateLR(lrNo, { 
+            status: 'Bill Done',
+            'Bill Submission Date': submissionDate 
+          } as any);
         } catch (statusError) {
           console.log('Failed to update status, but files generated:', statusError);
         }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, FileText, Truck, Calendar, MapPin, Hash, Save, Check } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { ArrowLeft, FileText, Truck, Calendar, MapPin, Hash, Save, Check, Download } from 'lucide-react';
 import { VEHICLE_AMOUNTS, FROM_LOCATIONS, TO_LOCATIONS, ADDITIONAL_BILL_AMOUNTS, MATERIAL_SUPPLY_LOCATIONS, ADDITIONAL_BILL_FROM_LOCATIONS, ADDITIONAL_BILL_TO_LOCATIONS, LR_PREFIX } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label';
 
 interface AdditionalBillFormProps {
   onBack: () => void;
+  selectedLrs?: string[];
 }
 
 interface AdditionalBillData {
@@ -22,7 +24,8 @@ interface AdditionalBillData {
   'Amount': number;
 }
 
-export default function AdditionalBillForm({ onBack }: AdditionalBillFormProps) {
+export default function AdditionalBillForm({ onBack, selectedLrs = [] }: AdditionalBillFormProps) {
+  const session = useSession(); // Call hook at top level
   const [billNo, setBillNo] = useState('');
   const [submissionDate, setSubmissionDate] = useState('');
   const [showBillNoModal, setShowBillNoModal] = useState(true);
@@ -42,6 +45,7 @@ export default function AdditionalBillForm({ onBack }: AdditionalBillFormProps) 
   const [generating, setGenerating] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [generatedFile, setGeneratedFile] = useState<any>(null);
+  const [autoGenerateMode, setAutoGenerateMode] = useState(false);
 
   // Load saved entries when billNo changes
   useEffect(() => {
@@ -50,13 +54,25 @@ export default function AdditionalBillForm({ onBack }: AdditionalBillFormProps) 
     }
   }, [billNo]);
 
-  const handleBillNoConfirm = () => {
+  const handleBillNoConfirm = async () => {
     if (!tempBillNo.trim()) {
       alert('Please enter a bill number');
       return;
     }
-    setBillNo('MT/25-26/' + tempBillNo);
+    if (!submissionDate) {
+      alert('Please enter a submission date');
+      return;
+    }
+    
+    const fullBillNo = 'MT/25-26/' + tempBillNo;
+    setBillNo(fullBillNo);
     setShowBillNoModal(false);
+    
+    // If we have selected LRs, auto-generate the bill
+    if (selectedLrs.length > 0) {
+      setAutoGenerateMode(true);
+      await autoGenerateFromSelectedLrs(fullBillNo);
+    }
   };
 
   const loadSavedEntries = async () => {
@@ -72,6 +88,102 @@ export default function AdditionalBillForm({ onBack }: AdditionalBillFormProps) 
       }
     } catch (error) {
       console.error('Error loading saved entries:', error);
+    }
+  };
+
+  // Auto-generate Additional Bill from selected LRs
+  const autoGenerateFromSelectedLrs = async (fullBillNo: string) => {
+    if (selectedLrs.length === 0) return;
+    
+    setGenerating(true);
+    try {
+      console.log('[AUTO-GENERATE] Starting with selectedLrs:', selectedLrs);
+      console.log('[AUTO-GENERATE] Using billNo:', fullBillNo);
+      console.log('[AUTO-GENERATE] Using submissionDate:', submissionDate);
+      
+      // Fetch LR data for selected LRs
+      const lrDataPromises = selectedLrs.map(async (lrNo) => {
+        console.log('[AUTO-GENERATE] Fetching LR:', lrNo);
+        const response = await fetch(`/api/lrs/${encodeURIComponent(lrNo)}`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[AUTO-GENERATE] Fetched LR data:', data.lr);
+          return data.lr;
+        } else {
+          console.error('[AUTO-GENERATE] Failed to fetch LR:', lrNo, response.status);
+          return null;
+        }
+      });
+      
+      const lrDataArray = await Promise.all(lrDataPromises);
+      const validLrData = lrDataArray.filter(lr => lr !== null);
+      
+      console.log('[AUTO-GENERATE] Valid LR data:', validLrData);
+      
+      if (validLrData.length === 0) {
+        alert('No valid LR data found');
+        return;
+      }
+      
+      // Convert LR data to Additional Bill format
+      const additionalBillEntries = validLrData.map(lr => {
+        // Extract consignees and convert to delivery locations
+        const consignees = lr['Consignee'] ? lr['Consignee'].split('/').map(c => c.trim()).filter(c => c.length > 0) : [];
+        
+        // Calculate amount based on vehicle type and consignee count
+        const vehicleType = lr['Vehicle Type'] || 'PICKUP';
+        const baseAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 1200;
+        const amount = consignees.length >= 2 ? baseAmount * (consignees.length - 1) : 0;
+        
+        const entry = {
+          'LR Date': lr['LR Date'] || '',
+          'LR No': lr['LR No'] || '',
+          'Vehicle No': lr['Vehicle Number'] || '',
+          'Vehicle Type': vehicleType,
+          'FROM': lr['FROM'] || '',
+          'Delivery Locations': consignees,
+          'Amount': amount,
+          'Bill No': fullBillNo,
+          'Submission Date': submissionDate,
+          'Delivery Count': consignees.length,
+        };
+        
+        console.log('[AUTO-GENERATE] Created entry:', entry);
+        return entry;
+      });
+      
+      console.log('[AUTO-GENERATE] All entries:', additionalBillEntries);
+      
+      // Generate the bill directly
+      const response = await fetch('/api/additional-bills/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          submissionDate,
+          billNo: fullBillNo,
+          entries: additionalBillEntries,
+        }),
+      });
+
+      console.log('[AUTO-GENERATE] API response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[AUTO-GENERATE] Success response:', data);
+        setGeneratedFile(data);
+        setShowDownloadModal(true);
+      } else {
+        const errorText = await response.text();
+        console.error('[AUTO-GENERATE] API error:', errorText);
+        alert(`Failed to generate additional bill: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('[AUTO-GENERATE] Error:', error);
+      alert(`Error generating additional bill: ${error.message}`);
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -311,6 +423,82 @@ export default function AdditionalBillForm({ onBack }: AdditionalBillFormProps) 
     }
   };
 
+  // If auto-generating, show only loading modal or download modal
+  if (autoGenerateMode) {
+    // Show download modal if generation is complete
+    if (showDownloadModal && generatedFile) {
+      return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-green-100 p-3 rounded-lg">
+                <Check className="w-6 h-6 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">Additional Bill Generated!</h3>
+                <p className="text-sm text-gray-600">Successfully processed {selectedLrs.length} LR(s)</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-gray-700">
+                  File saved: <code className="bg-green-100 px-1 rounded">{generatedFile.filePath}</code>
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = `/api/download-file?path=${encodeURIComponent(generatedFile.filePath)}`;
+                    link.download = generatedFile.filePath.split(/[/\\]/).pop() || 'additional-bill.xlsx';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }}
+                  className="bg-green-600 hover:bg-green-700 text-white flex-1"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Download Bill
+                </Button>
+                <Button
+                  onClick={() => {
+                    setAutoGenerateMode(false);
+                    setShowDownloadModal(false);
+                    setGeneratedFile(null);
+                    onBack();
+                  }}
+                  variant="outline"
+                >
+                  Done
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    // Show loading modal while generating
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-purple-100 p-3 rounded-lg">
+              <FileText className="w-6 h-6 text-purple-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">Generating Additional Bill</h3>
+              <p className="text-sm text-gray-600">Processing {selectedLrs.length} selected LR(s)...</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-center py-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-slate-50">
       {/* Bill Number Modal */}
@@ -323,7 +511,12 @@ export default function AdditionalBillForm({ onBack }: AdditionalBillFormProps) 
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-gray-800">Additional Bill - Setup</h3>
-                <p className="text-sm text-gray-600">Enter bill number to continue</p>
+                <p className="text-sm text-gray-600">
+                  {selectedLrs.length > 0 
+                    ? `Auto-generate from ${selectedLrs.length} selected LR(s)` 
+                    : 'Enter bill number to continue'
+                  }
+                </p>
               </div>
             </div>
             <div className="space-y-4">
@@ -348,12 +541,28 @@ export default function AdditionalBillForm({ onBack }: AdditionalBillFormProps) 
                   />
                 </div>
               </div>
+              
+              <div>
+                <Label htmlFor="submissionDateInput" className="flex items-center gap-2 mb-2">
+                  <Calendar className="h-4 w-4 text-purple-600" />
+                  Submission Date
+                </Label>
+                <Input
+                  id="submissionDateInput"
+                  type="date"
+                  value={submissionDate}
+                  onChange={(e) => setSubmissionDate(e.target.value)}
+                  className="border-purple-200 focus:border-purple-400"
+                  required
+                />
+              </div>
               <div className="flex gap-3">
                 <Button
                   onClick={handleBillNoConfirm}
-                  className="bg-purple-600 hover:bg-purple-700 text-white flex-1"
+                  disabled={!tempBillNo.trim() || !submissionDate}
+                  className="bg-purple-600 hover:bg-purple-700 text-white flex-1 disabled:opacity-50"
                 >
-                  Continue
+                  {selectedLrs.length > 0 ? 'Auto-Generate Bill' : 'Continue'}
                 </Button>
                 <Button
                   onClick={onBack}
@@ -385,6 +594,11 @@ export default function AdditionalBillForm({ onBack }: AdditionalBillFormProps) 
             <div>
               <h1 className="text-3xl md:text-4xl font-bold">Additional Bill - {billNo}</h1>
               <p className="text-purple-100 mt-1">Generate Additional Bill (80% of Vehicle Amount)</p>
+              {selectedLrs.length > 0 && (
+                <p className="text-purple-200 text-sm mt-1">
+                  Processing {selectedLrs.length} compatible LR(s) with 2+ consignees
+                </p>
+              )}
             </div>
           </div>
         </div>

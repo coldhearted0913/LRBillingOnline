@@ -26,16 +26,22 @@ export async function POST(request: NextRequest) {
     const path = require('path');
     const relativePath = absoluteFilePath.split(path.sep + 'invoices' + path.sep)[1] || absoluteFilePath;
     
-    // Upload to S3
-    const sanitizedBillNo = billNo.replace(/\//g, '_');
-    const s3Result = await uploadFileToS3(absoluteFilePath, `rework-bills/${sanitizedBillNo}_${submissionDate}.xlsx`);
+    // Upload to S3 - save under submission date folder
+    const s3Result = await uploadFileToS3(absoluteFilePath, submissionDate);
     
-    // Update all entries to "Bill Done" status
+    // Update all entries to "Bill Done" status and set submission date
     for (const entry of entries) {
-      const lrNo = `REWORK-${entry['LR No']}`;
-      await updateLR(lrNo, {
-        status: 'Bill Done',
-      });
+      const lrNo = entry['LR No']; // Use the actual LR number, not a prefixed version
+      try {
+        await updateLR(lrNo, {
+          status: 'Bill Done',
+          'Bill Submission Date': submissionDate,
+        } as any);
+        console.log(`[REWORK-BILL-GENERATE] Updated LR ${lrNo} to Bill Done with submission date`);
+      } catch (error) {
+        console.error(`[REWORK-BILL-GENERATE] Error updating LR ${lrNo}:`, error);
+        // Continue with other entries even if one fails
+      }
     }
 
     return NextResponse.json({

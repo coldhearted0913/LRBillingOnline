@@ -21,9 +21,8 @@ export async function POST(request: NextRequest) {
     // Generate Excel file
     const filePath = await generateAdditionalBill(data, data['Submission Date']);
     
-    // Upload to S3
-    const sanitizedBillNo = data['Bill No'].replace(/\//g, '_');
-    const s3Result = await uploadFileToS3(filePath, `additional-bills/${sanitizedBillNo}_${data['Submission Date']}.xlsx`);
+    // Upload to S3 - save under submission date folder
+    const s3Result = await uploadFileToS3(filePath, data['Submission Date']);
     
     // Store in database as a special LR record
     const lrData = {

@@ -1,0 +1,349 @@
+🗄️ ROBUST PERSISTENT DATABASE STRATEGY
+=========================================
+
+PROBLEM TO SOLVE:
+- Need data persistence across deployments
+- Can't lose records when updating
+- Need safe migration process
+- Want offline local dev capability
+
+SOLUTION ARCHITECTURE:
+=========================================
+
+┌─────────────────────┐         ┌──────────────────────┐
+│   LOCAL DEV         │         │   RAILWAY PROD       │
+│   (SQLite)          │         │   (PostgreSQL)       │
+│   - Fast            │         │   - Persistent       │
+│   - Offline OK      │         │   - Backed up        │
+│   - Dev data only   │         │   - Real data        │
+└─────────────────────┘         └──────────────────────┘
+         ↓                                 ↓
+    .env.local                    .railway/variables
+    file:./prisma/dev.db         postgresql://...
+         ↓                                 ↓
+    npm run dev                    Auto-deploys on push
+    (local SQLite)                (applies migrations safely)
+
+SETUP PHASES:
+=========================================
+
+PHASE 1: LOCAL DEVELOPMENT SETUP (NOW)
+------
+
+Current state:
+  ✓ Local: SQLite at prisma/dev.db
+  ✓ Schema: Up to date (PostgreSQL format)
+  ✓ Migrations: Created and tracked
+  
+Stay with this for local development:
+  npm run dev
+  npx prisma studio  (view local data)
+  
+Work with local SQLite until ready to sync.
+
+PHASE 2: PRODUCTION DATABASE SETUP (When Ready)
+------
+
+On Railway:
+
+1. Get PostgreSQL connection string:
+   Railway → Your Project → PostgreSQL → Connect
+   Copy: postgresql://...
+
+2. Add to Railway Web service variables:
+   Go to Web service → Variables
+   Add new variable:
+     KEY: DATABASE_URL
+     VALUE: postgresql://... (paste here)
+
+3. Test connection:
+   Railway auto-migrates on next deploy
+
+This creates persistent database!
+
+PHASE 3: SAFE DEPLOYMENT WORKFLOW
+------
+
+EVERY TIME YOU DEPLOY:
+
+Local (Before pushing):
+  1. Make code/schema changes
+  2. Test locally: npm run dev
+  3. Create migration: npm run db:migrate
+     (gives you migration file to commit)
+  4. Verify: npx prisma studio
+
+Git:
+  5. git add .
+  6. git commit -m "describe changes"
+  7. git push
+
+Railway (Auto on push):
+  8. Railway detects push
+  9. Runs: npm run build
+  10. Runs: npx prisma migrate deploy
+      (safely applies migrations, preserves data)
+  11. Starts new server with updated code
+  
+Data: PRESERVED ✓
+
+MIGRATION TYPES & SAFETY:
+
+Type A: SAFE (no data loss)
+- Add new field/table
+- Make field optional
+- Add new endpoints
+- Update UI components
+- Rename field with proper migration
+
+Type B: DANGEROUS (potential data loss)
+- Delete field/table without backup
+- Make field required if has NULLs
+- Using prisma migrate reset
+
+Type C: BLOCKED (do not do in production)
+- ✗ prisma migrate reset (destroys data!)
+- ✗ Force-push after migration
+- ✗ Deleting migrations folder
+- ✗ Manual SQL on production
+
+HOW TO MAKE SCHEMA CHANGES SAFELY:
+=========================================
+
+SCENARIO 1: ADD NEW FIELD
+---------
+
+// In prisma/schema.prisma
+model LR {
+  ...
+  newField    String?  // NEW - optional so safe
+}
+
+// Then:
+npm run db:migrate --name "add_newField"
+  → Creates migration file
+  → Shows what will change
+  → Applies to local SQLite
+  
+// Review migration file:
+prisma/migrations/[timestamp]_add_newField/migration.sql
+
+// Commit and push
+git add .
+git commit -m "feat: add newField to LR"
+git push
+  → Railway auto-deploys
+  → Migration applied
+  → Data preserved
+
+SCENARIO 2: RENAME FIELD
+---------
+
+// Use Prisma's rename feature:
+npm run db:migrate --name "rename_field"
+  → Interactive: shows old/new names
+  → Creates safe migration
+  → No data loss!
+
+SCENARIO 3: MAKE FIELD REQUIRED
+---------
+
+// Only safe if ALL existing records have values!
+
+// Step 1: Add default value
+model LR {
+  status String @default("LR Done")  // Add default
+}
+
+npm run db:migrate --name "set_status_required"
+
+// Step 2: Make required
+model LR {
+  status String  // Removed ?
+}
+
+npm run db:migrate --name "require_status"
+
+BACKUP & RESTORE:
+=========================================
+
+RAILWAY BACKUPS (Automatic):
+- Railway auto-backs up PostgreSQL
+- Goes back 7 days
+- Access from Railway dashboard
+
+MANUAL BACKUP:
+- Before major changes:
+  
+npx prisma db execute --stdin < backup.sql
+
+RESTORE FROM RAILWAY BACKUP:
+- Railway → PostgreSQL → Backups
+- Click restore button
+- Choose date
+- Done!
+
+DEPLOYMENT CHECKLIST:
+=========================================
+
+Before pushing to production:
+
+Code Changes:
+  □ Tested locally (npm run dev)
+  □ No console errors (F12)
+  □ Data looks correct (npx prisma studio)
+
+Schema Changes (if any):
+  □ Created migration (npm run db:migrate)
+  □ Reviewed migration file
+  □ Applied locally (auto with npm run db:migrate)
+  □ Verified data (npx prisma studio)
+  □ No Type B/C changes
+
+Commit & Push:
+  □ git status (clean)
+  □ git add .
+  □ git commit -m "..."
+  □ git push
+  □ Check Railway for errors
+
+Post-Deploy:
+  □ Visit deployed site
+  □ Test functionality
+  □ Check data integrity
+  □ If error: restore from Railway backup
+
+COMMON SCENARIOS:
+=========================================
+
+Scenario: "I want to add a new LR field"
+---------
+1. Add to schema.prisma (make optional with ?)
+2. npm run db:migrate --name "add_field"
+3. Review file
+4. Update frontend component
+5. git add . && git commit && git push
+6. Done!
+
+Scenario: "I broke something on production"
+---------
+1. Keep calm - data is safe
+2. Option A: Restore from Railway backup
+3. Option B: Fix code locally, deploy again
+4. Railway migrations are backward-safe
+
+Scenario: "Migration failed on Railway"
+---------
+1. Check Railway logs
+2. Usually: syntax error in migration.sql
+3. Fix locally, test with: npm run db:migrate:deploy
+4. Deploy again
+
+Scenario: "I need to seed with test data"
+---------
+1. Create prisma/seed.js
+2. Run: npm run db:seed
+3. Or add to package.json postinstall
+
+ENVIRONMENT VARIABLES:
+=========================================
+
+LOCAL (.env.local):
+  DATABASE_URL="file:./prisma/dev.db"
+
+RAILWAY (set in dashboard):
+  DATABASE_URL="postgresql://..."
+  (automatically used on deploy)
+
+NEVER:
+  - Don't commit .env.local with real URLs
+  - Don't put Railway DATABASE_URL in git
+  - Always use Railway dashboard for prod secrets
+
+MONITORING DEPLOYED DATABASE:
+=========================================
+
+Check what's deployed:
+1. Railway dashboard → PostgreSQL → Data
+2. Or use: npx prisma studio (if connected to prod URL)
+
+View logs:
+1. Railway → Web service → Logs
+2. See migration execution
+3. See errors if any
+
+TROUBLESHOOTING:
+=========================================
+
+"Migration failed on deploy"
+  → Check Railway logs
+  → Verify schema.prisma syntax
+  → Re-push if transient error
+
+"Data disappeared after deploy"
+  → Check if restore from backup available
+  → Never happened with proper migrations
+  → Restore from Railway backup
+
+"Can't connect locally"
+  → Verify .env.local has DATABASE_URL
+  → Check file path is correct
+  → Try: npx prisma generate
+
+"Deployed site shows error"
+  → Check Railway logs (Web service)
+  → Verify DATABASE_URL is set in Railway
+  → Check if migration applied (logs show this)
+  → Restore backup if critical
+
+BEST PRACTICES:
+=========================================
+
+✅ DO:
+- Use prisma migrate for all schema changes
+- Test migrations locally first
+- Keep migrations in git history
+- Make fields optional before required
+- Backup before major changes
+- Review migration SQL files
+- Deploy frequently (small changes)
+
+✗ DON'T:
+- Use prisma migrate reset in production
+- Delete migration files
+- Make breaking schema changes
+- Push without testing locally
+- Put secrets in .env files in git
+- Force-push after migrations
+
+PERSISTENCE GUARANTEE:
+=========================================
+
+With this setup:
+
+✓ Data survives code deployments
+✓ Data survives schema migrations
+✓ Can restore from backups
+✓ Multiple developers safe
+✓ Safe rollback capability
+✓ No accidental data loss
+
+Your deployed database is PERSISTENT!
+
+FINAL SETUP STEPS:
+=========================================
+
+1. Keep local SQLite for development
+   DATABASE_URL="file:./prisma/dev.db"
+
+2. When ready, add Railway PostgreSQL to variables
+   DATABASE_URL="postgresql://..."
+
+3. Each deployment runs:
+   npx prisma migrate deploy
+   (applies migrations safely, preserves data)
+
+4. Data is always persistent!
+
+Questions?
+Check: https://www.prisma.io/docs/orm/prisma-migrate/workflows/team-dev-guide

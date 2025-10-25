@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, FileText, Truck, Calendar, MapPin, Hash, Save, Check } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { ArrowLeft, FileText, Truck, Calendar, MapPin, Hash, Save, Check, Download } from 'lucide-react';
 import { VEHICLE_AMOUNTS, FROM_LOCATIONS, TO_LOCATIONS, LR_PREFIX } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label';
 
 interface ReworkBillFormProps {
   onBack: () => void;
+  selectedLrs?: string[];
 }
 
 interface ReworkBillData {
@@ -22,7 +24,8 @@ interface ReworkBillData {
   'Amount': number;
 }
 
-export default function ReworkBillForm({ onBack }: ReworkBillFormProps) {
+export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillFormProps) {
+  const session = useSession(); // Call hook at top level
   const [billNo, setBillNo] = useState('');
   const [submissionDate, setSubmissionDate] = useState('');
   const [showBillNoModal, setShowBillNoModal] = useState(true);
@@ -42,6 +45,7 @@ export default function ReworkBillForm({ onBack }: ReworkBillFormProps) {
   const [generating, setGenerating] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [generatedFile, setGeneratedFile] = useState<any>(null);
+  const [autoGenerateMode, setAutoGenerateMode] = useState(false);
 
   // Load saved entries when billNo changes
   useEffect(() => {
@@ -50,13 +54,31 @@ export default function ReworkBillForm({ onBack }: ReworkBillFormProps) {
     }
   }, [billNo]);
 
-  const handleBillNoConfirm = () => {
+  const handleBillNoConfirm = async () => {
     if (!tempBillNo.trim()) {
       alert('Please enter a bill number');
       return;
     }
-    setBillNo('MT/25-26/' + tempBillNo);
-    setShowBillNoModal(false);
+    if (!submissionDate) {
+      alert('Please enter a submission date');
+      return;
+    }
+    
+    const fullBillNo = 'MT/25-26/' + tempBillNo;
+    
+    // If we have selected LRs, set auto-generate mode BEFORE hiding modal
+    if (selectedLrs.length > 0) {
+      setAutoGenerateMode(true);
+      setBillNo(fullBillNo);
+      setShowBillNoModal(false);
+      // Small delay to ensure state update is processed
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await autoGenerateFromSelectedLrs(fullBillNo);
+    } else {
+      // No selected LRs, show manual form
+      setBillNo(fullBillNo);
+      setShowBillNoModal(false);
+    }
   };
 
   const loadSavedEntries = async () => {
@@ -72,6 +94,98 @@ export default function ReworkBillForm({ onBack }: ReworkBillFormProps) {
       }
     } catch (error) {
       console.error('Error loading saved entries:', error);
+    }
+  };
+
+  // Auto-generate Rework Bill from selected LRs
+  const autoGenerateFromSelectedLrs = async (fullBillNo: string) => {
+    if (selectedLrs.length === 0) return;
+    
+    setGenerating(true);
+    try {
+      console.log('[REWORK-AUTO-GENERATE] Starting with selectedLrs:', selectedLrs);
+      console.log('[REWORK-AUTO-GENERATE] Using billNo:', fullBillNo);
+      console.log('[REWORK-AUTO-GENERATE] Using submissionDate:', submissionDate);
+      
+      // Fetch LR data for selected LRs
+      const lrDataPromises = selectedLrs.map(async (lrNo) => {
+        console.log('[REWORK-AUTO-GENERATE] Fetching LR:', lrNo);
+        const response = await fetch(`/api/lrs/${encodeURIComponent(lrNo)}`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[REWORK-AUTO-GENERATE] Fetched LR data:', data.lr);
+          return data.lr;
+        } else {
+          console.error('[REWORK-AUTO-GENERATE] Failed to fetch LR:', lrNo, response.status);
+          return null;
+        }
+      });
+      
+      const lrDataArray = await Promise.all(lrDataPromises);
+      const validLrData = lrDataArray.filter(lr => lr !== null);
+      
+      console.log('[REWORK-AUTO-GENERATE] Valid LR data:', validLrData);
+      
+      if (validLrData.length === 0) {
+        alert('No valid LR data found');
+        return;
+      }
+      
+      // Convert LR data to Rework Bill format
+      const reworkBillEntries = validLrData.map(lr => {
+        // Calculate 80% of vehicle type amount for rework
+        const vehicleType = lr['Vehicle Type'] || 'PICKUP';
+        const baseAmount = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
+        const amount = Math.round(baseAmount * 0.8);
+        
+        const entry = {
+          'LR Date': lr['LR Date'] || '',
+          'LR No': lr['LR No'] || '',
+          'Vehicle No': lr['Vehicle Number'] || '',
+          'Vehicle Type': vehicleType,
+          'FROM': lr['FROM'] || '',
+          'TO': lr['TO'] || '',
+          'Amount': amount,
+          'Bill No': fullBillNo,
+          'Submission Date': submissionDate,
+        };
+        
+        console.log('[REWORK-AUTO-GENERATE] Created entry:', entry);
+        return entry;
+      });
+      
+      console.log('[REWORK-AUTO-GENERATE] All entries:', reworkBillEntries);
+      
+      // Generate the bill directly
+      const response = await fetch('/api/rework-bills/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          submissionDate,
+          billNo: fullBillNo,
+          entries: reworkBillEntries,
+        }),
+      });
+
+      console.log('[REWORK-AUTO-GENERATE] API response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[REWORK-AUTO-GENERATE] Success response:', data);
+        setGeneratedFile(data);
+        setShowDownloadModal(true);
+      } else {
+        const errorText = await response.text();
+        console.error('[REWORK-AUTO-GENERATE] API error:', errorText);
+        alert(`Failed to generate rework bill: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('[REWORK-AUTO-GENERATE] Error:', error);
+      alert(`Error generating rework bill: ${(error as Error).message}`);
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -280,12 +394,78 @@ export default function ReworkBillForm({ onBack }: ReworkBillFormProps) {
     }
   };
 
+  // If auto-generating, show only loading modal or download modal
+  if (autoGenerateMode) {
+    // Show download modal if generation is complete
+    if (showDownloadModal && generatedFile) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-slate-50 flex items-center justify-center p-4">
+          <Card className="max-w-2xl w-full">
+            <CardHeader className="bg-green-50 border-b border-green-200">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-500 p-3 rounded-full">
+                  <Check className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl text-green-700">Rework Bill Generated Successfully!</CardTitle>
+                  <CardDescription className="text-green-600 mt-1">Your rework bill is ready for download</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-gray-700">
+                    File saved in: <code className="bg-green-100 px-2 py-1 rounded">{generatedFile.filePath}</code>
+                  </p>
+                </div>
+                <Button
+                  onClick={async () => {
+                    await downloadFile(generatedFile.filePath, generatedFile.filePath.split(/[/\\]/).pop() || 'rework-bill.xlsx');
+                  }}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  size="lg"
+                >
+                  <Download className="mr-2 h-5 w-5" />
+                  Download Rework Bill
+                </Button>
+                <Button
+                  onClick={onBack}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Back to Dashboard
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    
+    // Show loading modal while generating
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-slate-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+              Generating Rework Bill...
+            </CardTitle>
+            <CardDescription>
+              Please wait while we generate your rework bill from selected LRs
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show bill number modal (auto-generates when Continue is clicked)
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-slate-50 flex items-center justify-center p-4">
       {/* Bill Number Modal */}
-      {showBillNoModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="bg-orange-100 p-3 rounded-lg">
                 <FileText className="w-6 h-6 text-orange-600" />
@@ -317,10 +497,25 @@ export default function ReworkBillForm({ onBack }: ReworkBillFormProps) {
                   />
                 </div>
               </div>
+              <div>
+                <Label htmlFor="submissionDateInput" className="flex items-center gap-2 mb-2">
+                  <Calendar className="h-4 w-4 text-orange-600" />
+                  Submission Date
+                </Label>
+                <Input
+                  id="submissionDateInput"
+                  type="date"
+                  value={submissionDate}
+                  onChange={(e) => setSubmissionDate(e.target.value)}
+                  className="border-orange-200 focus:border-orange-400"
+                  required
+                />
+              </div>
               <div className="flex gap-3">
                 <Button
                   onClick={handleBillNoConfirm}
                   className="bg-orange-600 hover:bg-orange-700 text-white flex-1"
+                  disabled={!tempBillNo || !submissionDate}
                 >
                   Continue
                 </Button>
@@ -333,384 +528,6 @@ export default function ReworkBillForm({ onBack }: ReworkBillFormProps) {
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="bg-gradient-to-r from-orange-600 to-orange-800 text-white py-6 shadow-lg">
-        <div className="container mx-auto px-4 flex items-center gap-4">
-          <Button 
-            onClick={onBack}
-            variant="outline"
-            className="bg-white/20 text-white border-white/30 hover:bg-white/30"
-          >
-            <ArrowLeft className="mr-2 h-5 w-5" />
-            Back to Dashboard
-          </Button>
-          <div className="flex items-center gap-3">
-            <div className="bg-white/20 backdrop-blur-sm p-3 rounded-lg">
-              <FileText className="w-8 h-8" />
-            </div>
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold">Rework Bill - {billNo}</h1>
-              <p className="text-orange-100 mt-1">Generate Rework Bill (80% of Vehicle Amount)</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 py-8">
-        <Card className="max-w-4xl mx-auto">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-6 w-6 text-orange-600" />
-              Rework Bill Details
-            </CardTitle>
-            <CardDescription>
-              Enter the required information to generate a rework bill. Amount will be automatically calculated as 80% of the vehicle type amount.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Submission Date - Separate Section at Top */}
-            <div className="mb-6 p-4 bg-orange-50 rounded-lg border border-orange-200">
-              <div className="space-y-2">
-                <Label htmlFor="submissionDate" className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-orange-600" />
-                  Submission Date (For All Entries)
-                </Label>
-                <Input
-                  id="submissionDate"
-                  type="date"
-                  value={submissionDate}
-                  onChange={(e) => setSubmissionDate(e.target.value)}
-                  required
-                  className="border-orange-200 focus:border-orange-400 max-w-xs"
-                />
-                <p className="text-sm text-gray-600">
-                  This date applies to all LR entries under Bill No: <span className="font-semibold text-orange-600">{billNo}</span>
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* LR Date */}
-                <div className="space-y-2">
-                  <Label htmlFor="lrDate" className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-orange-600" />
-                    LR Date
-                  </Label>
-                  <Input
-                    id="lrDate"
-                    type="date"
-                    value={formData['LR Date']}
-                    onChange={(e) => handleInputChange('LR Date', e.target.value)}
-                    required
-                    className="border-orange-200 focus:border-orange-400"
-                  />
-                </div>
-
-                {/* LR No */}
-                <div className="space-y-2">
-                  <Label htmlFor="lrNo" className="flex items-center gap-2">
-                    <Hash className="h-4 w-4 text-orange-600" />
-                    LR No
-                  </Label>
-                  <div className="flex">
-                    <div className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-l-md text-gray-600 font-mono">
-                      {LR_PREFIX}
-                    </div>
-                    <Input
-                      id="lrNo"
-                      type="text"
-                      value={formData['LR No'].replace(LR_PREFIX, '')}
-                      onChange={(e) => handleInputChange('LR No', LR_PREFIX + e.target.value)}
-                      placeholder="Enter LR Number"
-                      required
-                      className="border-orange-200 rounded-l-none focus:border-orange-400"
-                    />
-                  </div>
-                  <p className="text-xs text-orange-600">
-                    Bill No: MT/25-26/{billNo} | Submission Date: {submissionDate}
-                  </p>
-                </div>
-
-                {/* Vehicle No */}
-                <div className="space-y-2">
-                  <Label htmlFor="vehicleNo" className="flex items-center gap-2">
-                    <Truck className="h-4 w-4 text-orange-600" />
-                    Vehicle No
-                  </Label>
-                  <Input
-                    id="vehicleNo"
-                    type="text"
-                    value={formData['Vehicle No']}
-                    onChange={(e) => handleInputChange('Vehicle No', e.target.value)}
-                    placeholder="Enter Vehicle Number"
-                    required
-                    className="border-orange-200 focus:border-orange-400"
-                  />
-                </div>
-
-                {/* Vehicle Type */}
-                <div className="space-y-2">
-                  <Label htmlFor="vehicleType" className="flex items-center gap-2">
-                    <Truck className="h-4 w-4 text-orange-600" />
-                    Vehicle Type
-                  </Label>
-                  <select
-                    id="vehicleType"
-                    value={formData['Vehicle Type']}
-                    onChange={(e) => handleInputChange('Vehicle Type', e.target.value)}
-                    required
-                    className="w-full px-3 py-2 border border-orange-200 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400"
-                  >
-                    <option value="">Select Vehicle Type</option>
-                    {Object.keys(VEHICLE_AMOUNTS).map(type => (
-                      <option key={type} value={type}>
-                        {type} (Base: ₹{VEHICLE_AMOUNTS[type as keyof typeof VEHICLE_AMOUNTS].toLocaleString()})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* FROM */}
-                <div className="space-y-2">
-                  <Label htmlFor="from" className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-orange-600" />
-                    FROM
-                  </Label>
-                  <select
-                    id="from"
-                    value={formData['FROM']}
-                    onChange={(e) => handleInputChange('FROM', e.target.value)}
-                    required
-                    className="w-full px-3 py-2 border border-orange-200 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400"
-                  >
-                    <option value="">Select FROM Location</option>
-                    {FROM_LOCATIONS.map(location => (
-                      <option key={location} value={location}>{location}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* TO */}
-                <div className="space-y-2">
-                  <Label htmlFor="to" className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-orange-600" />
-                    TO
-                  </Label>
-                  <select
-                    id="to"
-                    value={formData['TO']}
-                    onChange={(e) => handleInputChange('TO', e.target.value)}
-                    required
-                    className="w-full px-3 py-2 border border-orange-200 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400"
-                  >
-                    <option value="">Select TO Location</option>
-                    {TO_LOCATIONS.map(location => (
-                      <option key={location} value={location}>{location}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Amount Display */}
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold text-orange-800">Calculated Amount (80% of Vehicle Type)</h3>
-                    <p className="text-sm text-orange-600">
-                      {formData['Vehicle Type'] ? 
-                        `${VEHICLE_AMOUNTS[formData['Vehicle Type'] as keyof typeof VEHICLE_AMOUNTS]} × 0.8 = ${formData.Amount.toLocaleString()}` :
-                        'Select a vehicle type to see calculation'
-                      }
-                    </p>
-                  </div>
-                  <div className="text-2xl font-bold text-orange-600">
-                    ₹{formData.Amount.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <div className="flex justify-end gap-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onBack}
-                  className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={loading || !billNo || !submissionDate || !formData['LR Date'] || !formData['LR No'] || !formData['Vehicle No'] || !formData['Vehicle Type'] || !formData['FROM'] || !formData['TO']}
-                  className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Saving...
-                    </>
-                  ) : saved ? (
-                    <>
-                      <Check className="mr-2 h-5 w-5" />
-                      Saved Successfully!
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-5 w-5" />
-                      Save Entry
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Saved Entries Table */}
-        <Card className="max-w-6xl mx-auto mt-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-6 w-6 text-orange-600" />
-                Saved Entries ({savedEntries.length})
-              </CardTitle>
-              <CardDescription>
-                All saved entries for Bill No: MT/25-26/{billNo} | Submission Date: {submissionDate}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-orange-50">
-                      <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase tracking-wider">LR No</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase tracking-wider">LR Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase tracking-wider">Vehicle No</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase tracking-wider">Vehicle Type</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase tracking-wider">FROM</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase tracking-wider">TO</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase tracking-wider">Amount</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-orange-600 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {savedEntries.length > 0 ? (
-                      savedEntries.map((entry, index) => (
-                        <tr key={index} className="hover:bg-orange-50">
-                          <td className="px-4 py-4 font-medium text-gray-900">{entry['LR No']}</td>
-                          <td className="px-4 py-4 text-sm text-gray-600">{entry['LR Date']}</td>
-                          <td className="px-4 py-4 text-sm text-gray-600">{entry['Vehicle No']}</td>
-                          <td className="px-4 py-4 text-sm text-gray-600">{entry['Vehicle Type']}</td>
-                          <td className="px-4 py-4 text-sm text-gray-600">{entry['FROM']}</td>
-                          <td className="px-4 py-4 text-sm text-gray-600">{entry['TO']}</td>
-                          <td className="px-4 py-4 text-sm font-semibold text-orange-600">₹{entry['Amount']?.toLocaleString()}</td>
-                          <td className="px-4 py-4 text-sm text-gray-600">
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleEditEntry(entry)}
-                                className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleDeleteEntry(entry)}
-                                className="text-red-600 border-red-300 hover:bg-red-50"
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                          No entries saved yet. Fill the form above and click "Save Entry" to add LR entries.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              
-              {/* Generate Bill Button */}
-              <div className="mt-6">
-                {(!submissionDate) && (
-                  <p className="text-center text-red-600 mb-2 text-sm">
-                    ⚠️ Please enter Submission Date at the top to enable bill generation
-                  </p>
-                )}
-                {(savedEntries.length === 0) && submissionDate && (
-                  <p className="text-center text-orange-600 mb-2 text-sm">
-                    ⚠️ No entries saved yet. Save at least one LR entry above.
-                  </p>
-                )}
-                <div className="flex justify-center">
-                  <Button
-                    onClick={generateBill}
-                    disabled={generating || savedEntries.length === 0 || !billNo || !submissionDate}
-                    className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 px-8 py-3"
-                  >
-                  {generating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      Generating Bill...
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="mr-2 h-5 w-5" />
-                      Generate Rework Bill ({savedEntries.length} entries)
-                    </>
-                  )}
-                </Button>
-              </div>
-              </div>
-            </CardContent>
-          </Card>
-      </div>
-
-      {/* Download Modal */}
-      {showDownloadModal && generatedFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Rework Bill Generated Successfully!</h3>
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600">
-                File: <span className="font-mono text-orange-600">REWORK_BILL_MT_25-26_{billNo.replace('MT/25-26/', '').replace(/\//g, '_')}.xlsx</span>
-              </p>
-              <p className="text-sm text-gray-600">
-                Entries Processed: {generatedFile.entriesProcessed}
-              </p>
-              {generatedFile.s3Url && (
-                <p className="text-sm text-gray-600">
-                  Uploaded to S3: <span className="text-green-600">✓ Success</span>
-                </p>
-              )}
-            </div>
-            <div className="flex gap-3 mt-6">
-              <Button
-                onClick={() => downloadFile(generatedFile.filePath, `REWORK_BILL_MT_25-26_${billNo.replace('MT/25-26/', '').replace(/\//g, '_')}.xlsx`)}
-                className="bg-orange-600 hover:bg-orange-700 text-white"
-              >
-                Download File
-              </Button>
-              <Button
-                onClick={closeDownloadModal}
-                variant="outline"
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

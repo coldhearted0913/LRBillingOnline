@@ -1,0 +1,235 @@
+🔄 DATABASE SYNC STRATEGY - LOCAL VS RAILWAY
+================================================
+
+CURRENT STATE:
+- Local DB (SQLite): 0 LRs
+- Deployed DB (Railway/PostgreSQL): 3 LRs
+- Problem: Risk of data loss when pushing updates
+
+RECOMMENDED APPROACH:
+================================================
+
+OPTION A: USE RAILWAY DATABASE EVERYWHERE (RECOMMENDED)
+---------
+Best practice - single source of truth
+
+Steps:
+1. Update local .env.local to use Railway PostgreSQL
+   DATABASE_URL="postgresql://user:pass@host/db"
+   
+2. Run: npx prisma migrate deploy (syncs schema)
+
+3. Local dev now uses same DB as production
+
+4. All pushes are safe (same data)
+
+Pros:
+- No sync issues
+- Real-time collaboration
+- Single source of truth
+- No data loss risk
+
+Cons:
+- Needs internet for local development
+- Slower than local SQLite
+
+OPTION B: BACKUP & RESTORE WORKFLOW
+---------
+Use with OPTION A - for safety
+
+Steps:
+1. Export Railway data:
+   npx prisma db pull (pulls schema from Railway)
+   
+2. Create backup locally:
+   npx prisma migrate save --name backup
+   
+3. Seed local with Railway data:
+   Create migration with existing Railway data
+   
+Pros:
+- Local development works offline
+- Full backup of production
+
+Cons:
+- Manual sync needed before each deploy
+- Risk if you forget to sync
+
+WHAT I RECOMMEND:
+================================================
+
+DO THIS:
+
+1. Get Railway DATABASE_URL from Railway dashboard
+
+2. Update .env.local:
+   DATABASE_URL="postgresql://..."  (Railway's PostgreSQL)
+
+3. Run local migrations:
+   npx prisma migrate deploy
+
+4. Now you have:
+   - Local dev pointing to Railway DB
+   - Zero data loss
+   - Automatic sync
+
+5. Before each deploy:
+   - Just do: git push
+   - No schema conflicts
+   - All data persists
+
+DEPLOYING UPDATES SAFELY:
+================================================
+
+Current Risk: Pushing schema changes corrupts data
+
+Safe Deploy Process:
+
+1. Test locally (against Railway DB)
+   npm run dev
+
+2. If schema changes needed:
+   npx prisma migrate dev --name your_change
+   
+   This will:
+   - Show what changes
+   - Ask for confirmation
+   - Apply to local Railway DB connection
+   
+3. Review migration files:
+   prisma/migrations/
+
+4. Push to GitHub:
+   git add .
+   git commit -m "schema change: ..."
+   git push
+
+5. Railway auto-deploys:
+   - Runs: npx prisma migrate deploy
+   - Applies migrations safely
+   - PRESERVES DATA
+
+No data loss!
+
+SWITCHING TO POSTGRESQL:
+================================================
+
+Since Railway uses PostgreSQL (not SQLite):
+
+1. Update prisma/schema.prisma:
+   provider = "postgresql"  (it's already set!)
+
+2. Get connection string from Railway:
+   railway console
+   Show DATABASE_URL
+
+3. In .env.local:
+   DATABASE_URL="postgresql://..."
+
+4. Verify schema matches:
+   npx prisma migrate status
+
+5. Done! Local uses Railway DB
+
+KEY COMMANDS:
+================================================
+
+# Switch back to local SQLite (dev only):
+DATABASE_URL="file:./prisma/dev.db" npm run dev
+
+# Use Railway PostgreSQL:
+# (Put PostgreSQL URL in .env.local)
+npm run dev
+
+# Check migration status:
+npx prisma migrate status
+
+# Export Railway schema locally:
+npx prisma db pull
+
+# View what changed:
+npx prisma migrate diff
+
+# Check current DB:
+npx prisma studio
+
+BACKUP STRATEGY:
+================================================
+
+Before any deploy:
+
+1. Download Railway DB backup:
+   railway db backup
+
+2. Keep locally:
+   prisma/backups/
+
+3. If something breaks:
+   Restore from Railway dashboard
+
+MIGRATION CHECKLIST:
+================================================
+
+Before committing schema changes:
+
+□ Test locally (npm run dev)
+□ Verify data with: npx prisma studio
+□ Check migration file: prisma/migrations/[name]/migration.sql
+□ Run: npx prisma migrate deploy (local test)
+□ Verify data still there: npx prisma studio
+□ Commit and push
+□ Railway auto-deploys
+□ Check deployed site
+□ Verify data on Railway DB
+
+DATA LOSS PREVENTION:
+================================================
+
+What CAN cause data loss:
+- ✗ Changing .env.local back to local SQLite
+- ✗ Running: npx prisma migrate reset (NEVER do this in production)
+- ✗ Deleting prisma/migrations/ folder
+- ✗ Force-pushing after schema change
+
+What's SAFE:
+- ✓ Running migrations with: npx prisma migrate deploy
+- ✓ Adding new fields
+- ✓ Renaming fields properly
+- ✓ Making fields optional
+- ✓ All normal schema changes
+
+GOTCHAS:
+================================================
+
+1. Prisma Migrate vs Direct SQL:
+   - Always use: npx prisma migrate dev --name change_name
+   - Never run direct SQL
+   - Keeps migrations tracked
+
+2. Railway auto-deploys:
+   - Check postinstall script: "prisma generate"
+   - No need to run migrate manually (Railway does it)
+
+3. Local dev database:
+   - If using Railway, your local = production
+   - Be careful with DELETE queries in dev
+   - They affect production!
+
+FINAL RECOMMENDATION:
+================================================
+
+✅ DO THIS NOW:
+
+1. Get Railway PostgreSQL connection string
+2. Update .env.local with it
+3. Run: npx prisma migrate deploy
+4. Verify with: npx prisma studio (should see 3 LRs!)
+5. You're synced!
+
+For future development:
+- Always test against Railway DB locally
+- No separate local SQLite needed
+- Each migration auto-applies to Railway
+- No more sync headaches
+
+Questions? Check prisma.io/docs

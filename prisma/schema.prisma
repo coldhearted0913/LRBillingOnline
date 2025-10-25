@@ -1,5 +1,5 @@
 // Prisma Schema for LR Billing App
-// Database: PostgreSQL (for AWS deployment)
+// Database: SQLite (local dev), PostgreSQL (production/Railway)
 
 generator client {
   provider = "prisma-client-js"
@@ -22,7 +22,8 @@ model LR {
   // Location Fields
   fromLocation          String?  @map("from_location")
   toLocation            String?   @map("to_location")
-  materialSupplyTo      String?  @map("material_supply_to")
+  consignor             String?  @map("consignor")
+  consignee             String?  @map("consignee")
   
   // Weight & Cargo
   loadedWeight          String?  @map("loaded_weight")
@@ -46,6 +47,9 @@ model LR {
   // Status tracking
   status                String   @default("LR Done") @map("status")
   
+  // Remarks/Notes
+  remark                String?  @map("remark")
+  
   // Bill-specific fields for Rework and Additional Bills
   billSubmissionDate    String?  @map("bill_submission_date")
   billNumber           String?  @map("bill_number")
@@ -56,6 +60,94 @@ model LR {
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
   
+  // Relations for tracking who created/updated
+  createdBy             String?  @map("created_by")
+  updatedBy             String?  @map("updated_by")
+  
   @@map("lrs")
+}
+
+// User model for authentication
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String?   // hashed password
+  name          String?
+  role          String    @default("WORKER") // CEO, MANAGER, WORKER
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  auditLogs     AuditLog[]
+  
+  @@map("users")
+}
+
+// Audit log model for tracking all actions
+model AuditLog {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action        String    // CREATE, EDIT, DELETE, LOGIN, LOGOUT, etc
+  resource      String    // LR, BILL, USER, etc
+  resourceId    String?   // which record was affected
+  oldValue      String?   // JSON string of old value
+  newValue      String?   // JSON string of new value
+  ipAddress     String?
+  timestamp     DateTime  @default(now())
+  
+  @@map("audit_logs")
+  @@index([userId])
+  @@index([timestamp])
+}
+
+// Archive model for deleted LRs - permanent backup
+model ArchiveLR {
+  id                    String   @id @default(cuid())
+  
+  // Same fields as LR model
+  lrNo                  String   @map("lr_no")
+  lrDate                String   @map("lr_date")
+  vehicleType           String   @map("vehicle_type")
+  vehicleNumber         String?  @map("vehicle_number")
+  
+  fromLocation          String?  @map("from_location")
+  toLocation            String?  @map("to_location")
+  consignor             String?  @map("consignor")
+  consignee             String?  @map("consignee")
+  
+  loadedWeight          String?  @map("loaded_weight")
+  emptyWeight           String?  @map("empty_weight")
+  descriptionOfGoods    String?  @map("description_of_goods")
+  quantity              String?
+  
+  koelGateEntryNo       String?  @map("koel_gate_entry_no")
+  koelGateEntryDate     String?  @map("koel_gate_entry_date")
+  weightslipNo          String?  @map("weightslip_no")
+  
+  totalNoOfInvoices     String?  @map("total_no_of_invoices")
+  invoiceNo             String?  @map("invoice_no")
+  
+  grrNo                 String?  @map("grr_no")
+  grrDate               String?  @map("grr_date")
+  
+  status                String   @map("status")
+  remark                String?  @map("remark")
+  
+  billSubmissionDate    String?  @map("bill_submission_date")
+  billNumber           String?  @map("bill_number")
+  deliveryLocations    String?  @map("delivery_locations")
+  amount               Float?   @map("amount")
+  
+  // Archive metadata
+  originalCreatedAt     DateTime @map("original_created_at")
+  originalUpdatedAt     DateTime @map("original_updated_at")
+  deletedAt             DateTime @default(now()) @map("deleted_at")
+  deletedBy             String?  @map("deleted_by")
+  
+  @@map("archive_lrs")
+  @@index([lrNo])
+  @@index([deletedAt])
 }
 
