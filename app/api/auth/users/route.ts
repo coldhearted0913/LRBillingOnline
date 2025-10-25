@@ -14,13 +14,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user from database to check role
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
+    // Use role from session instead of DB query (already cached)
+    const userRole = (session.user as any)?.role;
 
     // Only CEO can view all users
-    if (!user || user.role !== "CEO") {
+    if (userRole !== "CEO") {
       return NextResponse.json(
         { error: "Forbidden. Only CEO can view users." },
         { status: 403 }

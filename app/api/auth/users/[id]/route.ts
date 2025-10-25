@@ -17,13 +17,12 @@ export async function DELETE(
       );
     }
 
-    // Get current user to check role
-    const currentUser = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
+    // Use role from session instead of DB query (already cached)
+    const userRole = (session.user as any)?.role;
+    const userId = (session.user as any)?.id;
 
     // Only CEO can delete users
-    if (!currentUser || currentUser.role !== "CEO") {
+    if (userRole !== "CEO") {
       return NextResponse.json(
         { error: "Forbidden. Only CEO can delete users." },
         { status: 403 }
@@ -42,7 +41,7 @@ export async function DELETE(
       );
     }
 
-    if (userToDelete.id === currentUser.id) {
+    if (userToDelete.id === userId) {
       return NextResponse.json(
         { error: "Cannot delete your own account" },
         { status: 400 }
@@ -81,13 +80,12 @@ export async function PATCH(
       );
     }
 
-    // Get current user to check role
-    const currentUser = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    });
+    // Use role from session instead of DB query (already cached)
+    const userRole = (session.user as any)?.role;
+    const userId = (session.user as any)?.id;
 
     // Only CEO can update user roles
-    if (!currentUser || currentUser.role !== "CEO") {
+    if (userRole !== "CEO") {
       return NextResponse.json(
         { error: "Forbidden. Only CEO can update user roles." },
         { status: 403 }
@@ -104,7 +102,7 @@ export async function PATCH(
     }
 
     // Check if trying to change their own role
-    if (params.id === currentUser.id) {
+    if (params.id === userId) {
       return NextResponse.json(
         { error: "Cannot change your own role. At least one CEO must remain admin." },
         { status: 400 }
