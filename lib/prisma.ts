@@ -15,9 +15,12 @@ const getConnectionString = () => {
     try {
       const url = new URL(connectionString);
       
-      // Add connection pool parameters for better stability
+      // CRITICAL: Connection pool parameters for Railway/Neon
+      // These prevent "connection pool timeout" errors
       url.searchParams.set('pgbouncer', 'true'); // Use PgBouncer-compatible mode
-      url.searchParams.set('connect_timeout', '10'); // 10 second connection timeout
+      url.searchParams.set('connect_timeout', '30'); // Increase to 30 seconds
+      url.searchParams.set('connection_limit', '5'); // Limit to 5 connections per instance
+      url.searchParams.set('pool_timeout', '30'); // 30 second pool timeout
       url.searchParams.set('application_name', 'lr-billing-app');
       
       return url.toString();
@@ -47,8 +50,8 @@ export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   // Performance optimizations
   errorFormat: 'minimal', // Faster error handling
-  // Disable slow query logging in production
-  // Add query timeout for long-running queries
+  // CRITICAL: Disable the heartbeat in production to prevent connection pool exhaustion
+  // The heartbeat interferes with the connection pool limits
 });
 
 // Note: Connection recovery is handled by the middleware and query retries below
@@ -99,11 +102,13 @@ prisma.$use(async (params, next) => {
   }
 });
 
-// Heartbeat to keep connection alive (every 4 minutes to stay under 5-minute timeout)
-if (typeof window === 'undefined') {
+// CRITICAL: Disable heartbeat in production to prevent connection pool exhaustion
+// The heartbeat was causing the connection pool to exhaust its 5-connection limit
+// Neon's connection pooler handles connection lifecycle automatically
+if (typeof window === 'undefined' && process.env.NODE_ENV === 'development') {
   setInterval(async () => {
     try {
-      // Simple query to keep connection alive
+      // Simple query to keep connection alive (only in development)
       await prisma.$queryRaw`SELECT 1`;
       console.log('💓 Connection heartbeat OK');
     } catch (error) {
