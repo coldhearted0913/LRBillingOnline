@@ -4,12 +4,23 @@ import path from 'path';
 
 // Get fresh config on each call (to pick up env vars)
 const getS3Config = () => {
-  return {
+  const config = {
     region: process.env.S3_REGION || 'ap-south-1',
     bucket: process.env.S3_BUCKET_NAME || 'lr-billing-invoices-mangesh',
     accessKeyId: process.env.S3_ACCESS_KEY_ID,
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
   };
+  
+  // Debug logging
+  console.log('🔍 S3 Config Check:', {
+    region: config.region,
+    bucket: config.bucket,
+    hasAccessKey: !!config.accessKeyId,
+    hasSecretKey: !!config.secretAccessKey,
+    // Don't log actual keys for security
+  });
+  
+  return config;
 };
 
 let s3Client: S3Client | null = null;
