@@ -72,7 +72,7 @@ export const authOptions: NextAuthOptions = {
         token.lastChecked = Date.now();
       }
       
-      // Refresh user data on token update (every 5 minutes)
+      // Refresh user data on token update (every 5 minutes) - catch errors gracefully
       if (trigger === 'update' || (token.lastChecked && typeof token.lastChecked === 'number' && Date.now() - token.lastChecked > 5 * 60 * 1000)) {
         try {
           const dbUser = await prisma.user.findUnique({
@@ -80,7 +80,9 @@ export const authOptions: NextAuthOptions = {
           });
           
           if (!dbUser || !dbUser.isActive) {
-            return null as any;
+            // User not found or inactive - return current token instead of null
+            console.log('User not found or inactive, keeping current session');
+            return token;
           }
           
           token.role = dbUser.role;
@@ -88,18 +90,25 @@ export const authOptions: NextAuthOptions = {
           token.lastChecked = Date.now();
         } catch (error) {
           console.error('JWT callback error:', error);
+          // Return current token instead of failing
+          return token;
         }
       }
       
       return token;
     },
     async session({ session, token }) {
-      if (session.user && token.id) {
-        // Use cached data from token instead of DB query
-        (session.user as any).id = token.id as string;
-        (session.user as any).role = token.role;
-        (session.user as any).name = token.name;
-        (session.user as any).email = token.email;
+      try {
+        if (session.user && token.id) {
+          // Use cached data from token instead of DB query
+          (session.user as any).id = token.id as string;
+          (session.user as any).role = token.role;
+          (session.user as any).name = token.name;
+          (session.user as any).email = token.email;
+        }
+      } catch (error) {
+        console.error('Session callback error:', error);
+        // Return session even if there's an error
       }
       return session;
     },
