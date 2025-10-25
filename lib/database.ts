@@ -354,72 +354,40 @@ export const lrExists = async (lrNo: string): Promise<boolean> => {
   }
 };
 
-// Get LRs by month and year
+// Get LRs by month and year (optimized: uses SQL LIKE for better performance)
 export const getLRsByMonth = async (year: number, month: number): Promise<LRData[]> => {
   try {
-    const lrs = await prisma.lR.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
+    // Format month as 2 digits (e.g., "03" for March)
+    const monthStr = month.toString().padStart(2, '0');
     
-    // Filter by month/year
-    return lrs
-      .filter(lr => {
-        const lrDate = lr.lrDate;
-        if (!lrDate) return false;
-        
-        try {
-          const parts = lrDate.split('-');
-          if (parts.length === 3) {
-            const lrMonth = parseInt(parts[1]);
-            const lrYear = parseInt(parts[2]);
-            return lrYear === year && lrMonth === month;
-          }
-        } catch {
-          return false;
-        }
-        return false;
-      })
-      .map(fromPrismaFormat);
+    // Query with WHERE clause to filter at DB level (much faster than fetching all rows)
+    const lrs = await prisma.$queryRaw`
+      SELECT * FROM lrs 
+      WHERE lr_date LIKE ${`__-${monthStr}-${year}__`}
+      ORDER BY created_at DESC
+    ` as any[];
+    
+    return lrs.map(fromPrismaFormat);
   } catch (error) {
     console.error('Error getting LRs by month:', error);
     return [];
   }
 };
 
-// Get unique months
+// Get unique months (optimized: uses SQL DISTINCT for better performance)
 export const getUniqueMonths = async (): Promise<Array<{year: number, month: number}>> => {
   try {
-    const lrs = await prisma.lR.findMany({
-      select: { lrDate: true },
-    });
+    // Get unique month/year combinations directly from database
+    const results = await prisma.$queryRaw`
+      SELECT DISTINCT 
+        CAST(SUBSTRING(lr_date, 7) AS INTEGER) as year,
+        CAST(SUBSTRING(lr_date, 4, 2) AS INTEGER) as month
+      FROM lrs 
+      WHERE lr_date IS NOT NULL AND lr_date != ''
+      ORDER BY year DESC, month DESC
+    ` as Array<{year: number, month: number}>;
     
-    const months = new Set<string>();
-    
-    lrs.forEach(lr => {
-      const lrDate = lr.lrDate;
-      if (!lrDate) return;
-      
-      try {
-        const parts = lrDate.split('-');
-        if (parts.length === 3) {
-          const year = parseInt(parts[2]);
-          const month = parseInt(parts[1]);
-          months.add(`${year}-${month}`);
-        }
-      } catch {
-        return;
-      }
-    });
-    
-    return Array.from(months)
-      .map(m => {
-        const [year, month] = m.split('-');
-        return { year: parseInt(year), month: parseInt(month) };
-      })
-      .sort((a, b) => {
-        if (a.year !== b.year) return b.year - a.year;
-        return b.month - a.month;
-      });
+    return results;
   } catch (error) {
     console.error('Error getting unique months:', error);
     return [];
