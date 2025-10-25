@@ -87,6 +87,31 @@ export default function Dashboard() {
     setLoading(false);
   };
   
+  // ALL HOOKS MUST BE CALLED BEFORE ANY RETURNS
+  useEffect(() => {
+    if (status !== 'loading' && status !== 'unauthenticated') {
+      loadLRs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+  
+  useEffect(() => {
+    if (status === 'unauthenticated' && typeof window !== 'undefined') {
+      router.push('/login');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+  
+  // Show loading while checking session
+  if (status === 'loading') {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+  
+  // Don't render if not authenticated
+  if (status === 'unauthenticated') {
+    return null;
+  }
+  
   // Filter LRs by month/year and search
   const filterLRs = (allLrs: LRData[], month: string, year: string, search: string = '', statuses: Set<string> = new Set()) => {
     let filtered = allLrs;
@@ -238,30 +263,6 @@ export default function Dashboard() {
       endIndex: endIdx,
     };
   }, [filteredLrs, currentPage, itemsPerPage]);
-  
-  // ALL OTHER HOOKS MUST BE BEFORE RETURNS
-  useEffect(() => {
-    if (status !== 'loading' && status !== 'unauthenticated') {
-      loadLRs();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
-  
-  useEffect(() => {
-    if (status === 'unauthenticated' && typeof window !== 'undefined') {
-      router.push('/login');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
-  
-  // NOW WE CAN DO EARLY RETURNS AFTER ALL HOOKS
-  if (status === 'loading') {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
-  
-  if (status === 'unauthenticated') {
-    return null;
-  }
   
   // Go to page
   const goToPage = (page: number) => {
@@ -2060,4 +2061,3 @@ export default function Dashboard() {
       </Dialog>
     </div>
   );
-}
