@@ -97,11 +97,42 @@ const fromPrismaFormat = (prismaLr: any): LRData => {
   };
 };
 
-// Get all LRs
+// Get all LRs (optimized with select to reduce data transfer)
 export const getAllLRs = async (): Promise<LRData[]> => {
   try {
     const lrs = await prisma.lR.findMany({
       orderBy: { createdAt: 'desc' },
+      // Only select fields we actually need to reduce data transfer
+      select: {
+        id: true,
+        lrNo: true,
+        lrDate: true,
+        vehicleType: true,
+        vehicleNumber: true,
+        fromLocation: true,
+        toLocation: true,
+        consignor: true,
+        consignee: true,
+        loadedWeight: true,
+        emptyWeight: true,
+        descriptionOfGoods: true,
+        quantity: true,
+        koelGateEntryNo: true,
+        koelGateEntryDate: true,
+        weightslipNo: true,
+        totalNoOfInvoices: true,
+        invoiceNo: true,
+        grrNo: true,
+        grrDate: true,
+        status: true,
+        remark: true,
+        billSubmissionDate: true,
+        billNumber: true,
+        deliveryLocations: true,
+        amount: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
     return lrs.map(fromPrismaFormat);
   } catch (error) {

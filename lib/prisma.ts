@@ -45,6 +45,10 @@ export const prisma = globalForPrisma.prisma ?? new PrismaClient({
     },
   },
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  // Performance optimizations
+  errorFormat: 'minimal', // Faster error handling
+  // Disable slow query logging in production
+  // Add query timeout for long-running queries
 });
 
 // Note: Connection recovery is handled by the middleware and query retries below

@@ -60,6 +60,9 @@ model LR {
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
   
+  @@index([status])
+  @@index([lrDate])
+  @@index([createdAt])
   @@map("lrs")
 }
 
