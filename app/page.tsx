@@ -9,6 +9,7 @@ import {
   DollarSign, PieChart, TrendingDown
 } from 'lucide-react';
 import JSZip from 'jszip';
+import toast from 'react-hot-toast';
 import LRForm from '@/components/LRForm';
 import ReworkBillForm from '@/components/ReworkBillForm';
 import AdditionalBillForm from '@/components/AdditionalBillForm';
@@ -295,7 +296,7 @@ export default function Dashboard() {
   // Delete selected LRs
   const deleteSelected = async () => {
     if (selectedLrs.size === 0) {
-      alert('Please select at least one LR to delete');
+      toast.error('Please select at least one LR to delete');
       return;
     }
     
@@ -313,12 +314,13 @@ export default function Dashboard() {
       const data = await response.json();
       if (data.success) {
         setSelectedLrs(new Set());
+        toast.success(`Successfully deleted ${selectedLrs.size} LR(s)`);
         loadLRs();
       } else {
-        alert('Failed to delete LRs');
+        toast.error('Failed to delete LRs');
       }
     } catch (error) {
-      alert('Failed to delete LRs');
+      toast.error('Failed to delete LRs');
     }
   };
   
@@ -482,7 +484,7 @@ export default function Dashboard() {
   // Generate all bill types in one click
   const handleGenerateAllBills = () => {
     if (selectedLrs.size === 0) {
-      alert('Please select at least one LR to generate bills');
+      toast.error('Please select at least one LR to generate bills');
       return;
     }
     
@@ -524,7 +526,7 @@ export default function Dashboard() {
   
   const confirmGenerateAllBills = async () => {
     if (!submissionDate) {
-      alert('Please select a submission date');
+      toast.error('Please select a submission date');
       return;
     }
     
@@ -661,10 +663,10 @@ export default function Dashboard() {
       }
       
       if (allErrors.length > 0 && allResults.length === 0) {
-        alert(`⚠️ All bills failed:\n${allErrors.map(e => `- ${e.type}: ${e.error}`).join('\n')}`);
+        toast.error(`All bills failed: ${allErrors.map(e => `${e.type}`).join(', ')}`);
       }
     } catch (error) {
-      alert('Failed to generate bills. Please check if template files exist.');
+      toast.error('Failed to generate bills. Please check if template files exist.');
     } finally {
       setLoading(false);
     }
@@ -691,19 +693,21 @@ export default function Dashboard() {
       if (!data.success) {
         // Revert on error by reloading
         loadLRs();
-        alert('Failed to update status');
+        toast.error('Failed to update status');
+      } else {
+        toast.success('Status updated successfully');
       }
     } catch (error) {
       // Revert on error by reloading
       loadLRs();
-      alert('Failed to update status');
+      toast.error('Failed to update status');
     }
   };
   
   // Bulk status change
   const handleBulkStatusChange = () => {
     if (selectedLrs.size === 0) {
-      alert('Please select at least one LR to change status');
+      toast.error('Please select at least one LR to change status');
       return;
     }
     setShowBulkStatusModal(true);
@@ -728,15 +732,15 @@ export default function Dashboard() {
       const data = await response.json();
       
       if (data.success) {
-        alert(`✅ Updated ${data.count} LR(s) to status: ${bulkStatus}`);
+        toast.success(`Updated ${data.count} LR(s) to status: ${bulkStatus}`);
         setSelectedLrs(new Set());
         setBulkStatus('LR Done');
         loadLRs();
       } else {
-        alert('Failed to update status');
+        toast.error('Failed to update status');
       }
     } catch (error) {
-      alert('Failed to update status');
+      toast.error('Failed to update status');
     } finally {
       setLoading(false);
     }
@@ -797,7 +801,7 @@ export default function Dashboard() {
   // Create and download ZIP file
   const downloadSelectedFiles = async () => {
     if (selectedBillTypes.size === 0) {
-      alert('Please select at least one bill type to download');
+      toast.error('Please select at least one bill type to download');
       return;
     }
     
@@ -879,10 +883,10 @@ export default function Dashboard() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       
-      alert(`✅ Downloaded ${fileCount} file(s) as ZIP`);
+      toast.success(`Downloaded ${fileCount} file(s) as ZIP`);
     } catch (error) {
       console.error('Error creating ZIP:', error);
-      alert('Failed to create ZIP file. Please try individual downloads.');
+      toast.error('Failed to create ZIP file. Please try individual downloads.');
     } finally {
       setZipDownloading(false);
     }
@@ -1977,7 +1981,7 @@ export default function Dashboard() {
                                   if (result.data && result.data.filePath) {
                                     downloadFile(result.data.filePath);
                                   } else {
-                                    alert(`${result.type} bill generated successfully! Check invoices/${generationResults.submissionDate}/`);
+                                    toast.success(`${result.type.charAt(0).toUpperCase() + result.type.slice(1)} bill generated successfully!`);
                                   }
                                 }
                               }}

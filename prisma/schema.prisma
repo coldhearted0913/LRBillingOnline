@@ -63,6 +63,9 @@ model LR {
   @@index([status])
   @@index([lrDate])
   @@index([createdAt])
+  @@index([status, lrDate])
+  @@index([vehicleType])
+  @@index([fromLocation, toLocation])
   @@map("lrs")
 }
 
@@ -80,6 +83,9 @@ model User {
   // Relations
   auditLogs     AuditLog[]
   
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
   @@map("users")
 }
 
@@ -99,6 +105,8 @@ model AuditLog {
   @@map("audit_logs")
   @@index([userId])
   @@index([timestamp])
+  @@index([userId, timestamp])
+  @@index([action, resource])
 }
 
 // Archive model for deleted LRs - permanent backup
