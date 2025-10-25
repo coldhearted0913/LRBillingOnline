@@ -242,26 +242,27 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 text-white shadow-lg">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl shadow-lg">
-                <FileText className="w-6 h-6" />
+        <div className="container mx-auto px-3 md:px-4 py-4 md:py-6">
+          <div className="flex items-center justify-between gap-2 md:gap-4">
+            <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
+              <div className="bg-white/20 backdrop-blur-sm p-2 md:p-3 rounded-xl shadow-lg flex-shrink-0">
+                <FileText className="w-5 h-5 md:w-6 md:h-6" />
               </div>
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg md:text-2xl lg:text-3xl font-bold tracking-tight truncate">
                   {editingLr ? 'Edit LR' : 'Create New LR'}
                 </h1>
-                <p className="text-blue-100 text-sm mt-1">{editingLr ? 'Update LR details' : 'Enter LR information to get started'}</p>
+                <p className="text-blue-100 text-[10px] md:text-xs lg:text-sm mt-0.5 md:mt-1 hidden sm:block">{editingLr ? 'Update LR details' : 'Enter LR information to get started'}</p>
               </div>
             </div>
             <Button 
               onClick={onBack} 
               variant="secondary"
-              className="bg-white/20 hover:bg-white/30 text-white border-0"
+              className="bg-white/20 hover:bg-white/30 text-white border-0 text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap"
             >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
+              <ArrowLeft className="mr-1 md:mr-2 h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Back to Dashboard</span>
+              <span className="sm:hidden">Back</span>
             </Button>
           </div>
         </div>
@@ -269,47 +270,47 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       
       {/* Progress Indicator */}
       <div className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">1</div>
-              <span className="font-medium">Route</span>
+        <div className="container mx-auto px-3 md:px-4 py-3 md:py-4 overflow-x-auto">
+          <div className="flex items-center gap-2 md:gap-4 text-[10px] sm:text-xs md:text-sm min-w-max">
+            <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs md:text-sm">1</div>
+              <span className="font-medium whitespace-nowrap">Route</span>
             </div>
-            <div className="h-1 flex-1 bg-gradient-to-r from-blue-600 to-blue-300"></div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">2</div>
-              <span className="font-medium">Vehicle</span>
+            <div className="h-1 flex-1 bg-gradient-to-r from-blue-600 to-blue-300 min-w-[20px]"></div>
+            <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs md:text-sm">2</div>
+              <span className="font-medium whitespace-nowrap">Vehicle</span>
             </div>
-            <div className="h-1 flex-1 bg-gradient-to-r from-blue-600 to-blue-300"></div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">3</div>
-              <span className="font-medium">Cargo</span>
+            <div className="h-1 flex-1 bg-gradient-to-r from-blue-600 to-blue-300 min-w-[20px]"></div>
+            <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs md:text-sm">3</div>
+              <span className="font-medium whitespace-nowrap">Cargo</span>
             </div>
-            <div className="h-1 flex-1 bg-gradient-to-r from-blue-600 to-blue-300"></div>
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">4</div>
-              <span className="font-medium">Details</span>
+            <div className="h-1 flex-1 bg-gradient-to-r from-blue-600 to-blue-300 min-w-[20px]"></div>
+            <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+              <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs md:text-sm">4</div>
+              <span className="font-medium whitespace-nowrap">Details</span>
             </div>
           </div>
         </div>
       </div>
       
       {/* Form */}
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-3 md:px-4 py-4 md:py-8">
         <form onSubmit={handleSubmit}>
           {/* Route Information */}
           <Card className="mb-6 border-0 shadow-md hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <div className="bg-blue-600 text-white p-2 rounded-lg">
-                  <MapPin className="h-4 w-4" />
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent pb-3 md:pb-4 px-4 md:px-6 pt-4 md:pt-6">
+              <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                <div className="bg-blue-600 text-white p-1.5 md:p-2 rounded-lg flex-shrink-0">
+                  <MapPin className="h-3 w-3 md:h-4 md:w-4" />
                 </div>
                 Route Information
               </CardTitle>
-              <CardDescription className="text-gray-600 mt-1">Select origin, destination, and parties</CardDescription>
+              <CardDescription className="text-gray-600 text-xs md:text-sm mt-1">Select origin, destination, and parties</CardDescription>
             </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CardContent className="px-4 md:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 <div>
                   <Label htmlFor="from">FROM</Label>
                   <select
@@ -691,15 +692,15 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
           
           {/* Action Buttons */}
           <Card className="border-0 shadow-md bg-gradient-to-r from-blue-50 to-purple-50">
-            <CardContent className="pt-6">
-              <div className="flex flex-col sm:flex-row gap-3">
+            <CardContent className="px-4 md:px-6 pt-4 md:pt-6 pb-4 md:pb-6">
+              <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
                 <Button
                   type="submit"
                   disabled={loading}
                   size="lg"
-                  className="w-full sm:w-auto sm:min-w-[150px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all"
+                  className="w-full sm:w-auto sm:min-w-[150px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all text-sm md:text-base"
                 >
-                  <Save className="mr-2 h-5 w-5" />
+                  <Save className="mr-2 h-4 w-4 md:h-5 md:w-5" />
                   {loading ? '⏳ Saving...' : editingLr ? '✏️ Update LR' : '💾 Save LR'}
                 </Button>
                 
@@ -708,9 +709,9 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   onClick={clearForm}
                   variant="outline"
                   size="lg"
-                  className="w-full sm:w-auto border-gray-300 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
+                  className="w-full sm:w-auto border-gray-300 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors text-sm md:text-base"
                 >
-                  <Trash2 className="mr-2 h-5 w-5" />
+                  <Trash2 className="mr-2 h-4 w-4 md:h-5 md:w-5" />
                   <span>Clear Form</span>
                 </Button>
                 
@@ -719,10 +720,11 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   onClick={onBack}
                   variant="secondary"
                   size="lg"
-                  className="w-full sm:w-auto sm:ml-auto bg-gray-200 hover:bg-gray-300 text-gray-800 transition-colors"
+                  className="w-full sm:w-auto sm:ml-auto bg-gray-200 hover:bg-gray-300 text-gray-800 transition-colors text-sm md:text-base"
                 >
-                  <ArrowLeft className="mr-2 h-5 w-5" />
-                  <span>Back to Dashboard</span>
+                  <ArrowLeft className="mr-2 h-4 w-4 md:h-5 md:w-5" />
+                  <span className="hidden sm:inline">Back to Dashboard</span>
+                  <span className="sm:hidden">Back</span>
                 </Button>
               </div>
             </CardContent>
