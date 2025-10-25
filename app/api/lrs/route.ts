@@ -30,8 +30,32 @@ export async function POST(request: NextRequest) {
   try {
     const lrData = await request.json();
     
+    // Map API field names to schema field names
+    const mappedData = {
+      lrNo: lrData['LR No'],
+      lrDate: lrData['LR Date'],
+      vehicleNumber: lrData['Vehicle Number'],
+      vehicleType: lrData['Vehicle Type'],
+      fromLocation: lrData['FROM'],
+      toLocation: lrData['TO'],
+      consignor: lrData['Consignor'],
+      consignee: lrData['Consignee'],
+      loadedWeight: lrData['Loaded Weight'],
+      emptyWeight: lrData['Empty Weight'],
+      descriptionOfGoods: lrData['Description of Goods'],
+      quantity: lrData['Quantity'],
+      koelGateEntryNo: lrData['KOEL Gate Entry No'],
+      koelGateEntryDate: lrData['KOEL Gate Entry Date'],
+      weightslipNo: lrData['Weight Slip No'],
+      totalNoOfInvoices: lrData['Total No of Invoices'],
+      invoiceNo: lrData['Invoice No'],
+      grrNo: lrData['GRR No'],
+      grrDate: lrData['GRR Date'],
+      remark: lrData['Remark'],
+    };
+    
     // Validate with Zod schema
-    const validation = LRSchema.safeParse(lrData);
+    const validation = LRSchema.safeParse(mappedData);
     
     if (!validation.success) {
       const errors = validation.error.errors.map(err => ({
