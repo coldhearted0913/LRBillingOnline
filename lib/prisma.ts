@@ -18,9 +18,10 @@ const getConnectionString = () => {
       // CRITICAL: Connection pool parameters for Railway/Neon
       // These prevent "connection pool timeout" errors
       url.searchParams.set('pgbouncer', 'true'); // Use PgBouncer-compatible mode
-      url.searchParams.set('connect_timeout', '30'); // Increase to 30 seconds
-      url.searchParams.set('connection_limit', '5'); // Limit to 5 connections per instance
-      url.searchParams.set('pool_timeout', '30'); // 30 second pool timeout
+      url.searchParams.set('connect_timeout', '10'); // Reduce to 10 seconds for faster timeouts
+      url.searchParams.set('connection_limit', '10'); // Increase to 10 connections for better throughput
+      url.searchParams.set('pool_timeout', '10'); // 10 second pool timeout
+      url.searchParams.set('statement_cache_size', '0'); // Disable prepared statement cache
       url.searchParams.set('application_name', 'lr-billing-app');
       
       return url.toString();
