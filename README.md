@@ -26,6 +26,23 @@ A modern, responsive web application for managing LR (Lorry Receipt) billing - a
 - **Form Validation**: Real-time validation with helpful messages
 - **Loading States**: Clear feedback for all operations
 
+## ☁️ AWS S3 Cloud Storage
+
+The app supports automatic cloud uploads to AWS S3:
+
+- **Secure**: Files encrypted in transit and at rest
+- **Reliable**: 99.999999999% durability
+- **Free Tier**: 5 GB free storage for 12 months
+- **Global CDN**: Fast downloads worldwide
+
+📖 **[View S3 Setup Guide](AWS_SETUP_GUIDE.md)**
+
+**Quick Setup:**
+1. Create AWS account (free)
+2. Create S3 bucket
+3. Add credentials to Railway
+4. Files automatically upload to cloud!
+
 ## 🚀 Quick Start
 
 ### Prerequisites
