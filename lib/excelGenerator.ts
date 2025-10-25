@@ -460,7 +460,7 @@ export const generateAdditionalBill = async (data: any, submissionDate: string):
     worksheet.getCell(currentRow, 7).value = entry['FROM'] || ''; // G - FROM
     // H - Destination: Extract first words from delivery locations (same logic as dashboard TO column)
     const deliveryLocations = entry['Delivery Locations'] || [];
-    const firstWords = deliveryLocations.map(location => extractFirstWord(location)).filter(w => w.length > 0);
+    const firstWords = deliveryLocations.map((location: string) => extractFirstWord(location)).filter((w: string) => w.length > 0);
     worksheet.getCell(currentRow, 8).value = firstWords.join('/') || ''; // H - Destination
     worksheet.getCell(currentRow, 9).value = entry['Amount'] || 0; // I - Amount
     

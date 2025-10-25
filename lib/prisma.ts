@@ -47,15 +47,7 @@ export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
 });
 
-// Add connection recovery on connection errors
-prisma.$on('error' as any, (e: any) => {
-  console.error('❌ Prisma connection error:', e.message || e);
-  
-  // If connection is closed, try to reconnect on next query
-  if (e.message && e.message.includes('Closed')) {
-    console.log('🔄 Connection closed. Will reconnect on next query.');
-  }
-});
+// Note: Connection recovery is handled by the middleware and query retries below
 
 // Implement automatic reconnection with exponential backoff
 let reconnectAttempts = 0;
