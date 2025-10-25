@@ -181,7 +181,8 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
       }
     } catch (error) {
       console.error('[AUTO-GENERATE] Error:', error);
-      alert(`Error generating additional bill: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Error generating additional bill: ${errorMessage}`);
     } finally {
       setGenerating(false);
     }
