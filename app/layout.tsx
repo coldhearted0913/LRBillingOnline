@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from '@/components/Providers'
 import { Toaster } from 'react-hot-toast'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -25,37 +26,39 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <Providers>
-          <div className="min-h-screen bg-gray-50">
-            {children}
-          </div>
-          {/* Toast notifications container */}
-          <Toaster 
-            position="top-right"
-            toastOptions={{
-              duration: 3000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-                fontSize: '14px',
-              },
-              success: {
-                duration: 2000,
-                iconTheme: {
-                  primary: '#10b981',
-                  secondary: '#fff',
+        <ErrorBoundary>
+          <Providers>
+            <div className="min-h-screen bg-gray-50">
+              {children}
+            </div>
+            {/* Toast notifications container */}
+            <Toaster 
+              position="top-right"
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  background: '#363636',
+                  color: '#fff',
+                  fontSize: '14px',
                 },
-              },
-              error: {
-                duration: 4000,
-                iconTheme: {
-                  primary: '#ef4444',
-                  secondary: '#fff',
+                success: {
+                  duration: 2000,
+                  iconTheme: {
+                    primary: '#10b981',
+                    secondary: '#fff',
+                  },
                 },
-              },
-            }}
-          />
-        </Providers>
+                error: {
+                  duration: 4000,
+                  iconTheme: {
+                    primary: '#ef4444',
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
+          </Providers>
+        </ErrorBoundary>
       </body>
     </html>
   )
