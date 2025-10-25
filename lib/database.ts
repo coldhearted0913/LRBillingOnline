@@ -3,7 +3,6 @@ import { prisma } from './prisma';
 export interface LRData {
   "FROM": string;
   "TO": string;
-  "Material Supply To": string;
   "Consignor": string;
   "Consignee": string;
   "LR Date": string;
@@ -41,7 +40,6 @@ const toPrismaFormat = (lrData: LRData) => {
     vehicleNumber: lrData["Vehicle Number"] || null,
     fromLocation: lrData["FROM"] || null,
     toLocation: lrData["TO"] || null,
-    materialSupplyTo: lrData["Material Supply To"] || null,
     consignor: lrData["Consignor"] || null,
     consignee: lrData["Consignee"] || null,
     loadedWeight: lrData["Loaded Weight"] || null,
@@ -74,7 +72,6 @@ const fromPrismaFormat = (prismaLr: any): LRData => {
     "Vehicle Number": prismaLr.vehicleNumber || "",
     "FROM": prismaLr.fromLocation || "",
     "TO": prismaLr.toLocation || "",
-    "Material Supply To": prismaLr.materialSupplyTo || "",
     "Consignor": prismaLr.consignor || "",
     "Consignee": prismaLr.consignee || "",
     "Loaded Weight": prismaLr.loadedWeight || "",
@@ -156,7 +153,6 @@ export const updateLR = async (lrNo: string, lrData: Partial<LRData>): Promise<b
     if (lrData["Vehicle Number"] !== undefined) updateData.vehicleNumber = lrData["Vehicle Number"] || null;
     if (lrData["FROM"] !== undefined) updateData.fromLocation = lrData["FROM"] || null;
     if (lrData["TO"] !== undefined) updateData.toLocation = lrData["TO"] || null;
-    if (lrData["Material Supply To"] !== undefined) updateData.materialSupplyTo = lrData["Material Supply To"] || null;
     if (lrData["Consignor"] !== undefined) updateData.consignor = lrData["Consignor"] || null;
     if (lrData["Consignee"] !== undefined) updateData.consignee = lrData["Consignee"] || null;
     if (lrData["Loaded Weight"] !== undefined) updateData.loadedWeight = lrData["Loaded Weight"] || null;
