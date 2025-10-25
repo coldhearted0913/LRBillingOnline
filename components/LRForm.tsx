@@ -692,12 +692,12 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
           {/* Action Buttons */}
           <Card className="border-0 shadow-md bg-gradient-to-r from-blue-50 to-purple-50">
             <CardContent className="pt-6">
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   type="submit"
                   disabled={loading}
                   size="lg"
-                  className="min-w-[150px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all"
+                  className="w-full sm:w-auto sm:min-w-[150px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all"
                 >
                   <Save className="mr-2 h-5 w-5" />
                   {loading ? '⏳ Saving...' : editingLr ? '✏️ Update LR' : '💾 Save LR'}
@@ -708,10 +708,10 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   onClick={clearForm}
                   variant="outline"
                   size="lg"
-                  className="border-gray-300 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
+                  className="w-full sm:w-auto border-gray-300 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
                 >
                   <Trash2 className="mr-2 h-5 w-5" />
-                  Clear Form
+                  <span>Clear Form</span>
                 </Button>
                 
                 <Button
@@ -719,10 +719,10 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   onClick={onBack}
                   variant="secondary"
                   size="lg"
-                  className="ml-auto bg-gray-200 hover:bg-gray-300 text-gray-800 transition-colors"
+                  className="w-full sm:w-auto sm:ml-auto bg-gray-200 hover:bg-gray-300 text-gray-800 transition-colors"
                 >
                   <ArrowLeft className="mr-2 h-5 w-5" />
-                  Back to Dashboard
+                  <span>Back to Dashboard</span>
                 </Button>
               </div>
             </CardContent>

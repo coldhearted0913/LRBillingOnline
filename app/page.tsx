@@ -914,53 +914,43 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
       <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-4 md:py-6 shadow-lg">
         <div className="container mx-auto px-3 md:px-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6">
+          <div className="flex items-center justify-between gap-3 md:gap-6">
             {/* Left: Logo and Title */}
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="bg-white/20 backdrop-blur-sm p-2 md:p-3 rounded-lg">
-                <Truck className="w-6 h-6 md:w-8 md:h-8" />
+            <div className="flex items-center gap-2 sm:gap-3 md:gap-4 min-w-0 flex-1">
+              <div className="bg-white/20 backdrop-blur-sm p-2 md:p-3 rounded-lg flex-shrink-0">
+                <Truck className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8" />
               </div>
-              <div>
-                <h1 className="text-xl md:text-3xl lg:text-4xl font-bold">LR Billing Dashboard</h1>
-                <p className="text-blue-100 mt-1 text-xs md:text-sm">Mangesh Transport - Complete LR Management</p>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl md:text-3xl lg:text-4xl font-bold truncate">LR Billing Dashboard</h1>
+                <p className="text-blue-100 mt-0.5 sm:mt-1 text-[10px] sm:text-xs md:text-sm hidden sm:block">Mangesh Transport - Complete LR Management</p>
               </div>
             </div>
             
             {/* Right: Action Buttons + User Profile */}
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center flex-1 sm:flex-none sm:justify-end">
+            <div className="flex flex-shrink-0 gap-2 items-center">
               <Button 
                 onClick={createNewLR} 
                 size="lg"
-                className="w-full sm:w-auto bg-white text-blue-600 hover:bg-blue-50 shadow-lg font-semibold text-sm md:text-base"
+                className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg font-semibold text-xs sm:text-sm md:text-base px-2 sm:px-3 md:px-4"
               >
-                <Plus className="mr-2 h-4 w-4 md:h-5 md:w-5" />
-                <span className="hidden sm:inline">Create New LR</span>
-                <span className="sm:hidden">New LR</span>
+                <Plus className="mr-1 sm:mr-2 h-4 w-4 md:h-5 md:w-5" />
+                <span className="hidden md:inline">Create New LR</span>
+                <span className="hidden sm:inline md:hidden">New LR</span>
+                <span className="sm:hidden">New</span>
               </Button>
               
-              {/* User Profile Dropdown - Only show border on larger screens */}
+              {/* User Profile Dropdown - Always visible, inline with buttons */}
               {session && (
-                <div className="hidden sm:flex border-l border-white/30 pl-3 ml-1">
+                <div className="border-l border-white/30 pl-2">
                   <UserProfileDropdown 
                     email={session.user?.email ?? undefined}
                     name={session.user?.name ?? undefined}
                     role={(session.user as any)?.role}
                   />
-            </div>
+                </div>
               )}
-          </div>
-          </div>
-          
-          {/* Mobile User Profile - Below title */}
-          {session && (
-            <div className="sm:hidden mt-3 pt-3 border-t border-white/20">
-              <UserProfileDropdown 
-                email={session.user?.email ?? undefined}
-                name={session.user?.name ?? undefined}
-                role={(session.user as any)?.role}
-              />
             </div>
-          )}
+          </div>
         </div>
       </div>
       

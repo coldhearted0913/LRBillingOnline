@@ -201,13 +201,13 @@ export default function ProfileSettingsModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-800 text-white px-6 py-4">
-          <h2 className="text-2xl font-bold">Settings</h2>
+        <div className="flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-800 text-white px-4 sm:px-6 py-3 sm:py-4">
+          <h2 className="text-xl sm:text-2xl font-bold">Settings</h2>
           <button
             onClick={onClose}
             className="p-1 hover:bg-white/20 rounded transition-colors"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
 
@@ -215,42 +215,42 @@ export default function ProfileSettingsModal({
         <div className="flex border-b border-gray-200 overflow-x-auto">
           <button
             onClick={() => setActiveTab('profile')}
-            className={`px-6 py-4 font-medium transition-colors whitespace-nowrap ${
+            className={`px-3 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
               activeTab === 'profile'
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
-              <Lock className="w-4 h-4" />
-              Profile
+              <Lock className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span>Profile</span>
             </div>
           </button>
           <button
             onClick={() => setActiveTab('password')}
-            className={`px-6 py-4 font-medium transition-colors whitespace-nowrap ${
+            className={`px-3 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
               activeTab === 'password'
                 ? 'border-b-2 border-blue-600 text-blue-600'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
             <div className="flex items-center justify-center gap-2">
-              <Key className="w-4 h-4" />
-              Change Password
+              <Key className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span>Change Password</span>
             </div>
           </button>
           {isAdmin && (
             <button
               onClick={() => setActiveTab('users')}
-              className={`px-6 py-4 font-medium transition-colors whitespace-nowrap ${
+              className={`px-3 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
                 activeTab === 'users'
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               <div className="flex items-center justify-center gap-2">
-                <Users className="w-4 h-4" />
-                User Management
+                <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span>User Management</span>
               </div>
             </button>
           )}
@@ -260,7 +260,7 @@ export default function ProfileSettingsModal({
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
           {/* Profile Tab */}
           {activeTab === 'profile' && (
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
               <div>
                 <Label className="text-gray-700 font-semibold">Name</Label>
                 <p className="mt-2 text-gray-900">{userName}</p>
@@ -282,7 +282,7 @@ export default function ProfileSettingsModal({
 
           {/* Change Password Tab */}
           {activeTab === 'password' && (
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
               {passwordMessage && (
                 <div className={`p-4 rounded-lg text-sm ${
                   passwordMessage.includes('successfully')
@@ -345,7 +345,7 @@ export default function ProfileSettingsModal({
 
           {/* User Management Tab */}
           {activeTab === 'users' && isAdmin && (
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
               {/* Message */}
               {message && (
                 <div className={`p-4 rounded-lg text-sm ${
@@ -430,29 +430,31 @@ export default function ProfileSettingsModal({
                         key={user.id}
                         className="px-4 py-4 hover:bg-gray-50 transition-colors"
                       >
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{user.name}</p>
-                            <p className="text-sm text-gray-600">{user.email}</p>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-gray-900 truncate">{user.name}</p>
+                            <p className="text-sm text-gray-600 truncate">{user.email}</p>
                           </div>
-                          <select
-                            value={user.role}
-                            onChange={(e) => handleUpdateRole(user.id, e.target.value)}
-                            disabled={user.email === userEmail || user.role === 'CEO'}
-                            className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={user.email === userEmail ? "Cannot change your own role" : user.role === 'CEO' ? "Cannot change CEO role" : ""}
-                          >
-                            <option value="WORKER">Worker</option>
-                            <option value="MANAGER">Manager</option>
-                          </select>
-                          <button
-                            onClick={() => handleDeleteUser(user.id)}
-                            disabled={user.email === userEmail || user.role === 'CEO'}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title={user.email === userEmail ? "Cannot delete your own account" : user.role === 'CEO' ? "Cannot delete CEO account" : "Delete user"}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={user.role}
+                              onChange={(e) => handleUpdateRole(user.id, e.target.value)}
+                              disabled={user.email === userEmail || user.role === 'CEO'}
+                              className="px-2 sm:px-3 py-1 border border-gray-300 rounded text-xs sm:text-sm text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none min-w-[100px] sm:min-w-0"
+                              title={user.email === userEmail ? "Cannot change your own role" : user.role === 'CEO' ? "Cannot change CEO role" : ""}
+                            >
+                              <option value="WORKER">Worker</option>
+                              <option value="MANAGER">Manager</option>
+                            </select>
+                            <button
+                              onClick={() => handleDeleteUser(user.id)}
+                              disabled={user.email === userEmail || user.role === 'CEO'}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                              title={user.email === userEmail ? "Cannot delete your own account" : user.role === 'CEO' ? "Cannot delete CEO account" : "Delete user"}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))
