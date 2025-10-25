@@ -12,15 +12,6 @@ export const ADDITIONAL_BILL_AMOUNTS = {
   'TOROUS': 2400,
 } as const;
 
-export const MATERIAL_SUPPLY_LOCATIONS = [
-  'KASTURI',
-  'VP',
-  'KOEL',
-  'SUPREME',
-  'SHRIRAM',
-  'KFIL',
-];
-
 export const CONSIGNOR_LOCATIONS = [
   'KFIL SHIVSHAHI, HOTGI ROAD, SOLAPUR',
   'LDK, CHINCHOLI MIDC, SOLAPUR',
@@ -85,7 +76,6 @@ export const STATUS_COLORS = {
 export const FORM_FIELDS = [
   'FROM',
   'TO',
-  'Material Supply To',
   'LR Date',
   'Vehicle Type',
   'Vehicle Number',

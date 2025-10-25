@@ -31,7 +31,6 @@ export async function POST(request: NextRequest) {
       'LR No': `REWORK-${data['LR No']}`,
       'Description of Goods': 'Rework Bill',
       'Quantity': '1',
-      'Material Supply To': data['TO'],
       'Koel Gate Entry No': '',
       'Koel Gate Entry Date': '',
       'Weightslip No': '',

@@ -60,10 +60,6 @@ model LR {
   createdAt             DateTime @default(now()) @map("created_at")
   updatedAt             DateTime @updatedAt @map("updated_at")
   
-  // Relations for tracking who created/updated
-  createdBy             String?  @map("created_by")
-  updatedBy             String?  @map("updated_by")
-  
   @@map("lrs")
 }
 

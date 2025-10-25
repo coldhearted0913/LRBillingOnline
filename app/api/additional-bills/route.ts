@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
       'LR No': `ADDITIONAL-${data['LR No']}`,
       'Description of Goods': 'Additional Bill',
       'Quantity': '1',
-      'Material Supply To': data['TO'],
       'Koel Gate Entry No': '',
       'Koel Gate Entry Date': '',
       'Weightslip No': '',

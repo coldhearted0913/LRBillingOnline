@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
       'Vehicle Number': data['Vehicle No'], // Map Vehicle No to Vehicle Number
       'Description of Goods': 'Rework Bill Entry',
       'Quantity': '1',
-      'Material Supply To': data['TO'],
       'Koel Gate Entry No': '',
       'Koel Gate Entry Date': '',
       'Weightslip No': '',
