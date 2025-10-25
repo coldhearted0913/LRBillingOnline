@@ -68,27 +68,9 @@ export default function Dashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   
-  // Auth Session - MUST be called BEFORE any early returns
+  // Auth Session
   const { data: session, status } = useSession();
   const router = useRouter();
-  
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (status === 'unauthenticated' && typeof window !== 'undefined') {
-      router.push('/login');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
-  
-  // Show loading while checking session
-  if (status === 'loading') {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
-  }
-  
-  // Don't render if not authenticated
-  if (status === 'unauthenticated') {
-    return null;
-  }
   
   // Load LRs function
   const loadLRs = async () => {
@@ -105,10 +87,30 @@ export default function Dashboard() {
     setLoading(false);
   };
   
+  // ALL HOOKS MUST BE CALLED BEFORE ANY RETURNS
   useEffect(() => {
-    loadLRs();
+    if (status !== 'loading' && status !== 'unauthenticated') {
+      loadLRs();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [status]);
+  
+  useEffect(() => {
+    if (status === 'unauthenticated' && typeof window !== 'undefined') {
+      router.push('/login');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+  
+  // Show loading while checking session
+  if (status === 'loading') {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+  
+  // Don't render if not authenticated
+  if (status === 'unauthenticated') {
+    return null;
+  }
   
   // Filter LRs by month/year and search
   const filterLRs = (allLrs: LRData[], month: string, year: string, search: string = '', statuses: Set<string> = new Set()) => {
@@ -2060,5 +2062,3 @@ export default function Dashboard() {
     </div>
   );
 }
-/ /   C a c h e   b u s t e r  
- 
