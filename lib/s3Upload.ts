@@ -2,31 +2,38 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import fs from 'fs';
 import path from 'path';
 
-// AWS S3 Configuration
-const S3_CONFIG = {
-  region: process.env.S3_REGION || 'ap-south-1',
-  bucket: process.env.S3_BUCKET_NAME || 'lr-billing-invoices-mangesh',
-  accessKeyId: process.env.S3_ACCESS_KEY_ID,
-  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+// Get fresh config on each call (to pick up env vars)
+const getS3Config = () => {
+  return {
+    region: process.env.S3_REGION || 'ap-south-1',
+    bucket: process.env.S3_BUCKET_NAME || 'lr-billing-invoices-mangesh',
+    accessKeyId: process.env.S3_ACCESS_KEY_ID,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+  };
 };
 
 let s3Client: S3Client | null = null;
 
 // Initialize S3 client
 const getS3Client = () => {
-  if (!S3_CONFIG.accessKeyId || !S3_CONFIG.secretAccessKey) {
+  const config = getS3Config();
+  
+  if (!config.accessKeyId || !config.secretAccessKey) {
     console.log('AWS credentials not configured - S3 upload disabled');
+    console.log('S3_ACCESS_KEY_ID:', config.accessKeyId ? 'SET' : 'NOT SET');
+    console.log('S3_SECRET_ACCESS_KEY:', config.secretAccessKey ? 'SET' : 'NOT SET');
     return null;
   }
   
   if (!s3Client) {
     s3Client = new S3Client({
-      region: S3_CONFIG.region,
+      region: config.region,
       credentials: {
-        accessKeyId: S3_CONFIG.accessKeyId,
-        secretAccessKey: S3_CONFIG.secretAccessKey,
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
       },
     });
+    console.log('S3 client initialized for bucket:', config.bucket);
   }
   
   return s3Client;
@@ -52,9 +59,14 @@ export const uploadFileToS3 = async (
     const fileName = path.basename(filePath);
     const s3Key = `${s3Folder}/${fileName}`;
     
+    // Get config for bucket name
+    const config = getS3Config();
+    
+    console.log('Uploading to S3:', { bucket: config.bucket, key: s3Key });
+    
     // Upload to S3
     const command = new PutObjectCommand({
-      Bucket: S3_CONFIG.bucket,
+      Bucket: config.bucket,
       Key: s3Key,
       Body: fileContent,
       ContentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -62,7 +74,9 @@ export const uploadFileToS3 = async (
     
     await client.send(command);
     
-    const url = `https://${S3_CONFIG.bucket}.s3.${S3_CONFIG.region}.amazonaws.com/${s3Key}`;
+    console.log('S3 upload successful:', s3Key);
+    
+    const url = `https://${config.bucket}.s3.${config.region}.amazonaws.com/${s3Key}`;
     
     return {
       success: true,
