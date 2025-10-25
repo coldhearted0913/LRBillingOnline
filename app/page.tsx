@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { 
   Plus, RefreshCw, Check, X, Trash2, FileText, Download, 
@@ -162,26 +162,8 @@ export default function Dashboard() {
     setCurrentPage(1); // Reset to first page when filtering
   };
   
-  useEffect(() => {
-    filterLRs(lrs, selectedMonth, selectedYear, searchQuery, selectedStatuses);
-  }, [selectedMonth, selectedYear, searchQuery, lrs, selectedStatuses, sortBy, sortOrder]);
-  
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredLrs.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedLrs = filteredLrs.slice(startIndex, endIndex);
-  
-  // Go to page
-  const goToPage = (page: number) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-  
-  // Calculate statistics based on selected month/year (but not search/status filters)
-  const getStatsData = () => {
+  // Memoized filtered data calculations
+  const statsData = useMemo(() => {
     let statsLrs = lrs;
     
     // Filter by year (dates are in DD-MM-YYYY format)
@@ -207,19 +189,18 @@ export default function Dashboard() {
     }
     
     return statsLrs;
-  };
+  }, [lrs, selectedMonth, selectedYear]);
 
-  const statsData = getStatsData();
-
-  // Calculate vehicle type breakdown
-  const vehicleTypeBreakdown = {
-    PICKUP: statsData.filter(lr => lr['Vehicle Type'] === 'PICKUP').length,
-    TRUCK: statsData.filter(lr => lr['Vehicle Type'] === 'TRUCK').length,
-    TOUROUS: statsData.filter(lr => lr['Vehicle Type'] === 'TOUROUS').length,
-  };
-  
-  // Calculate revenue based on status (only Bill Done or Bill Submitted count as revenue)
-  const calculateRevenue = () => {
+  // Memoized stats calculations
+  const stats = useMemo(() => {
+    // Calculate vehicle type breakdown
+    const vehicleTypeBreakdown = {
+      PICKUP: statsData.filter(lr => lr['Vehicle Type'] === 'PICKUP').length,
+      TRUCK: statsData.filter(lr => lr['Vehicle Type'] === 'TRUCK').length,
+      TOUROUS: statsData.filter(lr => lr['Vehicle Type'] === 'TOUROUS').length,
+    };
+    
+    // Calculate revenue based on status (only Bill Done or Bill Submitted count as revenue)
     let revenue = 0;
     statsData.forEach(lr => {
       if (lr.status === 'Bill Done' || lr.status === 'Bill Submitted') {
@@ -227,22 +208,46 @@ export default function Dashboard() {
         revenue += VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
       }
     });
-    return revenue;
-  };
+    
+    return {
+      total: statsData.length,
+      lrDone: statsData.filter(lr => lr.status === 'LR Done').length,
+      lrCollected: statsData.filter(lr => lr.status === 'LR Collected').length,
+      billDone: statsData.filter(lr => lr.status === 'Bill Done').length,
+      billSubmitted: statsData.filter(lr => lr.status === 'Bill Submitted').length,
+      pendingBills: statsData.filter(lr => lr.status === 'LR Collected').length, // LRs collected but bills not generated
+      pendingSubmission: statsData.filter(lr => lr.status === 'Bill Done').length, // Bills ready to submit
+      thisMonth: statsData.length, // Already filtered by month/year, so just show the count
+      vehicleTypeBreakdown, // Vehicle type breakdown
+      estimatedRevenue: revenue, // Estimated revenue
+      billCompletionRate: statsData.length > 0 ? Math.round((statsData.filter(lr => lr.status === 'Bill Done' || lr.status === 'Bill Submitted').length / statsData.length) * 100) : 0, // Percentage of LRs with bills
+    };
+  }, [statsData]);
+
+  // Apply filters
+  useEffect(() => {
+    filterLRs(lrs, selectedMonth, selectedYear, searchQuery, selectedStatuses);
+  }, [selectedMonth, selectedYear, searchQuery, lrs, selectedStatuses, sortBy, sortOrder]);
   
-  const stats = {
-    total: statsData.length,
-    lrDone: statsData.filter(lr => lr.status === 'LR Done').length,
-    lrCollected: statsData.filter(lr => lr.status === 'LR Collected').length,
-    billDone: statsData.filter(lr => lr.status === 'Bill Done').length,
-    billSubmitted: statsData.filter(lr => lr.status === 'Bill Submitted').length,
-    pendingBills: statsData.filter(lr => lr.status === 'LR Collected').length, // LRs collected but bills not generated
-    pendingSubmission: statsData.filter(lr => lr.status === 'Bill Done').length, // Bills ready to submit
-    thisMonth: statsData.length, // Already filtered by month/year, so just show the count
-    vehicleTypeBreakdown, // Vehicle type breakdown
-    estimatedRevenue: calculateRevenue(), // Estimated revenue
-    billCompletionRate: statsData.length > 0 ? Math.round((statsData.filter(lr => lr.status === 'Bill Done' || lr.status === 'Bill Submitted').length / statsData.length) * 100) : 0, // Percentage of LRs with bills
-  };
+  // Memoized pagination calculations
+  const totalPages = Math.ceil(filteredLrs.length / itemsPerPage);
+  const { paginatedLrs, startIndex, endIndex } = useMemo(() => {
+    const startIdx = (currentPage - 1) * itemsPerPage;
+    const endIdx = startIdx + itemsPerPage;
+    return {
+      paginatedLrs: filteredLrs.slice(startIdx, endIdx),
+      startIndex: startIdx,
+      endIndex: endIdx,
+    };
+  }, [filteredLrs, currentPage, itemsPerPage]);
+  
+  // Go to page
+  const goToPage = useCallback((page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [totalPages]);
   
   // Toggle LR selection
   const toggleLRSelection = (lrNo: string) => {
