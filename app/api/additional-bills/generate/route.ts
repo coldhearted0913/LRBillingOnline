@@ -66,8 +66,9 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('[ADDITIONAL-BILL-GENERATE] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { success: false, error: `Failed to generate additional bill: ${error.message}` },
+      { success: false, error: `Failed to generate additional bill: ${errorMessage}` },
       { status: 500 }
     );
   }

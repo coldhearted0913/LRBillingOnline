@@ -75,10 +75,11 @@ export async function POST(request: NextRequest) {
           },
           s3Upload: s3Results,
         });
-      } catch (error: any) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to generate files';
         errors.push({
           lrNo,
-          error: error.message || 'Failed to generate files',
+          error: errorMessage,
         });
       }
     }
@@ -101,12 +102,13 @@ export async function POST(request: NextRequest) {
       results,
       errors: errors.length > 0 ? errors : undefined,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Batch bill generation error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to generate bills';
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Failed to generate bills',
+        error: errorMessage,
       },
       { status: 500 }
     );

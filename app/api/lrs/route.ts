@@ -47,10 +47,11 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating LR:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create LR';
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create LR' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
