@@ -82,7 +82,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Update session with current role (reflects any changes made by CEO)
-        session.user.id = token.id as string;
+        (session.user as any).id = token.id as string;
         (session.user as any).role = dbUser.role;
       }
       return session;
