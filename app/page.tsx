@@ -72,13 +72,16 @@ export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
   
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (status === 'unauthenticated') {
+  // Redirect to login if not authenticated - use useCallback to stabilize the redirect function
+  const redirectToLogin = useCallback(() => {
+    if (typeof window !== 'undefined' && status === 'unauthenticated') {
       router.push('/login');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [status, router]);
+  
+  useEffect(() => {
+    redirectToLogin();
+  }, [redirectToLogin]);
   
   // Show loading while checking session
   if (status === 'loading') {
@@ -91,27 +94,26 @@ export default function Dashboard() {
   }
   
   // Load LRs
-  const loadLRs = async () => {
+  const loadLRs = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/lrs');
       const data = await response.json();
       if (data.success) {
         setLrs(data.lrs);
-        filterLRs(data.lrs, selectedMonth, selectedYear, searchQuery, selectedStatuses);
       }
     } catch (error) {
       console.error('Failed to load LRs:', error);
     }
     setLoading(false);
-  };
+  }, []); // Empty deps array because fetch doesn't depend on any state
   
   useEffect(() => {
     loadLRs();
-  }, []);
+  }, [loadLRs]);
   
   // Filter LRs by month/year and search
-  const filterLRs = (allLrs: LRData[], month: string, year: string, search: string = '', statuses: Set<string> = new Set()) => {
+  const filterLRs = useCallback((allLrs: LRData[], month: string, year: string, search: string = '', statuses: Set<string> = new Set()) => {
     let filtered = allLrs;
     
     // Filter by year (dates are in DD-MM-YYYY format)
@@ -180,7 +182,7 @@ export default function Dashboard() {
     
     setFilteredLrs(filtered);
     setCurrentPage(1); // Reset to first page when filtering
-  };
+  }, [sortBy, sortOrder]);
   
   // Memoized filtered data calculations
   const statsData = useMemo(() => {
@@ -247,7 +249,7 @@ export default function Dashboard() {
   // Apply filters
   useEffect(() => {
     filterLRs(lrs, selectedMonth, selectedYear, searchQuery, selectedStatuses);
-  }, [selectedMonth, selectedYear, searchQuery, lrs, selectedStatuses, sortBy, sortOrder]);
+  }, [filterLRs, selectedMonth, selectedYear, searchQuery, lrs, selectedStatuses]);
   
   // Memoized pagination calculations
   const totalPages = Math.ceil(filteredLrs.length / itemsPerPage);
