@@ -73,7 +73,7 @@ export const authOptions: NextAuthOptions = {
       }
       
       // Refresh user data on token update (every 5 minutes)
-      if (trigger === 'update' || (token.lastChecked && Date.now() - token.lastChecked > 5 * 60 * 1000)) {
+      if (trigger === 'update' || (token.lastChecked && typeof token.lastChecked === 'number' && Date.now() - token.lastChecked > 5 * 60 * 1000)) {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
