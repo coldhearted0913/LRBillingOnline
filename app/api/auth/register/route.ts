@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { CreateUserSchema } from '@/lib/validations/schemas';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,32 +18,29 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { email, password, name, role } = body;
-
-    // Validation
-    if (!email || !password) {
+    
+    // Validate with Zod schema
+    const validation = CreateUserSchema.safeParse(body);
+    
+    if (!validation.success) {
+      const errors = validation.error.errors.map(err => ({
+        field: err.path.join('.'),
+        message: err.message
+      }));
+      
       return NextResponse.json(
-        { error: "Email and password are required" },
+        { 
+          error: "Validation failed", 
+          details: errors 
+        },
         { status: 400 }
       );
     }
+    
+    const { email, password, name, role } = validation.data;
 
     // Normalize email to lowercase for consistency
     const normalizedEmail = email.toLowerCase().trim();
-
-    if (!["WORKER", "MANAGER", "CEO"].includes(role)) {
-      return NextResponse.json(
-        { error: "Invalid role" },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json(
-        { error: "Password must be at least 6 characters" },
-        { status: 400 }
-      );
-    }
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({

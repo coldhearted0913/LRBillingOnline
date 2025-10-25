@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllLRs, addLR, deleteMultipleLRs, getLRsByMonth } from '@/lib/database';
+import { LRSchema } from '@/lib/validations/schemas';
 
 // GET /api/lrs - Get all LRs or filter by month
 export async function GET(request: NextRequest) {
@@ -29,10 +30,21 @@ export async function POST(request: NextRequest) {
   try {
     const lrData = await request.json();
     
-    // Validate required fields
-    if (!lrData['LR No'] || !lrData['LR Date'] || !lrData['Vehicle Type']) {
+    // Validate with Zod schema
+    const validation = LRSchema.safeParse(lrData);
+    
+    if (!validation.success) {
+      const errors = validation.error.errors.map(err => ({
+        field: err.path.join('.'),
+        message: err.message
+      }));
+      
       return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
+        { 
+          success: false, 
+          error: 'Validation failed', 
+          details: errors 
+        },
         { status: 400 }
       );
     }
