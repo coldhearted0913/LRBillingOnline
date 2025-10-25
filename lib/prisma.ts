@@ -49,9 +49,9 @@ export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   },
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   // Performance optimizations
-  errorFormat: 'minimal', // Faster error handling
-  // CRITICAL: Disable the heartbeat in production to prevent connection pool exhaustion
-  // The heartbeat interferes with the connection pool limits
+  errorFormat: 'minimal',
+  // Disable query engine debug logs in production
+  // CRITICAL: Optimize for Railway/Neon
 });
 
 // Note: Connection recovery is handled by the middleware and query retries below

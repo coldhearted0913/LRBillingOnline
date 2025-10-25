@@ -62,28 +62,44 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
+        token.email = user.email;
+        token.name = user.name;
+        token.isActive = true;
+        token.lastChecked = Date.now();
       }
+      
+      // Refresh user data on token update (every 5 minutes)
+      if (trigger === 'update' || (token.lastChecked && Date.now() - token.lastChecked > 5 * 60 * 1000)) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+          });
+          
+          if (!dbUser || !dbUser.isActive) {
+            return null as any;
+          }
+          
+          token.role = dbUser.role;
+          token.isActive = dbUser.isActive;
+          token.lastChecked = Date.now();
+        } catch (error) {
+          console.error('JWT callback error:', error);
+        }
+      }
+      
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.id) {
-        // CRITICAL: Verify user still exists and is active on each session
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
-        });
-
-        // If user doesn't exist or is deactivated, invalidate session
-        if (!dbUser || !dbUser.isActive) {
-          return null as any;
-        }
-
-        // Update session with current role (reflects any changes made by CEO)
+        // Use cached data from token instead of DB query
         (session.user as any).id = token.id as string;
-        (session.user as any).role = dbUser.role;
+        (session.user as any).role = token.role;
+        (session.user as any).name = token.name;
+        (session.user as any).email = token.email;
       }
       return session;
     },
