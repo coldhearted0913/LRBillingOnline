@@ -72,16 +72,13 @@ export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
   
-  // Redirect to login if not authenticated - use useCallback to stabilize the redirect function
-  const redirectToLogin = useCallback(() => {
-    if (typeof window !== 'undefined' && status === 'unauthenticated') {
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated' && typeof window !== 'undefined') {
       router.push('/login');
     }
-  }, [status, router]);
-  
-  useEffect(() => {
-    redirectToLogin();
-  }, [redirectToLogin]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
   
   // Show loading while checking session
   if (status === 'loading') {
