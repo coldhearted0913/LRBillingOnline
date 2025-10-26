@@ -88,6 +88,32 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       if (editedData['Consignee']) {
         setSelectedConsignees(editedData['Consignee'].split('/').map(c => c.trim()).filter(c => c));
       }
+      
+      // Parse descriptions and quantities
+      if (editedData['Description of Goods'] && editedData['Quantity']) {
+        const descriptionsText = editedData['Description of Goods'];
+        const quantitiesText = editedData['Quantity'];
+        
+        // Split by comma to get individual items
+        const descriptionParts = descriptionsText.split(', ').map(s => s.trim());
+        const quantityParts = quantitiesText.split(',').map(s => s.trim());
+        
+        const parsedDescriptions = descriptionParts.map((desc, index) => {
+          // Try to extract description and quantity from format "Description: Quantity"
+          const colonIndex = desc.indexOf(':');
+          if (colonIndex !== -1) {
+            const descriptionPart = desc.substring(0, colonIndex).trim();
+            const quantityPart = desc.substring(colonIndex + 1).trim();
+            return { description: descriptionPart, quantity: quantityPart };
+          } else {
+            // If no colon, use quantity from the Quantity field
+            return { description: desc, quantity: quantityParts[index] || '' };
+          }
+        });
+        
+        setSelectedDescriptions(parsedDescriptions);
+      }
+      
       // Reset the manual edit flag when loading new editing data
       koelGateEntryManuallyEdited.current = false;
     }
