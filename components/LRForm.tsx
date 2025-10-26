@@ -732,7 +732,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   </select>
                 </div>
                 
-                <div className="md:col-span-2">
+                <div>
                   <Label htmlFor="vehicleNumber">Vehicle Number</Label>
                   <div className="flex gap-2">
                     <select
@@ -867,7 +867,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   />
                 </div>
                 
-                <div className="md:col-span-2">
+                <div>
                   <Label htmlFor="descriptionOfGoods">Description of Goods</Label>
                   <div className="space-y-3">
                     <div className="flex gap-2">
@@ -945,25 +945,27 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                     )}
                     
                     {selectedDescriptions.length > 0 && (
-                      <div className="space-y-2">
+                      <div className="space-y-2 mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <p className="text-xs font-medium text-blue-700 mb-2">Selected Descriptions:</p>
                         {selectedDescriptions.map((item, index) => (
-                          <div key={index} className="flex gap-2 items-center">
-                            <Badge variant="default" className="flex-1 justify-between px-3 py-2">
-                              <span className="font-medium">{item.description}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveDescription(item.description)}
-                                className="ml-2 hover:text-red-600"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
+                          <div key={index} className="flex gap-2 items-center bg-white p-2 rounded border border-gray-200">
+                            <Badge variant="default" className="px-3 py-1.5">
+                              {item.description}
                             </Badge>
                             <Input
                               value={item.quantity}
                               onChange={(e) => handleUpdateQuantity(item.description, e.target.value)}
-                              placeholder="Quantity"
-                              className="w-32"
+                              placeholder="Enter quantity"
+                              className="flex-1"
                             />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDescription(item.description)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="Remove"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
                           </div>
                         ))}
                       </div>
