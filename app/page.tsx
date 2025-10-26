@@ -1053,7 +1053,7 @@ export default function Dashboard() {
             </CardHeader>
           </Card>
           
-          {/* Bill Completion Rate Card */}
+          {/* Bill Completion Rate Card with Progress Bar */}
           <Card className="bg-gradient-to-br from-teal-50 to-teal-100 border-teal-300">
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
@@ -1063,13 +1063,21 @@ export default function Dashboard() {
                 <div className="min-w-0 flex-1">
                   <CardDescription className="text-teal-700 text-xs md:text-sm">Bill Completion Rate</CardDescription>
                   <CardTitle className="text-xl md:text-2xl text-teal-600">{stats.billCompletionRate}%</CardTitle>
-                  <p className="text-[10px] md:text-xs text-teal-600 mt-0.5">{stats.total - (stats.billDone + stats.billSubmitted)} LRs pending bills</p>
+                  <div className="mt-2">
+                    <div className="w-full bg-teal-200 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-teal-500 to-teal-600 h-2 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${Math.min(stats.billCompletionRate, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] md:text-xs text-teal-600 mt-1">{stats.total - (stats.billDone + stats.billSubmitted)} LRs pending bills</p>
                 </div>
               </div>
             </CardHeader>
           </Card>
           
-          {/* Vehicle Type Breakdown Card */}
+          {/* Vehicle Type Breakdown Card with Progress Bars */}
           <Card className="bg-gradient-to-br from-rose-50 to-rose-100 border-rose-300">
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-start gap-2 md:gap-3">
@@ -1078,18 +1086,47 @@ export default function Dashboard() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <CardDescription className="text-rose-700 text-xs md:text-sm mb-2">Vehicle Type Breakdown</CardDescription>
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-rose-700">PICKUP:</span>
-                      <Badge variant="secondary" className="bg-rose-200 text-rose-800 text-xs">{stats.vehicleTypeBreakdown.PICKUP}</Badge>
+                  <div className="space-y-2">
+                    {/* PICKUP */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-medium text-rose-700">PICKUP</span>
+                        <Badge variant="secondary" className="bg-rose-200 text-rose-800 text-xs">{stats.vehicleTypeBreakdown.PICKUP}</Badge>
+                      </div>
+                      <div className="w-full bg-rose-200 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-gradient-to-r from-rose-500 to-rose-600 h-1.5 rounded-full transition-all duration-500 ease-out"
+                          style={{ width: stats.total > 0 ? `${(stats.vehicleTypeBreakdown.PICKUP / stats.total) * 100}%` : '0%' }}
+                        ></div>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-rose-700">TRUCK:</span>
-                      <Badge variant="secondary" className="bg-rose-200 text-rose-800 text-xs">{stats.vehicleTypeBreakdown.TRUCK}</Badge>
+                    
+                    {/* TRUCK */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-medium text-rose-700">TRUCK</span>
+                        <Badge variant="secondary" className="bg-rose-200 text-rose-800 text-xs">{stats.vehicleTypeBreakdown.TRUCK}</Badge>
+                      </div>
+                      <div className="w-full bg-rose-200 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-gradient-to-r from-rose-500 to-rose-600 h-1.5 rounded-full transition-all duration-500 ease-out"
+                          style={{ width: stats.total > 0 ? `${(stats.vehicleTypeBreakdown.TRUCK / stats.total) * 100}%` : '0%' }}
+                        ></div>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-rose-700">TOUROUS:</span>
-                      <Badge variant="secondary" className="bg-rose-200 text-rose-800 text-xs">{stats.vehicleTypeBreakdown.TOUROUS}</Badge>
+                    
+                    {/* TOUROUS */}
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-medium text-rose-700">TOUROUS</span>
+                        <Badge variant="secondary" className="bg-rose-200 text-rose-800 text-xs">{stats.vehicleTypeBreakdown.TOUROUS}</Badge>
+                      </div>
+                      <div className="w-full bg-rose-200 rounded-full h-1.5 overflow-hidden">
+                        <div 
+                          className="bg-gradient-to-r from-rose-500 to-rose-600 h-1.5 rounded-full transition-all duration-500 ease-out"
+                          style={{ width: stats.total > 0 ? `${(stats.vehicleTypeBreakdown.TOUROUS / stats.total) * 100}%` : '0%' }}
+                        ></div>
+                      </div>
                     </div>
                   </div>
                 </div>
