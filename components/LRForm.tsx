@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Save, Trash2, Truck, MapPin, Package, FileText, TrendingUp, Check } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { LRData } from '@/lib/database';
 import { 
   LR_PREFIX, 
@@ -131,49 +132,49 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     
     // Validate required fields and scroll to first invalid
     if (!formData['LR No'] || formData['LR No'] === LR_PREFIX) {
-      alert('Please enter a valid LR Number');
+      toast.error('Please enter a valid LR Number');
       document.getElementById('lrNo')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       document.getElementById('lrNo')?.focus();
       return;
     }
     
     if (!formData['LR Date']) {
-      alert('Please select LR Date');
+      toast.error('Please select LR Date');
       document.getElementById('lrDate')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       document.getElementById('lrDate')?.focus();
       return;
     }
     
     if (!formData['FROM']) {
-      alert('Please select FROM location');
+      toast.error('Please select FROM location');
       document.getElementById('from')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       document.getElementById('from')?.focus();
       return;
     }
     
     if (!formData['TO']) {
-      alert('Please select TO location');
+      toast.error('Please select TO location');
       document.getElementById('to')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       document.getElementById('to')?.focus();
       return;
     }
     
     if (selectedConsignors.length === 0) {
-      alert('Please select at least one Consignor');
+      toast.error('Please select at least one Consignor');
       // Scroll to consignor section
       document.getElementById('consignor')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     
     if (selectedConsignees.length === 0) {
-      alert('Please select at least one Consignee');
+      toast.error('Please select at least one Consignee');
       // Scroll to consignee section
       document.getElementById('consignee')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     
     if (!formData['Vehicle Type']) {
-      alert('Please select Vehicle Type');
+      toast.error('Please select Vehicle Type');
       document.getElementById('vehicleType')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       document.getElementById('vehicleType')?.focus();
       return;
@@ -181,7 +182,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
 
     // Check if Consignor and Consignee are the same
     if (formData['Consignor'] && formData['Consignee'] && formData['Consignor'] === formData['Consignee']) {
-      alert('Consignor and Consignee cannot be the same');
+      toast.error('Consignor and Consignee cannot be the same');
       document.getElementById('consignor')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
@@ -211,13 +212,20 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       const data = await response.json();
       
       if (data.success) {
-        alert(editingLr ? 'LR updated successfully!' : 'LR created successfully!');
+        toast.success(editingLr ? 'LR updated successfully!' : 'LR created successfully!');
         onBack();
       } else {
-        alert(data.error || 'Failed to save LR');
+        // Enhanced error message with details
+        const errorMessage = data.details 
+          ? `Validation failed: ${data.details.map((d: any) => d.message).join(', ')}`
+          : data.error || 'Failed to save LR';
+        toast.error(errorMessage);
+        console.error('[LRForm] Save failed:', { data, submissionData });
       }
     } catch (error) {
-      alert('Failed to save LR');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save LR';
+      toast.error(`Network error: ${errorMessage}`);
+      console.error('[LRForm] Save error:', error);
     } finally {
       setLoading(false);
     }
@@ -225,7 +233,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   
   // Clear form
   const clearForm = () => {
-    if (confirm('Are you sure you want to clear the form?')) {
+    if (confirm('Are you sure you want to clear all form data?')) {
       setFormData({
         'FROM': '',
         'TO': '',
