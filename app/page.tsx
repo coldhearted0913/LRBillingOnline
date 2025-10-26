@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Plus, RefreshCw, Check, X, Trash2, FileText, Download, 
   Truck, Calendar, MapPin, Package, TrendingUp, BarChart3, Search, Folder, 
-  DollarSign, PieChart, TrendingDown
+  DollarSign, PieChart, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import JSZip from 'jszip';
 import toast from 'react-hot-toast';
@@ -28,14 +28,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import EmptyState from '@/components/EmptyState';
 
 export default function Dashboard() {
-  const [lrs, setLrs] = useState<LRData[]>([]);
   const [filteredLrs, setFilteredLrs] = useState<LRData[]>([]);
   const [selectedLrs, setSelectedLrs] = useState<Set<string>>(new Set());
   const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'rework-bill' | 'additional-bill'>('dashboard');
@@ -81,7 +79,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   
   // Fetch LRs with React Query
-  const { data: lrsData = [], isLoading: isLoadingLRs, refetch: refetchLRs } = useQuery({
+  const { data: lrs = [], isLoading: isLoadingLRs, refetch: refetchLRs } = useQuery({
     queryKey: ['lrs'],
     queryFn: async () => {
       const response = await fetch('/api/lrs');
@@ -92,13 +90,6 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (formerly cacheTime)
   });
-  
-  // Update local state when React Query data changes
-  useEffect(() => {
-    if (lrsData) {
-      setLrs(lrsData);
-    }
-  }, [lrsData]);
   
   // Load LRs function (for manual refresh)
   const loadLRs = () => {
@@ -246,7 +237,7 @@ export default function Dashboard() {
     
     // Filter by year (dates are in DD-MM-YYYY format)
     if (selectedYear !== 'All Years') {
-      statsLrs = statsLrs.filter(lr => {
+      statsLrs = statsLrs.filter((lr: LRData) => {
       const lrDate = lr['LR Date'];
       if (!lrDate) return false;
       const parts = lrDate.split('-');
@@ -258,7 +249,7 @@ export default function Dashboard() {
     // Filter by month
     if (selectedMonth !== 'All Months') {
       const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
-      statsLrs = statsLrs.filter(lr => {
+      statsLrs = statsLrs.filter((lr: LRData) => {
         const lrDate = lr['LR Date'];
         if (!lrDate) return false;
         const parts = lrDate.split('-');
@@ -273,14 +264,14 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     // Calculate vehicle type breakdown
     const vehicleTypeBreakdown = {
-      PICKUP: statsData.filter(lr => lr['Vehicle Type'] === 'PICKUP').length,
-      TRUCK: statsData.filter(lr => lr['Vehicle Type'] === 'TRUCK').length,
-      TOUROUS: statsData.filter(lr => lr['Vehicle Type'] === 'TOUROUS').length,
+      PICKUP: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'PICKUP').length,
+      TRUCK: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'TRUCK').length,
+      TOUROUS: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'TOUROUS').length,
     };
     
     // Calculate revenue based on status (only Bill Done or Bill Submitted count as revenue)
     let revenue = 0;
-    statsData.forEach(lr => {
+    statsData.forEach((lr: LRData) => {
       if (lr.status === 'Bill Done' || lr.status === 'Bill Submitted') {
         const vehicleType = lr['Vehicle Type'] || 'PICKUP';
         revenue += VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
@@ -289,16 +280,16 @@ export default function Dashboard() {
     
     return {
       total: statsData.length,
-      lrDone: statsData.filter(lr => lr.status === 'LR Done').length,
-      lrCollected: statsData.filter(lr => lr.status === 'LR Collected').length,
-      billDone: statsData.filter(lr => lr.status === 'Bill Done').length,
-      billSubmitted: statsData.filter(lr => lr.status === 'Bill Submitted').length,
-      pendingBills: statsData.filter(lr => lr.status === 'LR Collected').length, // LRs collected but bills not generated
-      pendingSubmission: statsData.filter(lr => lr.status === 'Bill Done').length, // Bills ready to submit
+      lrDone: statsData.filter((lr: LRData) => lr.status === 'LR Done').length,
+      lrCollected: statsData.filter((lr: LRData) => lr.status === 'LR Collected').length,
+      billDone: statsData.filter((lr: LRData) => lr.status === 'Bill Done').length,
+      billSubmitted: statsData.filter((lr: LRData) => lr.status === 'Bill Submitted').length,
+      pendingBills: statsData.filter((lr: LRData) => lr.status === 'LR Collected').length, // LRs collected but bills not generated
+      pendingSubmission: statsData.filter((lr: LRData) => lr.status === 'Bill Done').length, // Bills ready to submit
       thisMonth: statsData.length, // Already filtered by month/year, so just show the count
       vehicleTypeBreakdown, // Vehicle type breakdown
       estimatedRevenue: revenue, // Estimated revenue
-      billCompletionRate: statsData.length > 0 ? Math.round((statsData.filter(lr => lr.status === 'Bill Done' || lr.status === 'Bill Submitted').length / statsData.length) * 100) : 0, // Percentage of LRs with bills
+      billCompletionRate: statsData.length > 0 ? Math.round((statsData.filter((lr: LRData) => lr.status === 'Bill Done' || lr.status === 'Bill Submitted').length / statsData.length) * 100) : 0, // Percentage of LRs with bills
     };
   }, [statsData]);
 
@@ -440,8 +431,8 @@ export default function Dashboard() {
     if (selectedLrs.size === 0) return false;
     
     // Check if all selected LRs have FROM='KOLHAPUR' and TO='Solapur' (case insensitive)
-    return Array.from(selectedLrs).every(lrNo => {
-      const lr = lrs.find(l => l['LR No'] === lrNo);
+    return Array.from(selectedLrs).every((lrNo: string) => {
+      const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
       if (!lr) return false;
       
       const from = lr['FROM']?.toLowerCase().trim() || '';
@@ -457,7 +448,7 @@ export default function Dashboard() {
     if (selectedLrs.size === 0) return true; // Empty selection is consistent
     
     const selectedArray = Array.from(selectedLrs);
-    const firstLr = lrs.find(l => l['LR No'] === selectedArray[0]);
+    const firstLr = lrs.find((l: LRData) => l['LR No'] === selectedArray[0]);
     if (!firstLr) return false;
     
     const firstFrom = firstLr['FROM']?.toLowerCase().trim() || '';
@@ -465,8 +456,8 @@ export default function Dashboard() {
     const isFirstRework = firstFrom === 'kolhapur' && firstTo === 'solapur';
     
     // Check if all selected LRs have the same route type as the first one
-    return selectedArray.every(lrNo => {
-      const lr = lrs.find(l => l['LR No'] === lrNo);
+    return selectedArray.every((lrNo: string) => {
+      const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
       if (!lr) return false;
       
       const from = lr['FROM']?.toLowerCase().trim() || '';
@@ -482,24 +473,24 @@ export default function Dashboard() {
   const isAdditionalBillAllowed = (): boolean => {
     if (selectedLrs.size === 0) return false;
     
-    return Array.from(selectedLrs).some(lrNo => {
-      const lr = lrs.find(l => l['LR No'] === lrNo);
+    return Array.from(selectedLrs).some((lrNo: string) => {
+      const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
       if (!lr || !lr['Consignee']) return false;
       
       // Count consignees by splitting on '/' and filtering empty strings
-      const consignees = lr['Consignee'].split('/').map(c => c.trim()).filter(c => c.length > 0);
+      const consignees = lr['Consignee'].split('/').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
       return consignees.length >= 2;
     });
   };
 
   // Helper function to get compatible LRs for Additional Bill (2+ consignees)
   const getCompatibleAdditionalBillLrs = (): string[] => {
-    return Array.from(selectedLrs).filter(lrNo => {
-      const lr = lrs.find(l => l['LR No'] === lrNo);
+    return Array.from(selectedLrs).filter((lrNo: string) => {
+      const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
       if (!lr || !lr['Consignee']) return false;
       
       // Count consignees by splitting on '/' and filtering empty strings
-      const consignees = lr['Consignee'].split('/').map(c => c.trim()).filter(c => c.length > 0);
+      const consignees = lr['Consignee'].split('/').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
       return consignees.length >= 2;
     });
   };
@@ -511,8 +502,8 @@ export default function Dashboard() {
     const additionalLrs: string[] = [];
     const regularLrs: string[] = [];
     
-    Array.from(selectedLrs).forEach(lrNo => {
-      const lr = lrs.find(l => l['LR No'] === lrNo);
+    Array.from(selectedLrs).forEach((lrNo: string) => {
+      const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
       if (!lr) return;
       
       // Case-insensitive comparison
@@ -522,7 +513,7 @@ export default function Dashboard() {
       // Rework: Kolhapur → Solapur (case-insensitive, regardless of consignee count)
       const isRework = from === 'kolhapur' && to === 'solapur';
       
-      const consignees = lr['Consignee']?.split('/').map(c => c.trim()).filter(c => c.length > 0) || [];
+      const consignees = lr['Consignee']?.split('/').map((c: string) => c.trim()).filter((c: string) => c.length > 0) || [];
       const hasMultipleConsignees = consignees.length >= 2;
       
       if (isRework) {
@@ -544,6 +535,86 @@ export default function Dashboard() {
     return { reworkLrs, additionalLrs, regularLrs };
   };
 
+  // Function to validate LRs and find issues
+  const validateSelectedLrs = () => {
+    const issues: { lrNo: string, type: 'warning' | 'error', message: string }[] = [];
+    const lrDetails = Array.from(selectedLrs).map((lrNo: string) => {
+      const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
+      if (!lr) return null;
+      
+      // Check for issues
+      if (!lr['Vehicle Number'] || lr['Vehicle Number'].trim() === '') {
+        issues.push({ lrNo, type: 'warning', message: 'Missing vehicle number' });
+      }
+      
+      if (!lr['FROM'] || lr['FROM'].trim() === '') {
+        issues.push({ lrNo, type: 'error', message: 'Missing FROM location' });
+      }
+      
+      if (!lr['TO'] || lr['TO'].trim() === '') {
+        issues.push({ lrNo, type: 'error', message: 'Missing TO location' });
+      }
+      
+      // Validate date format (DD-MM-YYYY)
+      const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
+      if (!lr['LR Date'] || !dateRegex.test(lr['LR Date'])) {
+        issues.push({ lrNo, type: 'error', message: 'Invalid LR date format' });
+      }
+      
+      return lr;
+    }).filter((lr: LRData | null) => lr !== null);
+    
+    return { lrDetails, issues };
+  };
+  
+  // Function to calculate estimated bill amounts
+  const calculateEstimatedAmounts = () => {
+    const { reworkLrs, additionalLrs, regularLrs } = categorizeSelectedLrs();
+    
+    let totalAmount = 0;
+    const breakdown = {
+      rework: 0,
+      additional: 0,
+      regular: 0,
+    };
+    
+    // Calculate rework bill amounts (80% of vehicle amount)
+    reworkLrs.forEach((lrNo: string) => {
+      const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
+      if (lr) {
+        const vehicleType = lr['Vehicle Type'] || 'PICKUP';
+        const baseAmount = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
+        const amount = Math.round(baseAmount * 0.8);
+        breakdown.rework += amount;
+        totalAmount += amount;
+      }
+    });
+    
+    // Calculate additional bill amounts
+    additionalLrs.forEach((lrNo: string) => {
+      const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
+      if (lr) {
+        const vehicleType = lr['Vehicle Type'] || 'PICKUP';
+        const amount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
+        breakdown.additional += amount;
+        totalAmount += amount;
+      }
+    });
+    
+    // Calculate regular bill amounts
+    regularLrs.forEach((lrNo: string) => {
+      const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
+      if (lr) {
+        const vehicleType = lr['Vehicle Type'] || 'PICKUP';
+        const amount = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
+        breakdown.regular += amount;
+        totalAmount += amount;
+      }
+    });
+    
+    return { totalAmount, breakdown };
+  };
+  
   // Generate all bill types in one click
   const handleGenerateAllBills = () => {
     if (selectedLrs.size === 0) {
@@ -555,7 +626,7 @@ export default function Dashboard() {
     const categorized = categorizeSelectedLrs();
     setCategorizedLrs(categorized);
     
-    // Show modal with bill number inputs
+    // Show modal with bill number inputs (preview will be shown in the modal)
     setShowDatePicker(true);
   };
   
@@ -583,8 +654,8 @@ export default function Dashboard() {
         body: JSON.stringify({
           submissionDate,
               billNo: fullReworkBillNo,
-              entries: reworkLrs.map(lrNo => {
-                const lr = lrs.find(l => l['LR No'] === lrNo);
+              entries: reworkLrs.map((lrNo: string) => {
+                const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
                 if (!lr) return null;
                 const vehicleType = lr['Vehicle Type'] || 'PICKUP';
                 const baseAmount = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
@@ -597,7 +668,7 @@ export default function Dashboard() {
                   'TO': lr['TO'] || '',
                   'Amount': Math.round(baseAmount * 0.8),
                 };
-              }).filter(e => e !== null),
+              }).filter((e: any) => e !== null),
         }),
       });
       
@@ -622,13 +693,13 @@ export default function Dashboard() {
             body: JSON.stringify({
               submissionDate,
               billNo: fullAdditionalBillNo,
-              entries: additionalLrs.map(lrNo => {
-                const lr = lrs.find(l => l['LR No'] === lrNo);
+              entries: additionalLrs.map((lrNo: string) => {
+                const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
                 if (!lr) return null;
                 const vehicleType = lr['Vehicle Type'] || 'PICKUP';
                 // Use ADDITIONAL_BILL_AMOUNTS instead of VEHICLE_AMOUNTS
                 const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
-                const consignees = lr['Consignee']?.split('/').map(c => c.trim()).filter(c => c.length > 0) || [];
+                const consignees = lr['Consignee']?.split('/').map((c: string) => c.trim()).filter((c: string) => c.length > 0) || [];
                 return {
                   'LR Date': lr['LR Date'] || '',
                   'LR No': lr['LR No'] || '',
@@ -639,7 +710,7 @@ export default function Dashboard() {
                   'Amount': additionalAmount,
                   'Delivery Count': consignees.length,
                 };
-              }).filter(e => e !== null),
+              }).filter((e: any) => e !== null),
             }),
           });
           
@@ -709,14 +780,7 @@ export default function Dashboard() {
   
   // Update LR status (using React Query mutation)
   const updateLRStatus = async (lrNo: string, newStatus: string) => {
-    // Optimistically update the UI first
-    setLrs(prevLrs => 
-      prevLrs.map(lr => 
-        lr['LR No'] === lrNo ? { ...lr, status: newStatus } : lr
-      )
-    );
-    
-    // Then update the API using mutation
+    // Use React Query mutation for status update
     statusUpdateMutation.mutate({ lrNo, status: newStatus });
   };
   
@@ -1673,23 +1737,113 @@ export default function Dashboard() {
       <Dialog open={showDatePicker} onOpenChange={setShowDatePicker}>
         <DialogContent className="max-w-lg w-[95vw] sm:w-full mx-4">
           <DialogHeader>
-            <DialogTitle>Generate All Bills</DialogTitle>
+            <DialogTitle>Generate All Bills - Preview</DialogTitle>
             <DialogDescription>
-              {categorizedLrs && (
-                <div className="mt-2 space-y-1">
-                  {categorizedLrs.reworkLrs.length > 0 && (
-                    <p className="text-sm text-orange-600">🔄 {categorizedLrs.reworkLrs.length} Rework Bill(s)</p>
-                  )}
-                  {categorizedLrs.additionalLrs.length > 0 && (
-                    <p className="text-sm text-pink-600">📋 {categorizedLrs.additionalLrs.length} Additional Bill(s)</p>
-                  )}
-                  {categorizedLrs.regularLrs.length > 0 && (
-                    <p className="text-sm text-blue-600">📄 {categorizedLrs.regularLrs.length} Regular Bill(s)</p>
-                  )}
-                </div>
-              )}
+              Review the details below before generating bills
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Preview Section */}
+          <div className="space-y-4">
+            {/* Validation Warnings */}
+            {(() => {
+              const { issues } = validateSelectedLrs();
+              const errors = issues.filter(i => i.type === 'error');
+              const warnings = issues.filter(i => i.type === 'warning');
+              
+              if (errors.length > 0 || warnings.length > 0) {
+                return (
+                  <div className="space-y-2">
+                    {errors.length > 0 && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-sm font-semibold text-red-800 mb-2">⚠️ Critical Issues Found:</p>
+                        <ul className="text-xs text-red-700 space-y-1">
+                          {errors.slice(0, 3).map((issue, idx) => (
+                            <li key={idx}>• {issue.lrNo}: {issue.message}</li>
+                          ))}
+                          {errors.length > 3 && <li>... and {errors.length - 3} more</li>}
+                        </ul>
+                      </div>
+                    )}
+                    {warnings.length > 0 && (
+                      <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-sm font-semibold text-yellow-800 mb-2">⚠️ Warnings:</p>
+                        <ul className="text-xs text-yellow-700 space-y-1">
+                          {warnings.slice(0, 3).map((issue, idx) => (
+                            <li key={idx}>• {issue.lrNo}: {issue.message}</li>
+                          ))}
+                          {warnings.length > 3 && <li>... and {warnings.length - 3} more</li>}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm font-semibold text-green-800">✓ All LR data validated successfully</p>
+                </div>
+              );
+            })()}
+            
+            {/* Estimated Amount Preview */}
+            {(() => {
+              const { totalAmount, breakdown } = calculateEstimatedAmounts();
+              return (
+                <div className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm font-semibold text-blue-900 mb-3">💰 Estimated Bill Amounts:</p>
+                  <div className="space-y-2">
+                    {breakdown.rework > 0 && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-orange-700">🔄 Rework Bills:</span>
+                        <span className="font-bold text-orange-600">₹{breakdown.rework.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {breakdown.additional > 0 && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-pink-700">📋 Additional Bills:</span>
+                        <span className="font-bold text-pink-600">₹{breakdown.additional.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {breakdown.regular > 0 && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-blue-700">📄 Regular Bills:</span>
+                        <span className="font-bold text-blue-600">₹{breakdown.regular.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center pt-2 border-t border-blue-300">
+                      <span className="font-bold text-gray-900">Total Estimated Amount:</span>
+                      <span className="font-bold text-lg text-purple-600">₹{totalAmount.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            
+            {/* Bill Counts */}
+            {categorizedLrs && (
+              <div className="grid grid-cols-3 gap-3">
+                {categorizedLrs.reworkLrs.length > 0 && (
+                  <div className="text-center p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <p className="text-2xl font-bold text-orange-600">{categorizedLrs.reworkLrs.length}</p>
+                    <p className="text-xs text-orange-700 mt-1">🔄 Rework</p>
+                  </div>
+                )}
+                {categorizedLrs.additionalLrs.length > 0 && (
+                  <div className="text-center p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                    <p className="text-2xl font-bold text-pink-600">{categorizedLrs.additionalLrs.length}</p>
+                    <p className="text-xs text-pink-700 mt-1">📋 Additional</p>
+                  </div>
+                )}
+                {categorizedLrs.regularLrs.length > 0 && (
+                  <div className="text-center p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-2xl font-bold text-blue-600">{categorizedLrs.regularLrs.length}</p>
+                    <p className="text-xs text-blue-700 mt-1">📄 Regular</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           
           <div className="py-4 space-y-4">
             {/* Rework Bill Number */}

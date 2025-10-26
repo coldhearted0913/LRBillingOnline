@@ -19,6 +19,7 @@ interface User {
   email: string;
   name: string;
   role: string;
+  phone?: string;
 }
 
 export default function ProfileSettingsModal({
@@ -33,8 +34,12 @@ export default function ProfileSettingsModal({
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState('WORKER');
+  const [newUserPhone, setNewUserPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  
+  // Profile update state
+  const [userPhone, setUserPhone] = useState('');
   
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -53,6 +58,28 @@ export default function ProfileSettingsModal({
     }
   }, [activeTab, isAdmin]);
 
+  // Load current user's phone number when Profile tab opens
+  useEffect(() => {
+    if (activeTab === 'profile' && userEmail) {
+      fetchCurrentUserPhone();
+    }
+  }, [activeTab, userEmail]);
+
+  const fetchCurrentUserPhone = async () => {
+    try {
+      // Fetch current user's phone from the update-phone endpoint (GET)
+      const response = await fetch('/api/auth/update-phone');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.user && data.user.phone) {
+          setUserPhone(data.user.phone);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching current user phone:', error);
+    }
+  };
+
   const fetchUsers = async () => {
     try {
       const response = await fetch('/api/auth/users');
@@ -65,6 +92,66 @@ export default function ProfileSettingsModal({
     }
   };
 
+  // Helper function to format phone number with +91 prefix
+  const formatPhoneNumber = (phone: string): string => {
+    // Remove all non-digit characters
+    const digits = phone.replace(/\D/g, '');
+    
+    // If empty, return as is
+    if (!digits) return '';
+    
+    // If already starts with 91 and has 12 digits, return as +91...
+    if (digits.startsWith('91') && digits.length === 12) {
+      return `+${digits}`;
+    }
+    
+    // If starts with 0 and has 11 digits, remove leading 0 and add +91
+    if (digits.startsWith('0') && digits.length === 11) {
+      return `+91${digits.substring(1)}`;
+    }
+    
+    // If has 10 digits (typical Indian mobile number), add +91 prefix
+    if (digits.length === 10) {
+      return `+91${digits}`;
+    }
+    
+    // If already has +91 or starts with other country code, return as is
+    if (phone.startsWith('+')) {
+      return phone;
+    }
+    
+    // Default: assume it's a 10-digit Indian number and add +91
+    return digits.length === 10 ? `+91${digits}` : phone;
+  };
+
+  const handleUpdatePhone = async () => {
+    const formattedPhone = formatPhoneNumber(userPhone);
+    console.log('[ProfileSettings] Saving phone number:', formattedPhone, '(original:', userPhone, ')');
+    
+    try {
+      const response = await fetch('/api/auth/update-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: formattedPhone }),
+      });
+
+      const data = await response.json();
+      console.log('[ProfileSettings] Update phone response:', data);
+
+      if (response.ok) {
+        setMessage('Phone number updated successfully');
+        // Update the displayed phone number to show the formatted version
+        setUserPhone(formattedPhone);
+        setTimeout(() => setMessage(''), 3000);
+      } else {
+        setMessage(data.error || 'Failed to update phone number');
+      }
+    } catch (error) {
+      console.error('[ProfileSettings] Update phone error:', error);
+      setMessage('Error updating phone number');
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserEmail || !newUserPassword) {
@@ -74,6 +161,8 @@ export default function ProfileSettingsModal({
 
     setLoading(true);
     try {
+      const formattedPhone = newUserPhone ? formatPhoneNumber(newUserPhone) : undefined;
+      
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -82,6 +171,7 @@ export default function ProfileSettingsModal({
           password: newUserPassword,
           role: newUserRole,
           name: newUserEmail.split('@')[0],
+          phone: formattedPhone,
         }),
       });
 
@@ -90,6 +180,7 @@ export default function ProfileSettingsModal({
         setNewUserEmail('');
         setNewUserPassword('');
         setNewUserRole('WORKER');
+        setNewUserPhone('');
         fetchUsers();
         setTimeout(() => setMessage(''), 3000);
       } else {
@@ -261,6 +352,15 @@ export default function ProfileSettingsModal({
           {/* Profile Tab */}
           {activeTab === 'profile' && (
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+              {message && (
+                <div className={`p-4 rounded-lg text-sm ${
+                  message.includes('successfully')
+                    ? 'bg-green-50 border border-green-200 text-green-800'
+                    : 'bg-red-50 border border-red-200 text-red-800'
+                }`}>
+                  {message}
+                </div>
+              )}
               <div>
                 <Label className="text-gray-700 font-semibold">Name</Label>
                 <p className="mt-2 text-gray-900">{userName}</p>
@@ -276,6 +376,30 @@ export default function ProfileSettingsModal({
                     {userRole}
                   </span>
                 </p>
+              </div>
+              <div>
+                <Label htmlFor="phone" className="text-gray-700 font-semibold">
+                  Phone Number
+                </Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={userPhone}
+                  onChange={(e) => setUserPhone(e.target.value)}
+                  placeholder="9853012345 or +919853012345"
+                  className="mt-2 text-gray-900 bg-white"
+                />
+                <p className="mt-2 text-xs text-gray-600">
+                  Used for login and account security (prefix +91 will be added automatically)
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    onClick={handleUpdatePhone}
+                    size="sm"
+                  >
+                    Save Phone Number
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -404,6 +528,22 @@ export default function ProfileSettingsModal({
                       <option value="MANAGER">Manager</option>
                     </select>
                   </div>
+                                     <div>
+                     <Label htmlFor="phone" className="text-gray-700">
+                       Phone Number (Optional)
+                     </Label>
+                     <Input
+                       id="phone"
+                       type="tel"
+                       value={newUserPhone}
+                       onChange={(e) => setNewUserPhone(e.target.value)}
+                       placeholder="9853012345 or +919853012345"
+                       className="mt-1 text-gray-900 bg-white"
+                     />
+                     <p className="mt-1 text-xs text-gray-500">
+                       10-digit number (+91 will be added automatically)
+                     </p>
+                   </div>
                   <Button
                     type="submit"
                     disabled={loading}

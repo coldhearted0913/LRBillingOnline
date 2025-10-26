@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const { email, password, name, role } = validation.data;
+    const { email, password, name, role, phone } = validation.data;
 
     // Normalize email to lowercase for consistency
     const normalizedEmail = email.toLowerCase().trim();
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
         password: hashedPassword,
         name: name || normalizedEmail.split("@")[0],
         role: role || "WORKER",
+        phone: phone || null,
         isActive: true,
       },
     });

@@ -1,59 +1,78 @@
-# 🚛 LR Billing Web Application
+# 🚛 LR Billing System
 
-A modern, responsive web application for managing LR (Lorry Receipt) billing - accessible from any device!
+A modern, production-ready web application for managing LR (Lorry Receipt) billing with authentication, real-time updates, and automated bill generation.
 
-## ✨ Features
+## ✨ Key Features
+
+### 🔐 Authentication & Security
+- **NextAuth.js** - Secure JWT-based authentication
+- **Role-Based Access Control (RBAC)** - CEO, MANAGER, and WORKER roles
+- **Password Protection** - bcrypt hashing with secure sessions
+- **Phone Number Login** - Login with email or phone number
+- **Session Management** - Auto-logout on inactivity
 
 ### 📊 Dashboard
-- **Modern UI**: Clean, responsive design that works on desktop, tablet, and mobile
-- **LR Table**: View all LRs with sorting and filtering
-- **Month/Year Filters**: Quickly find LRs from specific periods
-- **Status Indicators**: See which LRs are Complete vs Incomplete
-- **Batch Operations**: Select multiple LRs for deletion or bill generation
+- **Live Dashboard** - Real-time LR tracking and statistics
+- **Stats Cards** - LR count, pending bills, revenue tracking
+- **Analytics Dashboard** - CEO-only advanced metrics
+- **Responsive Design** - Mobile, tablet, and desktop support
+- **Toast Notifications** - Professional user feedback
 
-### ➕ LR Management
-- **Create LRs**: Add new LR entries with comprehensive form
-- **Edit LRs**: Update existing LRs anytime
-- **FROM/TO Fields**: Dropdown selectors for origin and destination
-- **Material Supply**: Multi-select for material supply locations
-- **Auto-validation**: LR number prefix enforcement
-- **Smart Defaults**: Auto-fill Koel Gate Entry, date syncing
+### 📝 LR Management
+- **Create/Edit/Delete** - Full CRUD operations
+- **Batch Operations** - Select multiple LRs for bulk actions
+- **Status Tracking** - LR Done → LR Collected → Bill Done → Bill Submitted
+- **Smart Filtering** - Month, year, status, and search filters
+- **Auto-save Remarks** - Add notes to any LR
+- **Pagination** - Handle thousands of records smoothly
 
-### 🎨 Modern UI/UX
-- **Responsive Design**: Works perfectly on all screen sizes
-- **Tailwind CSS**: Beautiful, consistent styling
-- **Interactive Elements**: Smooth transitions and hover effects
-- **Form Validation**: Real-time validation with helpful messages
-- **Loading States**: Clear feedback for all operations
+### 💰 Bill Generation
+- **Unified Bill Generation** - Single-click for all bill types
+- **Automatic Categorization** - Rework, Additional, and Regular bills
+- **Smart Validation** - Pre-generation data checks
+- **Estimated Amounts** - Preview bill totals before generation
+- **Excel Generation** - Professional formatted invoices
+- **ZIP Downloads** - Download all bills at once
+- **Cloud Storage** - AWS S3 integration for backups
 
-## ☁️ AWS S3 Cloud Storage
+### 🚀 Performance
+- **React Query** - Smart caching and auto-refetch
+- **Optimistic Updates** - Instant UI feedback
+- **Database Indexing** - Fast queries on large datasets
+- **Loading States** - Skeleton loaders and progress indicators
+- **Empty States** - Helpful messages when no data
 
-The app supports automatic cloud uploads to AWS S3:
+### 👥 User Management
+- **User Profiles** - Update name, email, phone, and role
+- **Password Changes** - Secure password updates
+- **User Management** (CEO only) - Add/delete users and manage roles
+- **Activity Tracking** - Audit logs for all actions
 
-- **Secure**: Files encrypted in transit and at rest
-- **Reliable**: 99.999999999% durability
-- **Free Tier**: 5 GB free storage for 12 months
-- **Global CDN**: Fast downloads worldwide
+## 🛠️ Tech Stack
 
-📖 **[View S3 Setup Guide](AWS_SETUP_GUIDE.md)**
-
-**Quick Setup:**
-1. Create AWS account (free)
-2. Create S3 bucket
-3. Add credentials to Railway
-4. Files automatically upload to cloud!
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Database**: PostgreSQL (Railway/Neon)
+- **ORM**: Prisma
+- **Auth**: NextAuth.js
+- **Styling**: Tailwind CSS
+- **State Management**: React Query
+- **UI Components**: shadcn/ui
+- **Notifications**: react-hot-toast
+- **Cloud Storage**: AWS S3
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js 18+ installed
-- npm or yarn package manager
+- PostgreSQL database (Railway or Neon)
 
 ### Installation
 
-1. **Navigate to the web app directory:**
+1. **Clone the repository:**
    ```bash
-   cd lr_billing_web
+   git clone <repository-url>
+   cd LRBillingOnline
    ```
 
 2. **Install dependencies:**
@@ -61,255 +80,171 @@ The app supports automatic cloud uploads to AWS S3:
    npm install
    ```
 
-3. **Run the development server:**
+3. **Set up environment variables:**
+   Create a `.env.local` file:
+   ```env
+   DATABASE_URL="your-postgresql-url"
+   NEXTAUTH_SECRET="your-secret-key"
+   NEXTAUTH_URL="http://localhost:3000"
+   AWS_ACCESS_KEY_ID="your-s3-key"
+   AWS_SECRET_ACCESS_KEY="your-s3-secret"
+   AWS_REGION="your-region"
+   S3_BUCKET_NAME="your-bucket"
+   ```
+
+4. **Set up the database:**
+   ```bash
+   npx prisma generate
+   npx prisma db push
+   ```
+
+5. **Run the development server:**
    ```bash
    npm run dev
    ```
 
-4. **Open your browser:**
+6. **Open your browser:**
    Navigate to [http://localhost:3000](http://localhost:3000)
 
-## 📱 Access from Any Device
+## 👤 Default Login
 
-### On Your Computer
+After running `npx prisma db push`, you'll need to:
+1. Create your first user via the registration endpoint or directly in the database
+2. Use email and password to login
+3. Users with 'CEO' role can manage other users
+
+## 🎯 Features in Detail
+
+### Dashboard Features
+- **Stats Cards**: Total LRs, pending collections, bills ready, estimated revenue
+- **Analytics** (CEO only): Revenue trends, completion rates, vehicle breakdown
+- **Advanced Filters**: Month, year, status multi-select, search
+- **Smart Sorting**: Click column headers to sort by LR No or Date
+- **Batch Selection**: Select all, deselect, or choose specific LRs
+- **Status Updates**: Change status in-place with dropdown
+
+### Bill Generation
+- **Automatic Categorization**:
+  - **Rework Bills**: Kolhapur → Solapur routes
+  - **Additional Bills**: LRs with 2+ consignees
+  - **Regular Bills**: All other LRs
+- **Bill Preview**: See estimated amounts before generation
+- **Validation**: Check for missing data before generating
+- **Excel Templates**: Professional formatted sheets
+- **Submission Date**: Automatic folder organization
+
+### User Roles
+- **CEO**: Full access, user management, analytics dashboard
+- **MANAGER**: Full LR management, no user management
+- **WORKER**: Create/edit LRs, view dashboard, no delete
+
+## 📁 Project Structure
+
 ```
-http://localhost:3000
-```
-
-### On Your Phone/Tablet (same network)
-1. Find your computer's IP address:
-   - Windows: `ipconfig` (look for IPv4 Address)
-   - Mac/Linux: `ifconfig` or `ip addr`
-
-2. On your phone/tablet, open browser and go to:
-   ```
-   http://YOUR_IP_ADDRESS:3000
-   ```
-   Example: `http://192.168.1.100:3000`
-
-## 🏗️ Project Structure
-
-```
-lr_billing_web/
+LRBillingOnline/
 ├── app/
 │   ├── api/              # API routes
-│   │   └── lrs/         # LR CRUD endpoints
-│   ├── layout.tsx       # Root layout
-│   ├── page.tsx         # Dashboard page
-│   └── globals.css      # Global styles
+│   │   ├── auth/        # Authentication endpoints
+│   │   ├── lrs/         # LR CRUD operations
+│   │   ├── rework-bills/  # Rework bill generation
+│   │   └── additional-bills/  # Additional bill generation
+│   ├── page.tsx         # Main dashboard
+│   └── layout.tsx       # Root layout
 ├── components/
-│   └── LRForm.tsx       # LR form component
+│   ├── LRForm.tsx       # LR creation/editing form
+│   ├── UserProfileDropdown.tsx  # User menu
+│   ├── ProfileSettingsModal.tsx  # Settings and user management
+│   └── ui/              # Reusable UI components
 ├── lib/
+│   ├── auth.ts          # NextAuth configuration
 │   ├── database.ts      # Database operations
 │   └── constants.ts     # App constants
-├── data/
-│   └── lr_database.json # JSON database (created automatically)
-├── public/              # Static files
-├── package.json         # Dependencies
-├── tsconfig.json        # TypeScript config
-├── tailwind.config.js   # Tailwind config
-└── next.config.js       # Next.js config
+├── prisma/
+│   └── schema.prisma    # Database schema
+└── invoices/            # Generated bills (local)
 ```
 
-## 🎯 How to Use
+## 🔒 Security
 
-### Creating an LR
-1. Click **"Create New LR"** button
-2. Fill in the form:
-   - **FROM**: Select origin (Solapur/Kolhapur)
-   - **TO**: Select destination (SOLAPUR/KOLHAPUR/PUNE/NASHIK)
-   - **LR No**: Enter number (prefix auto-added)
-   - **LR Date**: Select date
-   - **Vehicle Type**: Choose PICKUP/TRUCK/TOROUS
-   - **Material Supply**: Click locations to select
-   - **Description & Quantity**: Optional goods details
-3. Click **"Save LR"**
+- **Environment Variables**: All secrets in `.env.local`
+- **Password Hashing**: bcryptjs with salt rounds
+- **JWT Tokens**: Secure session management
+- **Route Protection**: Middleware guards all routes
+- **Role-Based Access**: API-level permission checks
+- **Input Validation**: Zod schemas for all inputs
 
-### Editing an LR
-1. Find the LR in the table
-2. Click **"Edit"** button in the Actions column
-3. Make your changes
-4. Click **"Update LR"**
+## 📊 Database Schema
 
-### Filtering LRs
-1. Use the **Month** dropdown to select specific month
-2. Use the **Year** dropdown to select year
-3. Click **"Refresh"** to reload data
-
-### Batch Operations
-1. Check the boxes next to LRs you want to select
-2. Use **"Select All"** to select all visible LRs
-3. Click **"Delete Selected"** to remove multiple LRs
-4. Click **"Generate Bills"** for batch bill generation
-
-## 🔧 Configuration
-
-### Database
-- Location: `data/lr_database.json`
-- Auto-created on first run
-- **Backup regularly!**
-
-### Constants (lib/constants.ts)
-- Vehicle amounts
-- Material locations
-- FROM/TO locations
-- LR prefix
-
-## 📊 API Endpoints
-
-### GET /api/lrs
-Get all LRs or filter by month/year
-```
-Query params:
-- year: number
-- month: number
-```
-
-### POST /api/lrs
-Create new LR
-```json
-{
-  "LR No": "MT/25-26/001",
-  "LR Date": "22-10-2025",
-  "Vehicle Type": "TRUCK",
-  ...
-}
-```
-
-### GET /api/lrs/[lrNo]
-Get specific LR
-
-### PUT /api/lrs/[lrNo]
-Update LR
-
-### DELETE /api/lrs/[lrNo]
-Delete LR
-
-### DELETE /api/lrs
-Delete multiple LRs
-```json
-{
-  "lrNumbers": ["MT/25-26/001", "MT/25-26/002"]
-}
-```
-
-## 🎨 Customization
-
-### Colors (tailwind.config.js)
-```javascript
-colors: {
-  primary: '#3498db',    // Blue
-  success: '#27ae60',    // Green
-  warning: '#f39c12',    // Orange
-  danger: '#e74c3c',     // Red
-}
-```
-
-### Fonts (app/layout.tsx)
-Change the `Inter` font to any Google Font
-
-## 📱 Responsive Breakpoints
-
-- **Mobile**: < 768px
-- **Tablet**: 768px - 1024px
-- **Desktop**: > 1024px
+- **User**: Authentication and user management
+- **LR**: Main LR records with all details
+- **AdditionalBill**: Additional bill entries
+- **ReworkBill**: Rework bill entries
+- **ArchiveLR**: Deleted LR backups
 
 ## 🚀 Deployment
 
-### ⚡ NEW: AWS Deployment Ready!
+### Railway Deployment
+1. Connect your GitHub repository
+2. Add environment variables in Railway dashboard
+3. Deploy automatically on push
 
-**Your app is now configured for AWS deployment with PostgreSQL!**
+### Environment Variables for Production
+- `DATABASE_URL` - PostgreSQL connection string
+- `NEXTAUTH_SECRET` - Random 32+ character string
+- `NEXTAUTH_URL` - Your production URL
+- `AWS_ACCESS_KEY_ID` - S3 access key
+- `AWS_SECRET_ACCESS_KEY` - S3 secret
+- `AWS_REGION` - AWS region
+- `S3_BUCKET_NAME` - S3 bucket name
 
-🎯 **Quick Start:** See `START_HERE.md` for 30-minute deployment guide
+## 🎨 Customization
 
-📚 **Documentation:**
-- `START_HERE.md` - Overview and orientation
-- `QUICK_START_AWS.md` - Fast 30-minute AWS deployment
-- `MIGRATION_GUIDE.md` - Detailed migration information
-- `PRE_DEPLOYMENT_CHECKLIST.md` - Step-by-step verification
-- `README_DEPLOYMENT.md` - Complete migration summary
+### Vehicle Amounts
+Edit `lib/constants.ts` to change bill amounts for PICKUP, TRUCK, and TOUROUS.
 
-### Local Development
-```bash
-npm run dev     # Development server
-npm run build   # Production build
-npm start       # Production server
-```
+### Status Colors
+Modify `STATUS_COLORS` in `lib/constants.ts` for custom status styling.
 
-### Deploy to AWS Amplify
-1. Create PostgreSQL database (Neon.tech - free)
-2. Run `SETUP_POSTGRES.bat`
-3. Push to GitHub
-4. Deploy on AWS Amplify Console
+### Bill Templates
+Update Excel templates in the root directory:
+- `SAMPLE.xlsx` - Regular bills
+- `REWORK BILL Format.xlsx` - Rework bills
+- `Additional Bill Format.xlsx` - Additional bills
 
-**Total time: ~30 minutes to go live!**
+## 📱 Mobile Support
 
-### Other Deploy Options
-- **Railway**: `railway up` (supports SQLite)
-- **Render**: Connect GitHub repo
-- **Vercel**: Requires PostgreSQL migration
+Fully responsive design with:
+- Touch-optimized buttons (44px minimum)
+- Mobile-friendly modals and forms
+- Responsive table with horizontal scroll
+- Optimized font sizes for readability
+- Skeleton loaders for better perceived performance
 
-## 🆚 Desktop App vs Web App
+## 🐛 Troubleshooting
 
-| Feature | Desktop App | Web App |
-|---------|-------------|---------|
-| **Access** | Single computer | Any device |
-| **Installation** | Python required | Just a browser |
-| **Updates** | Manual | Automatic |
-| **UI** | Tkinter | Modern React |
-| **Mobile** | ❌ No | ✅ Yes |
-| **Sharing** | ❌ No | ✅ Yes (same network) |
-| **Offline** | ✅ Yes | ⚠️ Needs server |
+### "Database connection failed"
+- Check your `DATABASE_URL` in `.env.local`
+- Ensure PostgreSQL is running and accessible
+- Run `npx prisma db push` to sync schema
 
-## 🔒 Security Notes
+### "Session expired"
+- Clear browser cookies
+- Check `NEXTAUTH_SECRET` is set
+- Restart development server
 
-- Data stored locally in JSON file
-- No authentication (add if needed for production)
-- Runs on localhost by default
-- Enable HTTPS for production
-
-## 📞 Support
-
-For issues or questions:
-1. Check this README
-2. Review the code comments
-3. Check browser console for errors
-
-## 🎉 What's Included
-
-✅ **Modern Dashboard** - Responsive, fast, beautiful  
-✅ **Full CRUD Operations** - Create, Read, Update, Delete  
-✅ **Filtering & Search** - Month/year filters  
-✅ **Batch Operations** - Select multiple LRs  
-✅ **Status Tracking** - Complete/Incomplete indicators  
-✅ **Form Validation** - Real-time validation  
-✅ **Mobile Responsive** - Works on all devices  
-✅ **TypeScript** - Type-safe code  
-✅ **Tailwind CSS** - Modern styling  
-✅ **JSON Database** - Simple, portable storage  
-
-## 🚀 Future Enhancements
-
-Completed:
-- [x] PDF/Excel export ✅
-- [x] Batch bill generation with templates ✅
-- [x] Cloud database (PostgreSQL) ✅
-- [x] AWS deployment ready ✅
-
-Potential features to add:
-- [ ] User authentication
-- [ ] Real-time updates with WebSockets
-- [ ] Advanced search and filters
-- [ ] Data analytics and charts
-- [ ] Mobile app (React Native)
+### "Import errors"
+- Run `npm install` to ensure all dependencies are installed
+- Check Node.js version (requires 18+)
 
 ## 📝 License
 
 Private use for Mangesh Transport billing management.
 
+## 🙏 Acknowledgments
+
+Built with Next.js, TypeScript, and modern web technologies for a scalable, maintainable solution.
+
 ---
 
-**Enjoy your modern LR billing system!** 🎊
-
-Access from anywhere, manage from everywhere! 🌐
+**Need help?** Check the code comments or open an issue on GitHub.
 

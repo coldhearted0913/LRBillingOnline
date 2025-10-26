@@ -20,7 +20,7 @@ export const LoginForm = () => {
 
     try {
       const result = await signIn("credentials", {
-        email: email.toLowerCase(),
+        email: email, // Don't lowercase - let auth handler handle it
         password,
         redirect: false,
       });
@@ -92,24 +92,27 @@ export const LoginForm = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
-              {/* Email field */}
+              {/* Email or Phone field */}
               <div>
                 <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
                   <div className="flex items-center gap-2">
                     <Mail className="w-4 h-4 text-blue-600" />
-                    Email Address
+                    Email or Phone
                   </div>
                 </label>
                 <input
                   id="email"
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={handleEmailChange}
-                  placeholder="you@company.com"
+                  placeholder="you@company.com or 9853012345"
                   required
                   disabled={loading}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition disabled:bg-gray-50 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400 text-sm sm:text-base"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  You can login with your email or phone number
+                </p>
               </div>
 
               {/* Password field */}

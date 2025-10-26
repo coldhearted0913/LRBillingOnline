@@ -11,21 +11,52 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "your@email.com" },
+        email: { label: "Email or Phone", type: "text", placeholder: "your@email.com or 9853012345" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email and password required");
+          throw new Error("Email/Phone and password required");
         }
 
-        // Normalize email to lowercase for consistency
-        const normalizedEmail = credentials.email.toLowerCase().trim();
+        // Helper function to format phone number (same as in ProfileSettingsModal)
+        const formatPhoneForSearch = (input: string): string => {
+          const digits = input.replace(/\D/g, '');
+          if (!digits) return '';
+          
+          if (digits.startsWith('91') && digits.length === 12) {
+            return `+${digits}`;
+          }
+          if (digits.startsWith('0') && digits.length === 11) {
+            return `+91${digits.substring(1)}`;
+          }
+          if (digits.length === 10) {
+            return `+91${digits}`;
+          }
+          if (input.startsWith('+')) {
+            return input;
+          }
+          return digits.length === 10 ? `+91${digits}` : input;
+        };
 
-        // Check if user exists (MUST be created by admin first)
-        const user = await prisma.user.findUnique({
-          where: { email: normalizedEmail },
-        });
+        const input = credentials.email.trim();
+        const isPhone = /^\d{10}$/.test(input) || /^\+91\d{10}$/.test(input) || /^91\d{10}$/.test(input);
+        
+        let user;
+        
+        if (isPhone) {
+          // Login with phone number
+          const formattedPhone = formatPhoneForSearch(input);
+          user = await prisma.user.findFirst({
+            where: { phone: formattedPhone },
+          });
+        } else {
+          // Login with email (default behavior)
+          const normalizedEmail = input.toLowerCase();
+          user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+          });
+        }
 
         // User must exist - no auto-creation
         if (!user) {

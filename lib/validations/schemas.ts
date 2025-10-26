@@ -109,7 +109,8 @@ export const CreateUserSchema = z.object({
   name: z.string()
     .min(2, 'Name must be at least 2 characters')
     .max(100, 'Name must be less than 100 characters')
-    .trim(),
+    .trim()
+    .optional(),
   
   password: z.string()
     .min(8, 'Password must be at least 8 characters')
@@ -118,6 +119,10 @@ export const CreateUserSchema = z.object({
     .regex(/[0-9]/, 'Password must contain at least one number'),
   
   role: z.enum(['CEO', 'MANAGER', 'WORKER']),
+  
+  phone: z.string()
+    .regex(/^\+?[1-9]\d{1,14}$/, 'Please enter a valid phone number')
+    .optional(),
 });
 
 // Change Password Validation Schema
