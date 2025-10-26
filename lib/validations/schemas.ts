@@ -10,12 +10,7 @@ export const LRSchema = z.object({
   lrDate: z.string()
     .regex(/^\d{2}-\d{2}-\d{4}$/, 'Date must be in DD-MM-YYYY format'),
   
-  vehicleNumber: z.string()
-    .min(5, 'Vehicle number must be at least 5 characters')
-    .max(20, 'Vehicle number must be less than 20 characters')
-    .regex(/^[A-Z0-9]+$/i, 'Vehicle number can only contain letters and numbers')
-    .optional()
-    .or(z.literal('')),
+  vehicleNumber: z.string().optional().or(z.literal('')),
   
   vehicleType: z.enum(['PICKUP', 'TRUCK', 'TOROUS']),
   
@@ -27,37 +22,17 @@ export const LRSchema = z.object({
     .min(2, 'Destination must be at least 2 characters')
     .max(100, 'Destination must be less than 100 characters'),
   
-  consignor: z.string()
-    .min(2, 'Consignor must be at least 2 characters')
-    .max(200, 'Consignor must be less than 200 characters')
-    .optional()
-    .or(z.literal('')),
+    consignor: z.string().optional().or(z.literal('')),
+
+  consignee: z.string().optional().or(z.literal('')),
   
-  consignee: z.string()
-    .min(2, 'Consignee must be at least 2 characters')
-    .max(1000, 'Consignee must be less than 1000 characters')
-    .optional()
-    .or(z.literal('')),
-  
-  loadedWeight: z.string()
-    .optional()
-    .refine(val => !val || /^\d+$/.test(val), 'Weight must be a number')
-    .or(z.literal('')),
-  
-  emptyWeight: z.string()
-    .optional()
-    .refine(val => !val || /^\d+$/.test(val), 'Weight must be a number')
-    .or(z.literal('')),
-  
-  descriptionOfGoods: z.string()
-    .max(500, 'Description must be less than 500 characters')
-    .optional()
-    .or(z.literal('')),
-  
-  quantity: z.string()
-    .optional()
-    .refine(val => !val || /^\d+$/.test(val), 'Quantity must be a number')
-    .or(z.literal('')),
+    loadedWeight: z.string().optional().or(z.literal('')),
+
+  emptyWeight: z.string().optional().or(z.literal('')),
+
+  descriptionOfGoods: z.string().optional().or(z.literal('')),
+
+  quantity: z.string().optional().or(z.literal('')),
   
   // Optional fields
   koelGateEntryNo: z.string().optional().or(z.literal('')),
@@ -67,7 +42,7 @@ export const LRSchema = z.object({
   invoiceNo: z.string().optional().or(z.literal('')),
   grrNo: z.string().optional().or(z.literal('')),
   grrDate: z.string().optional().or(z.literal('')),
-  remark: z.string().max(500, 'Remark must be less than 500 characters').optional().or(z.literal('')),
+  remark: z.string().optional().or(z.literal('')),
 }).refine(data => {
   // Custom validation: Consignor and Consignee cannot be the same
   if (data.consignor && data.consignee) {
