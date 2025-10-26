@@ -29,6 +29,9 @@ import {
 } from '@/components/ui/dialog';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import LoadingSkeleton from '@/components/LoadingSkeleton';
+import { Skeleton } from '@/components/ui/skeleton';
+import EmptyState from '@/components/EmptyState';
 
 export default function Dashboard() {
   const [lrs, setLrs] = useState<LRData[]>([]);
@@ -257,7 +260,7 @@ export default function Dashboard() {
   
   // NOW WE CAN DO EARLY RETURNS AFTER ALL HOOKS
   if (status === 'loading') {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return <LoadingSkeleton />;
   }
   
   if (status === 'unauthenticated') {
@@ -1346,25 +1349,58 @@ export default function Dashboard() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {loading ? (
-                      <tr>
-                        <td colSpan={12} className="px-4 py-12 text-center">
-                          <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                            <RefreshCw className="h-5 w-5 animate-spin" />
-                            <span>Loading LRs...</span>
-                          </div>
-                        </td>
-                      </tr>
+                      <>
+                        {[...Array(5)].map((_, i) => (
+                          <tr key={i} className="border-b">
+                            <td className="px-4 py-3 w-10">
+                              <Skeleton className="h-4 w-4" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <Skeleton className="h-4 w-24" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <Skeleton className="h-4 w-20" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <Skeleton className="h-4 w-20" />
+                            </td>
+                            <td className="px-4 py-3 hidden md:table-cell">
+                              <Skeleton className="h-4 w-16" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <Skeleton className="h-4 w-24" />
+                            </td>
+                            <td className="px-4 py-3 hidden md:table-cell">
+                              <Skeleton className="h-4 w-16" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <Skeleton className="h-4 w-20" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <Skeleton className="h-8 w-full" />
+                            </td>
+                            <td className="px-4 py-2">
+                              <Skeleton className="h-6 w-full" />
+                            </td>
+                            <td className="px-4 py-3">
+                              <Skeleton className="h-8 w-16" />
+                            </td>
+                          </tr>
+                        ))}
+                      </>
                     ) : filteredLrs.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="px-4 py-12 text-center">
-                          <div className="flex flex-col items-center gap-2">
-                            <Truck className="h-12 w-12 text-muted-foreground opacity-50" />
-                            <p className="text-muted-foreground font-medium">No LRs found</p>
-                            <p className="text-sm text-muted-foreground">Create your first LR to get started!</p>
-                            <Button onClick={createNewLR} className="mt-4">
-                              <Plus className="mr-2 h-4 w-4" />
-                              Create New LR
-                            </Button>
+                        <td colSpan={12} className="px-0">
+                          <div className="px-4 py-8">
+                            <EmptyState 
+                              type={lrs.length === 0 ? 'no-data' : 'filtered'}
+                              onAction={lrs.length === 0 ? createNewLR : () => {
+                                setSearchQuery('');
+                                setSelectedMonth('All Months');
+                                setSelectedYear(new Date().getFullYear().toString());
+                                setSelectedStatuses(new Set());
+                              }}
+                            />
                           </div>
                         </td>
                       </tr>
