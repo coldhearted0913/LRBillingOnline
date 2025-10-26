@@ -57,6 +57,10 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const [availableVehicles, setAvailableVehicles] = useState<string[]>([]);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [newVehicleNumber, setNewVehicleNumber] = useState('');
+  const [availableDescriptions, setAvailableDescriptions] = useState<string[]>([]);
+  const [selectedDescriptions, setSelectedDescriptions] = useState<Array<{ description: string; quantity: string }>>([]);
+  const [showAddDescription, setShowAddDescription] = useState(false);
+  const [newDescription, setNewDescription] = useState('');
   
   // Helper function to convert dd-mm-yyyy to yyyy-mm-dd
   const convertDateToInputFormat = (dateStr: string): string => {
@@ -202,6 +206,98 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     }
   };
   
+  // Fetch descriptions on component mount
+  useEffect(() => {
+    const fetchDescriptions = async () => {
+      try {
+        const response = await fetch('/api/descriptions');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableDescriptions(data.descriptions || []);
+        }
+      } catch (error) {
+        console.error('Error fetching descriptions:', error);
+      }
+    };
+    
+    fetchDescriptions();
+  }, []);
+  
+  // Add new description
+  const handleAddDescription = async () => {
+    if (!newDescription.trim()) {
+      toast.error('Please enter a description');
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/descriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: newDescription.trim() }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success('Description added successfully');
+        setAvailableDescriptions([...availableDescriptions, newDescription.trim()]);
+        setNewDescription('');
+        setShowAddDescription(false);
+      } else {
+        toast.error(data.error || 'Failed to add description');
+      }
+    } catch (error) {
+      console.error('Error adding description:', error);
+      toast.error('Failed to add description');
+    }
+  };
+  
+  // Delete description
+  const handleDeleteDescription = async (description: string) => {
+    if (!confirm(`Are you sure you want to delete "${description}"?`)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/descriptions?description=${encodeURIComponent(description)}`, {
+        method: 'DELETE'
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success('Description deleted successfully');
+        setAvailableDescriptions(availableDescriptions.filter(d => d !== description));
+        setSelectedDescriptions(selectedDescriptions.filter(d => d.description !== description));
+      } else {
+        toast.error(data.error || 'Failed to delete description');
+      }
+    } catch (error) {
+      console.error('Error deleting description:', error);
+      toast.error('Failed to delete description');
+    }
+  };
+  
+  // Add description to selected list
+  const handleSelectDescription = (description: string) => {
+    if (!selectedDescriptions.find(d => d.description === description)) {
+      setSelectedDescriptions([...selectedDescriptions, { description, quantity: '' }]);
+    }
+  };
+  
+  // Remove description from selected list
+  const handleRemoveDescription = (description: string) => {
+    setSelectedDescriptions(selectedDescriptions.filter(d => d.description !== description));
+  };
+  
+  // Update quantity for a description
+  const handleUpdateQuantity = (description: string, quantity: string) => {
+    setSelectedDescriptions(selectedDescriptions.map(d => 
+      d.description === description ? { ...d, quantity } : d
+    ));
+  };
+  
   // Handle consignor selection
   const toggleConsignor = (consignor: string) => {
     const newConsignors = selectedConsignors.includes(consignor)
@@ -327,6 +423,19 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       if (submissionData['LR Date']) {
         const date = new Date(submissionData['LR Date']);
         submissionData['LR Date'] = `${date.getDate().toString().padStart(2, '0')}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getFullYear()}`;
+      }
+      
+      // Combine descriptions and quantities
+      if (selectedDescriptions.length > 0) {
+        const descriptions = selectedDescriptions
+          .filter(d => d.quantity)
+          .map(d => `${d.description}: ${d.quantity}`)
+          .join(', ');
+        submissionData['Description of Goods'] = descriptions;
+        submissionData['Quantity'] = selectedDescriptions
+          .filter(d => d.quantity)
+          .map(d => d.quantity)
+          .join(', ');
       }
       
       const response = await fetch(url, {
@@ -758,24 +867,133 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   />
                 </div>
                 
-                <div>
+                <div className="md:col-span-2">
                   <Label htmlFor="descriptionOfGoods">Description of Goods</Label>
-                  <Input
-                    id="descriptionOfGoods"
-                    value={formData['Description of Goods'] || ''}
-                    onChange={(e) => handleChange('Description of Goods', e.target.value)}
-                    placeholder="e.g., Steel Rods, Cement Bags"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="quantity">Quantity</Label>
-                  <Input
-                    id="quantity"
-                    value={formData['Quantity'] || ''}
-                    onChange={(e) => handleChange('Quantity', e.target.value)}
-                    placeholder="e.g., 1000, 50 bags"
-                  />
+                  <div className="space-y-3">
+                    <div className="flex gap-2">
+                      <select
+                        id="descriptionOfGoods"
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            handleSelectDescription(e.target.value);
+                            e.target.value = '';
+                          }
+                        }}
+                        className="flex h-10 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                      >
+                        <option value="">Select description...</option>
+                        {availableDescriptions
+                          .filter(d => !selectedDescriptions.find(sd => sd.description === d))
+                          .map(description => (
+                            <option key={description} value={description}>{description}</option>
+                          ))}
+                      </select>
+                      <Button
+                        type="button"
+                        onClick={() => setShowAddDescription(!showAddDescription)}
+                        variant="outline"
+                        size="sm"
+                        className="px-3"
+                        title="Add new description"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    {showAddDescription && (
+                      <div className="p-3 bg-gray-50 border border-gray-300 rounded-md">
+                        <div className="flex gap-2">
+                          <Input
+                            value={newDescription}
+                            onChange={(e) => setNewDescription(e.target.value)}
+                            placeholder="Enter description"
+                            className="flex-1"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddDescription();
+                              } else if (e.key === 'Escape') {
+                                setShowAddDescription(false);
+                                setNewDescription('');
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            onClick={handleAddDescription}
+                            variant="default"
+                            size="sm"
+                            className="px-3"
+                          >
+                            Add
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setShowAddDescription(false);
+                              setNewDescription('');
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="px-3"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedDescriptions.length > 0 && (
+                      <div className="space-y-2">
+                        {selectedDescriptions.map((item, index) => (
+                          <div key={index} className="flex gap-2 items-center">
+                            <Badge variant="default" className="flex-1 justify-between px-3 py-2">
+                              <span className="font-medium">{item.description}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDescription(item.description)}
+                                className="ml-2 hover:text-red-600"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                            <Input
+                              value={item.quantity}
+                              onChange={(e) => handleUpdateQuantity(item.description, e.target.value)}
+                              placeholder="Quantity"
+                              className="w-32"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {availableDescriptions.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {availableDescriptions.map(description => (
+                          <Badge
+                            key={description}
+                            variant={selectedDescriptions.find(d => d.description === description) ? 'default' : 'outline'}
+                            className="cursor-pointer hover:bg-gray-100 flex items-center gap-1"
+                            onClick={() => !selectedDescriptions.find(d => d.description === description) && handleSelectDescription(description)}
+                          >
+                            {description}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteDescription(description);
+                              }}
+                              className="ml-1 hover:text-red-600"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 <div>

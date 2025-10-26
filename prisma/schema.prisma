@@ -103,6 +103,16 @@ model Vehicle {
   @@map("vehicles")
 }
 
+// GoodsDescription model for storing goods descriptions
+model GoodsDescription {
+  id          String   @id @default(cuid())
+  description String   @unique
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  @@map("goods_descriptions")
+}
+
 // Audit log model for tracking all actions
 model AuditLog {
   id            String    @id @default(cuid())
