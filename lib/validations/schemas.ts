@@ -17,7 +17,7 @@ export const LRSchema = z.object({
     .optional()
     .or(z.literal('')),
   
-  vehicleType: z.enum(['PICKUP', 'TRUCK', 'TOUROUS']),
+  vehicleType: z.enum(['PICKUP', 'TRUCK', 'TOROUS']),
   
   fromLocation: z.string()
     .min(2, 'Origin must be at least 2 characters')

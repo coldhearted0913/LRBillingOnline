@@ -266,7 +266,7 @@ export default function Dashboard() {
     const vehicleTypeBreakdown = {
       PICKUP: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'PICKUP').length,
       TRUCK: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'TRUCK').length,
-      TOUROUS: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'TOUROUS').length,
+      TOROUS: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'TOROUS').length,
     };
     
     // Calculate revenue based on status (only Bill Done or Bill Submitted count as revenue)
@@ -1176,16 +1176,16 @@ export default function Dashboard() {
                       </div>
                     </div>
                     
-                    {/* TOUROUS */}
+                    {/* TOROUS */}
                     <div>
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-xs font-medium text-rose-700">TOUROUS</span>
-                        <Badge variant="secondary" className="bg-rose-200 text-rose-800 text-xs">{stats.vehicleTypeBreakdown.TOUROUS}</Badge>
+                        <span className="text-xs font-medium text-rose-700">TOROUS</span>
+                        <Badge variant="secondary" className="bg-rose-200 text-rose-800 text-xs">{stats.vehicleTypeBreakdown.TOROUS}</Badge>
                       </div>
                       <div className="w-full bg-rose-200 rounded-full h-1.5 overflow-hidden">
                         <div 
                           className="bg-gradient-to-r from-rose-500 to-rose-600 h-1.5 rounded-full transition-all duration-500 ease-out"
-                          style={{ width: stats.total > 0 ? `${(stats.vehicleTypeBreakdown.TOUROUS / stats.total) * 100}%` : '0%' }}
+                          style={{ width: stats.total > 0 ? `${(stats.vehicleTypeBreakdown.TOROUS / stats.total) * 100}%` : '0%' }}
                         ></div>
                       </div>
                     </div>

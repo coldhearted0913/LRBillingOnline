@@ -75,12 +75,16 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     
     setHasKOEL(!!hasKOELFlag);
     
-    if (!hasKOELFlag && formData['Koel Gate Entry No'] !== '99') {
+    if (hasKOELFlag) {
+      // If has KOEL (consignor or consignee), clear the field for user input
+      if (formData['Koel Gate Entry No'] === '99') {
+        setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '' }));
+      }
+    } else {
       // If no KOEL, set to 99 and make it non-editable
-      setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '99' }));
-    } else if (hasKOELFlag && formData['Koel Gate Entry No'] === '99') {
-      // If has KOEL and currently set to 99, clear it for user input
-      setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '' }));
+      if (formData['Koel Gate Entry No'] !== '99') {
+        setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '99' }));
+      }
     }
   }, [formData['Consignor'], formData['Consignee']]);
   
