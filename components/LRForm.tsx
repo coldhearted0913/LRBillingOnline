@@ -65,6 +65,21 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     }
   }, [editingLr]);
   
+  // Auto-update Koel Gate Entry No based on consignor/consignee
+  useEffect(() => {
+    const hasKOEL = 
+      formData['Consignor']?.toUpperCase().includes('KOEL') || 
+      formData['Consignee']?.toUpperCase().includes('KOEL');
+    
+    if (!hasKOEL && formData['Koel Gate Entry No'] !== '99') {
+      // If no KOEL, set to 99 and make it non-editable
+      setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '99' }));
+    } else if (hasKOEL && formData['Koel Gate Entry No'] === '99') {
+      // If has KOEL and currently set to 99, clear it for user input
+      setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '' }));
+    }
+  }, [formData['Consignor'], formData['Consignee']]);
+  
   // Handle consignor selection
   const toggleConsignor = (consignor: string) => {
     const newConsignors = selectedConsignors.includes(consignor)
@@ -637,6 +652,8 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                     id="koelGateEntry"
                     value={formData['Koel Gate Entry No'] || '99'}
                     onChange={(e) => handleChange('Koel Gate Entry No', e.target.value)}
+                    disabled={formData['Koel Gate Entry No'] === '99'}
+                    className={formData['Koel Gate Entry No'] === '99' ? 'bg-gray-100 cursor-not-allowed' : ''}
                   />
                 </div>
                 
