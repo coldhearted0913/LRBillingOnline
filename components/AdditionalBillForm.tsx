@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import toast from 'react-hot-toast';
 import { ArrowLeft, FileText, Truck, Calendar, MapPin, Hash, Save, Check, Download } from 'lucide-react';
 import { VEHICLE_AMOUNTS, FROM_LOCATIONS, TO_LOCATIONS, ADDITIONAL_BILL_AMOUNTS, ADDITIONAL_BILL_FROM_LOCATIONS, ADDITIONAL_BILL_TO_LOCATIONS, LR_PREFIX } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
@@ -56,11 +57,11 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
 
   const handleBillNoConfirm = async () => {
     if (!tempBillNo.trim()) {
-      alert('Please enter a bill number');
+      toast.error('Please enter a bill number');
       return;
     }
     if (!submissionDate) {
-      alert('Please enter a submission date');
+      toast.error('Please enter a submission date');
       return;
     }
     
@@ -121,7 +122,7 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
       console.log('[AUTO-GENERATE] Valid LR data:', validLrData);
       
       if (validLrData.length === 0) {
-        alert('No valid LR data found');
+        toast.error('No valid LR data found');
         return;
       }
       
@@ -177,12 +178,12 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
       } else {
         const errorText = await response.text();
         console.error('[AUTO-GENERATE] API error:', errorText);
-        alert(`Failed to generate additional bill: ${errorText}`);
+        toast.error(`Failed to generate additional bill: ${errorText}`);
       }
     } catch (error) {
       console.error('[AUTO-GENERATE] Error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      alert(`Error generating additional bill: ${errorMessage}`);
+      toast.error(`Error generating additional bill: ${errorMessage}`);
     } finally {
       setGenerating(false);
     }
@@ -233,7 +234,7 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
     
     // Validate that at least 2 delivery locations are selected
     if (formData['Delivery Locations'].length <= 1) {
-      alert('Error: At least 2 delivery destinations must be selected for additional billing. 1 destination is not allowed.');
+      toast.error('Error: At least 2 delivery destinations must be selected for additional billing. 1 destination is not allowed.');
       return;
     }
     
@@ -285,14 +286,14 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
             console.log('[RELOAD] Fetched entries:', entriesData.entries);
             console.log('[RELOAD] Number of entries:', entriesData.entries?.length);
             setSavedEntries(entriesData.entries || []);
-            alert(`Entry saved! Total entries: ${entriesData.entries?.length || 0}`);
+            toast.success(`Entry saved! Total entries: ${entriesData.entries?.length || 0}`);
           } else {
             console.error('[RELOAD] Failed to fetch entries');
-            alert('Entry saved but failed to refresh list. Please refresh the page.');
+            toast.error('Entry saved but failed to refresh list. Please refresh the page.');
           }
         } catch (reloadError) {
           console.error('[RELOAD] Error fetching entries:', reloadError);
-          alert('Entry saved but failed to refresh list. Please refresh the page.');
+          toast.error('Entry saved but failed to refresh list. Please refresh the page.');
         }
         
         setSaved(true);
@@ -300,11 +301,11 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
       } else {
         const errorText = await response.text();
         console.error('Save failed:', errorText);
-        alert('Failed to save additional bill entry');
+        toast.error('Failed to save additional bill entry');
       }
     } catch (error) {
       console.error('Error saving additional bill entry:', error);
-      alert('Error saving additional bill entry');
+      toast.error('Error saving additional bill entry');
     } finally {
       setLoading(false);
     }
@@ -312,12 +313,12 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
 
   const generateBill = async () => {
     if (savedEntries.length === 0) {
-      alert('No entries to generate bill');
+      toast.error('No entries to generate bill');
       return;
     }
     
     if (!submissionDate) {
-      alert('Please enter a submission date');
+      toast.error('Please enter a submission date');
       return;
     }
 
@@ -340,11 +341,11 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
         setGeneratedFile(data);
         setShowDownloadModal(true);
       } else {
-        alert('Failed to generate additional bill');
+        toast.error('Failed to generate additional bill');
       }
     } catch (error) {
       console.error('Error generating additional bill:', error);
-      alert('Error generating additional bill');
+      toast.error('Error generating additional bill');
     } finally {
       setGenerating(false);
     }
@@ -364,11 +365,11 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else {
-        alert('Failed to download file');
+        toast.error('Failed to download file');
       }
     } catch (error) {
       console.error('Error downloading file:', error);
-      alert('Error downloading file');
+      toast.error('Error downloading file');
     }
   };
 
@@ -412,15 +413,15 @@ export default function AdditionalBillForm({ onBack, selectedLrs = [] }: Additio
       });
 
       if (response.ok) {
-        alert('Entry deleted successfully!');
+        toast.success('Entry deleted successfully!');
         // Reload saved entries
         loadSavedEntries();
       } else {
-        alert('Failed to delete entry');
+        toast.error('Failed to delete entry');
       }
     } catch (error) {
       console.error('Error deleting entry:', error);
-      alert('Error deleting entry');
+      toast.error('Error deleting entry');
     }
   };
 
