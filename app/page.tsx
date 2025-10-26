@@ -1263,27 +1263,27 @@ export default function Dashboard() {
                   ))}
                   </div>
                   
-                  {/* OK and Cancel buttons */}
-                  <div className="px-3 py-3 border-t border-gray-200 flex gap-2">
-                    <button
-                      onClick={() => {
-                        setSelectedStatuses(new Set(tempStatuses));
-                        document.querySelector('.group.open')?.classList.remove('open');
-                      }}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded text-sm transition-colors"
-                    >
-                      OK
-                    </button>
-                    <button
-                      onClick={() => {
-                        setTempStatuses(new Set(selectedStatuses));
-                        document.querySelector('.group.open')?.classList.remove('open');
-                      }}
-                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-3 rounded text-sm transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                                     {/* OK and Cancel buttons - Enhanced for mobile */}
+                   <div className="px-3 py-3 border-t border-gray-200 flex gap-2">
+                     <button
+                       onClick={() => {
+                         setSelectedStatuses(new Set(tempStatuses));
+                         document.querySelector('.group.open')?.classList.remove('open');
+                       }}
+                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-3 rounded text-sm transition-all active:scale-95 min-h-[44px]"
+                     >
+                       OK
+                     </button>
+                     <button
+                       onClick={() => {
+                         setTempStatuses(new Set(selectedStatuses));
+                         document.querySelector('.group.open')?.classList.remove('open');
+                       }}
+                       className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2.5 px-3 rounded text-sm transition-all active:scale-95 min-h-[44px]"
+                     >
+                       Cancel
+                     </button>
+                   </div>
                 </div>
               </div>
               
@@ -1499,12 +1499,12 @@ export default function Dashboard() {
                                 value={lr.status || 'LR Done'}
                                 onChange={(e) => updateLRStatus(lr['LR No'], e.target.value)}
                                 className={`
-                                  w-full px-0.5 md:px-2 py-1 md:py-2 rounded-lg text-[9px] md:text-xs lg:text-sm font-bold border-2 
-                                  cursor-pointer transition-all
+                                  w-full px-1 md:px-2 py-2 md:py-2 rounded-lg text-[10px] md:text-xs lg:text-sm font-bold border-2 
+                                  cursor-pointer transition-all min-h-[36px] touch-manipulation
                                   ${getStatusColor(lr.status || 'LR Done').bg} 
                                   ${getStatusColor(lr.status || 'LR Done').text} 
                                   ${getStatusColor(lr.status || 'LR Done').border}
-                                  hover:shadow-md hover:scale-105
+                                  hover:shadow-md hover:scale-105 active:scale-95
                                   focus:outline-none focus:ring-2 focus:ring-primary
                                 `}
                               >
@@ -1542,7 +1542,7 @@ export default function Dashboard() {
                                   }
                                 }, 500);
                               }}
-                              className="w-full px-1.5 md:px-2 py-1 md:py-2 text-[9px] md:text-xs lg:text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-2 md:px-2 py-2 md:py-2 text-[10px] md:text-xs lg:text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[36px] touch-manipulation"
                             />
                           </td>
                           <td className="px-1 md:px-4 py-3">
@@ -1550,7 +1550,7 @@ export default function Dashboard() {
                               onClick={() => editLR(lr)}
                               variant="ghost"
                               size="sm"
-                              className="text-[10px] md:text-sm h-7 md:h-8 px-1.5 md:px-3 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-100"
+                              className="text-[10px] md:text-sm h-8 md:h-8 px-2 md:px-3 opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 active:scale-95 min-w-[44px] touch-manipulation"
                             >
                               Edit
                             </Button>
@@ -1576,9 +1576,9 @@ export default function Dashboard() {
                     size="sm"
                     onClick={() => goToPage(currentPage - 1)}
                     disabled={currentPage === 1}
-                    className="text-xs md:text-sm"
+                    className="text-xs md:text-sm min-h-[40px] px-3 md:px-4 active:scale-95 touch-manipulation"
                   >
-                    <ChevronLeft className="h-3 w-3 md:h-4 md:w-4" />
+                    <ChevronLeft className="h-4 w-4 md:h-4 md:w-4" />
                     <span className="hidden md:inline">Previous</span>
                   </Button>
                   
@@ -1601,7 +1601,7 @@ export default function Dashboard() {
                           variant={currentPage === pageNum ? "default" : "outline"}
                           size="sm"
                           onClick={() => goToPage(pageNum)}
-                          className="w-7 md:w-9 text-xs md:text-sm"
+                          className="w-9 md:w-9 text-xs md:text-sm min-h-[40px] active:scale-95 touch-manipulation"
                         >
                           {pageNum}
                         </Button>
@@ -1614,10 +1614,10 @@ export default function Dashboard() {
                     size="sm"
                     onClick={() => goToPage(currentPage + 1)}
                     disabled={currentPage === totalPages}
-                    className="text-xs md:text-sm"
+                    className="text-xs md:text-sm min-h-[40px] px-3 md:px-4 active:scale-95 touch-manipulation"
                   >
                     <span className="hidden md:inline">Next</span>
-                    <ChevronRight className="h-3 w-3 md:h-4 md:w-4" />
+                    <ChevronRight className="h-4 w-4 md:h-4 md:w-4" />
                   </Button>
                 </div>
               </div>
@@ -1630,27 +1630,27 @@ export default function Dashboard() {
           <CardContent className="pt-4 md:pt-6">
             <div className="flex flex-col sm:flex-row flex-wrap gap-2 md:gap-3">
               <div className="flex flex-col sm:flex-row gap-2 md:gap-3 flex-1">
-                <Button onClick={selectAll} variant="outline" className="text-xs md:text-sm">
-                  <Check className="mr-2 h-3 w-3 md:h-4 md:w-4" />
+                <Button onClick={selectAll} variant="outline" className="text-xs md:text-sm min-h-[44px] touch-manipulation active:scale-95">
+                  <Check className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                 Select All
               </Button>
-                <Button onClick={deselectAll} variant="outline" className="text-xs md:text-sm">
-                  <X className="mr-2 h-3 w-3 md:h-4 md:w-4" />
+                <Button onClick={deselectAll} variant="outline" className="text-xs md:text-sm min-h-[44px] touch-manipulation active:scale-95">
+                  <X className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                 Deselect All
               </Button>
               <Button 
                 onClick={handleBulkStatusChange} 
                 variant="outline"
                 disabled={selectedLrs.size === 0}
-                  className="border-blue-500 text-blue-600 hover:bg-blue-50 text-xs md:text-sm"
+                  className="border-blue-500 text-blue-600 hover:bg-blue-50 text-xs md:text-sm min-h-[44px] touch-manipulation active:scale-95"
               >
-                  <TrendingUp className="mr-2 h-3 w-3 md:h-4 md:w-4" />
+                  <TrendingUp className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                   <span className="hidden sm:inline">Change Status </span>
                   <span>({selectedLrs.size})</span>
               </Button>
                 {(session?.user as any)?.role === 'CEO' || (session?.user as any)?.role === 'MANAGER' ? (
-                  <Button onClick={deleteSelected} variant="destructive" disabled={selectedLrs.size === 0} className="text-xs md:text-sm">
-                    <Trash2 className="mr-2 h-3 w-3 md:h-4 md:w-4" />
+                  <Button onClick={deleteSelected} variant="destructive" disabled={selectedLrs.size === 0} className="text-xs md:text-sm min-h-[44px] touch-manipulation active:scale-95">
+                    <Trash2 className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                     <span className="hidden sm:inline">Delete Selected </span>
                     <span>({selectedLrs.size})</span>
               </Button>
@@ -1661,10 +1661,10 @@ export default function Dashboard() {
               <Button 
                 onClick={handleGenerateAllBills}
                 disabled={selectedLrs.size === 0 || loading}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 w-full sm:w-auto sm:ml-auto disabled:opacity-50 text-white font-semibold shadow-lg text-xs md:text-sm"
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 w-full sm:w-auto sm:ml-auto disabled:opacity-50 text-white font-semibold shadow-lg text-xs md:text-sm min-h-[48px] touch-manipulation active:scale-95"
                 title="Automatically generates: Rework Bills (KOLHAPUR→Solapur), Additional Bills (2+ consignees), and Regular Bills (others)"
               >
-                <FileText className="mr-2 h-3 w-3 md:h-4 md:w-4" />
+                <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                 {loading ? 'Generating...' : `Generate All Bills (${selectedLrs.size})`}
               </Button>
             </div>
@@ -1674,7 +1674,7 @@ export default function Dashboard() {
       
       {/* Bill Generation Modal */}
       <Dialog open={showDatePicker} onOpenChange={setShowDatePicker}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full mx-4">
           <DialogHeader>
             <DialogTitle>Generate All Bills</DialogTitle>
             <DialogDescription>
@@ -1779,7 +1779,7 @@ export default function Dashboard() {
       
       {/* Download Modal */}
       <Dialog open={showDownloadModal} onOpenChange={closeDownloadModal}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto w-[95vw] sm:w-full mx-4">
           <DialogHeader>
             <div className="flex items-start justify-between">
               <div>
@@ -1968,7 +1968,7 @@ export default function Dashboard() {
       
       {/* Generation Results Modal */}
       <Dialog open={showResultsModal} onOpenChange={setShowResultsModal}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto">
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto w-[95vw] sm:w-full mx-4">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-green-600">
               <Check className="h-6 w-6" />
