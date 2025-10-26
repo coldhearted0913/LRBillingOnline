@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
+import toast from 'react-hot-toast';
 import { ArrowLeft, FileText, Truck, Calendar, MapPin, Hash, Save, Check, Download } from 'lucide-react';
 import { VEHICLE_AMOUNTS, FROM_LOCATIONS, TO_LOCATIONS, LR_PREFIX } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
@@ -56,11 +57,11 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
 
   const handleBillNoConfirm = async () => {
     if (!tempBillNo.trim()) {
-      alert('Please enter a bill number');
+      toast.error('Please enter a bill number');
       return;
     }
     if (!submissionDate) {
-      alert('Please enter a submission date');
+      toast.error('Please enter a submission date');
       return;
     }
     
@@ -127,7 +128,7 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
       console.log('[REWORK-AUTO-GENERATE] Valid LR data:', validLrData);
       
       if (validLrData.length === 0) {
-        alert('No valid LR data found');
+        toast.error('No valid LR data found');
         return;
       }
       
@@ -179,11 +180,12 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
       } else {
         const errorText = await response.text();
         console.error('[REWORK-AUTO-GENERATE] API error:', errorText);
-        alert(`Failed to generate rework bill: ${errorText}`);
+        toast.error(`Failed to generate rework bill: ${errorText}`);
       }
     } catch (error) {
       console.error('[REWORK-AUTO-GENERATE] Error:', error);
-      alert(`Error generating rework bill: ${(error as Error).message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Error generating rework bill: ${errorMessage}`);
     } finally {
       setGenerating(false);
     }
@@ -255,14 +257,14 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
             console.log('[RELOAD] Fetched entries:', entriesData.entries);
             console.log('[RELOAD] Number of entries:', entriesData.entries?.length);
             setSavedEntries(entriesData.entries || []);
-            alert(`Entry saved! Total entries: ${entriesData.entries?.length || 0}`);
+            toast.success(`Entry saved! Total entries: ${entriesData.entries?.length || 0}`);
           } else {
             console.error('[RELOAD] Failed to fetch entries');
-            alert('Entry saved but failed to refresh list. Please refresh the page.');
+            toast.error('Entry saved but failed to refresh list. Please refresh the page.');
           }
         } catch (reloadError) {
           console.error('[RELOAD] Error fetching entries:', reloadError);
-          alert('Entry saved but failed to refresh list. Please refresh the page.');
+          toast.error('Entry saved but failed to refresh list. Please refresh the page.');
         }
         
         setSaved(true);
@@ -270,11 +272,12 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
       } else {
         const errorText = await response.text();
         console.error('Save failed:', errorText);
-        alert('Failed to save rework bill entry');
+        toast.error('Failed to save rework bill entry');
       }
     } catch (error) {
       console.error('Error saving rework bill entry:', error);
-      alert('Error saving rework bill entry');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Error saving rework bill entry: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -282,12 +285,12 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
 
   const generateBill = async () => {
     if (savedEntries.length === 0) {
-      alert('No entries to generate bill');
+      toast.error('No entries to generate bill');
       return;
     }
     
     if (!submissionDate) {
-      alert('Please enter a submission date');
+      toast.error('Please enter a submission date');
       return;
     }
 
@@ -310,11 +313,12 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
         setGeneratedFile(data);
         setShowDownloadModal(true);
       } else {
-        alert('Failed to generate rework bill');
+        toast.error('Failed to generate rework bill');
       }
     } catch (error) {
       console.error('Error generating rework bill:', error);
-      alert('Error generating rework bill');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Error generating rework bill: ${errorMessage}`);
     } finally {
       setGenerating(false);
     }
@@ -334,11 +338,12 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else {
-        alert('Failed to download file');
+        toast.error('Failed to download file');
       }
     } catch (error) {
       console.error('Error downloading file:', error);
-      alert('Error downloading file');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Error downloading file: ${errorMessage}`);
     }
   };
 
@@ -382,15 +387,16 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
       });
 
       if (response.ok) {
-        alert('Entry deleted successfully!');
+        toast.success('Entry deleted successfully!');
         // Reload saved entries
         loadSavedEntries();
       } else {
-        alert('Failed to delete entry');
+        toast.error('Failed to delete entry');
       }
     } catch (error) {
       console.error('Error deleting entry:', error);
-      alert('Error deleting entry');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Error deleting entry: ${errorMessage}`);
     }
   };
 
