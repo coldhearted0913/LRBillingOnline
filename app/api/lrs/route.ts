@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
   try {
     const lrData = await request.json();
     
+    console.log('[POST /api/lrs] Received data:', JSON.stringify(lrData, null, 2));
+    
     // Map API field names to schema field names
     const mappedData = {
       lrNo: lrData['LR No'],
@@ -44,20 +46,23 @@ export async function POST(request: NextRequest) {
       emptyWeight: lrData['Empty Weight'],
       descriptionOfGoods: lrData['Description of Goods'],
       quantity: lrData['Quantity'],
-      koelGateEntryNo: lrData['KOEL Gate Entry No'],
-      koelGateEntryDate: lrData['KOEL Gate Entry Date'],
-      weightslipNo: lrData['Weight Slip No'],
-      totalNoOfInvoices: lrData['Total No of Invoices'],
-      invoiceNo: lrData['Invoice No'],
-      grrNo: lrData['GRR No'],
-      grrDate: lrData['GRR Date'],
-      remark: lrData['Remark'],
+      koelGateEntryNo: lrData['Koel Gate Entry No'] || lrData['KOEL Gate Entry No'] || '',
+      koelGateEntryDate: lrData['Koel Gate Entry Date'] || lrData['KOEL Gate Entry Date'] || '',
+      weightslipNo: lrData['Weightslip No'] || lrData['Weight Slip No'] || '',
+      totalNoOfInvoices: lrData['Total No of Invoices'] || lrData['Total No of Invoices'] || '',
+      invoiceNo: lrData['Invoice No'] || '',
+      grrNo: lrData['GRR No'] || '',
+      grrDate: lrData['GRR Date'] || '',
+      remark: lrData['Remark'] || lrData['remark'] || '',
     };
+    
+    console.log('[POST /api/lrs] Mapped data:', JSON.stringify(mappedData, null, 2));
     
     // Validate with Zod schema
     const validation = LRSchema.safeParse(mappedData);
     
     if (!validation.success) {
+      console.error('[POST /api/lrs] Validation errors:', validation.error.issues);
       const errors = validation.error.issues.map(err => ({
         field: err.path.join('.'),
         message: err.message
@@ -73,18 +78,21 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    console.log('[POST /api/lrs] Validation passed, saving to DB...');
     const success = await addLR(lrData);
     
     if (success) {
+      console.log('[POST /api/lrs] LR created successfully');
       return NextResponse.json({ success: true, message: 'LR created successfully' });
     } else {
+      console.error('[POST /api/lrs] Failed to create LR in database');
       return NextResponse.json(
         { success: false, error: 'Failed to create LR' },
         { status: 500 }
       );
     }
   } catch (error) {
-    console.error('Error creating LR:', error);
+    console.error('[POST /api/lrs] Error creating LR:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to create LR';
     return NextResponse.json(
       { success: false, error: errorMessage },
