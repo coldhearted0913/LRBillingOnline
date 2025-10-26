@@ -941,7 +941,7 @@ export default function Dashboard() {
               <Button 
                 onClick={createNewLR} 
                 size="lg"
-                className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg font-semibold text-xs sm:text-sm md:text-base px-2 sm:px-3 md:px-4"
+                className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg font-semibold text-xs sm:text-sm md:text-base px-2 sm:px-3 md:px-4 active:scale-95 transition-transform duration-150 hover:shadow-xl hover:scale-105"
               >
                 <Plus className="mr-1 sm:mr-2 h-4 w-4 md:h-5 md:w-5" />
                 <span className="hidden md:inline">Create New LR</span>
@@ -974,7 +974,7 @@ export default function Dashboard() {
 
         {/* Stats Cards - Responsive Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-300">
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0" style={{ animation: 'slide-up 0.5s ease-out forwards, fade-in 0.3s ease-out forwards' }}>
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="bg-green-500 p-2 md:p-3 rounded-lg flex-shrink-0">
@@ -988,7 +988,7 @@ export default function Dashboard() {
             </CardHeader>
           </Card>
           
-          <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-300">
+          <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0" style={{ animation: 'slide-up 0.5s ease-out 0.1s forwards, fade-in 0.3s ease-out 0.1s forwards' }}>
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="bg-amber-500 p-2 md:p-3 rounded-lg flex-shrink-0">
@@ -1003,7 +1003,7 @@ export default function Dashboard() {
             </CardHeader>
           </Card>
           
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-300">
+          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0" style={{ animation: 'slide-up 0.5s ease-out 0.2s forwards, fade-in 0.3s ease-out 0.2s forwards' }}>
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="bg-orange-500 p-2 md:p-3 rounded-lg flex-shrink-0">
@@ -1018,7 +1018,7 @@ export default function Dashboard() {
             </CardHeader>
           </Card>
           
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-300">
+          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0" style={{ animation: 'slide-up 0.5s ease-out 0.3s forwards, fade-in 0.3s ease-out 0.3s forwards' }}>
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="bg-purple-500 p-2 md:p-3 rounded-lg flex-shrink-0">
