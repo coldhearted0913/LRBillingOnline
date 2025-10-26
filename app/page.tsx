@@ -1149,55 +1149,71 @@ export default function Dashboard() {
                 ))}
               </select>
               
-              {/* Status Filter - Multi-select */}
+              {/* Status Filter - Multi-select with OK/Cancel */}
               <div className="relative group w-full sm:w-auto">
                 <button 
-                  className="flex h-10 rounded-md border border-input bg-background px-2 sm:px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-slate-50 w-full"
+                  className="flex h-10 rounded-md border border-input bg-background px-2 sm:px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-slate-50 w-full transition-all duration-200 hover:border-blue-500 hover:shadow-sm"
                   onClick={(e) => {
                     setTempStatuses(new Set(selectedStatuses));
                     e.currentTarget.parentElement?.classList.toggle('open');
                   }}
                 >
-                  <span className="flex-1 text-left">
-                    {selectedStatuses.size === 0 ? 'All Statuses' : `${selectedStatuses.size} Selected`}
+                  <span className="flex-1 text-left flex items-center gap-2">
+                    {selectedStatuses.size === 0 ? (
+                      <>
+                        <span>All Statuses</span>
+                        <Badge variant="secondary" className="text-xs px-2 py-0">{LR_STATUS_OPTIONS.length}</Badge>
+                      </>
+                    ) : (
+                      <>
+                        <span>{selectedStatuses.size} Selected</span>
+                        <Badge className="bg-blue-600 text-white text-xs px-2 py-0">{selectedStatuses.size}</Badge>
+                      </>
+                    )}
                   </span>
-                  <span className="ml-2">▼</span>
+                  <span className="ml-2 transition-transform group-[.open]:rotate-180">▼</span>
                 </button>
                 
                 {/* Dropdown menu */}
-                <div className="hidden group-[.open]:block absolute top-full left-0 mt-1 bg-white border border-input rounded-md shadow-lg z-50 min-w-max">
-                  {/* Select All / Clear All */}
-                  <div className="px-3 py-2 border-b border-gray-200">
-                    <button
-                      onClick={() => {
-                        if (tempStatuses.size === LR_STATUS_OPTIONS.length) {
-                          setTempStatuses(new Set());
-                        } else {
-                          setTempStatuses(new Set(LR_STATUS_OPTIONS));
-                        }
-                      }}
-                      className="text-xs font-medium text-blue-600 hover:text-blue-800 underline"
-                    >
-                      {tempStatuses.size === LR_STATUS_OPTIONS.length ? 'Clear All' : 'Select All'}
-                    </button>
-                  </div>
-                  
-                  {/* Status options */}
-                  {LR_STATUS_OPTIONS.map(status => (
-                    <label key={status} className="flex items-center px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors border-b border-gray-100 last:border-b-0">
-                      <input
-                        type="checkbox"
-                        checked={tempStatuses.has(status)}
-                        onChange={(e) => {
+                <div className="hidden group-[.open]:block absolute top-full left-0 mt-1 bg-white border border-input rounded-lg shadow-xl z-50 min-w-[280px] overflow-hidden">
+                  {/* Header */}
+                  <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-blue-900">Select Status</span>
+                      <button
+                        onClick={() => {
                           const newSelected = new Set(tempStatuses);
-                          if (e.target.checked) {
-                            newSelected.add(status);
+                          if (tempStatuses.size === LR_STATUS_OPTIONS.length) {
+                            newSelected.clear();
                           } else {
-                            newSelected.delete(status);
+                            LR_STATUS_OPTIONS.forEach(status => newSelected.add(status));
                           }
                           setTempStatuses(newSelected);
                         }}
-                        className="w-4 h-4 accent-blue-600 cursor-pointer"
+                        className="text-xs font-medium text-blue-700 hover:text-blue-900 hover:underline transition-colors"
+                      >
+                        {tempStatuses.size === LR_STATUS_OPTIONS.length ? 'Clear All' : 'Select All'}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Status options with enhanced styling */}
+                  <div className="max-h-[300px] overflow-y-auto">
+                    {LR_STATUS_OPTIONS.map(status => (
+                      <label key={status} className="flex items-center px-4 py-3 hover:bg-blue-50 cursor-pointer transition-all duration-150 border-b border-gray-100 last:border-b-0 group">
+                        <input
+                          type="checkbox"
+                          checked={tempStatuses.has(status)}
+                          onChange={(e) => {
+                            const newSelected = new Set(tempStatuses);
+                            if (e.target.checked) {
+                              newSelected.add(status);
+                            } else {
+                              newSelected.delete(status);
+                            }
+                            setTempStatuses(newSelected);
+                          }}
+                          className="w-4 h-4 accent-blue-600 cursor-pointer transition-transform group-hover:scale-110"
                       />
                       <span className="text-sm ml-3 font-medium text-gray-700">
                         {status === 'LR Done' && '📄 '}
@@ -1208,6 +1224,7 @@ export default function Dashboard() {
                       </span>
                     </label>
                   ))}
+                  </div>
                   
                   {/* OK and Cancel buttons */}
                   <div className="px-3 py-3 border-t border-gray-200 flex gap-2">
