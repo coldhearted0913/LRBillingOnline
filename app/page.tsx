@@ -1611,7 +1611,7 @@ export default function Dashboard() {
                               onClick={() => editLR(lr)}
                               variant="ghost"
                               size="sm"
-                              className="text-[10px] md:text-sm h-8 md:h-8 px-2 md:px-3 opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-blue-100 active:scale-95 min-w-[44px] touch-manipulation"
+                              className="text-[10px] md:text-sm h-8 md:h-8 px-2 md:px-3 hover:bg-blue-100 active:scale-95 min-w-[44px] touch-manipulation"
                             >
                               Edit
                             </Button>
