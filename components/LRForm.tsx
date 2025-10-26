@@ -76,6 +76,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   // Load editing data
   useEffect(() => {
     if (editingLr) {
+      console.log('[LRForm] Loading editing data:', editingLr);
       const editedData = { ...editingLr };
       // Convert LR Date from dd-mm-yyyy to yyyy-mm-dd for date input
       if (editedData['LR Date']) {
@@ -90,13 +91,22 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       }
       
       // Parse descriptions and quantities
+      console.log('[LRForm] Description of Goods:', editedData['Description of Goods']);
+      console.log('[LRForm] Quantity:', editedData['Quantity']);
+      
       if (editedData['Description of Goods'] && editedData['Quantity']) {
         const descriptionsText = editedData['Description of Goods'];
         const quantitiesText = editedData['Quantity'];
         
+        console.log('[LRForm] Parsing descriptions:', descriptionsText);
+        console.log('[LRForm] Parsing quantities:', quantitiesText);
+        
         // Split by comma to get individual items
-        const descriptionParts = descriptionsText.split(', ').map(s => s.trim());
+        const descriptionParts = descriptionsText.split(',').map(s => s.trim());
         const quantityParts = quantitiesText.split(',').map(s => s.trim());
+        
+        console.log('[LRForm] Description parts:', descriptionParts);
+        console.log('[LRForm] Quantity parts:', quantityParts);
         
         const parsedDescriptions = descriptionParts.map((desc, index) => {
           // Try to extract description and quantity from format "Description: Quantity"
@@ -104,14 +114,20 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
           if (colonIndex !== -1) {
             const descriptionPart = desc.substring(0, colonIndex).trim();
             const quantityPart = desc.substring(colonIndex + 1).trim();
+            console.log('[LRForm] Parsed item:', { description: descriptionPart, quantity: quantityPart });
             return { description: descriptionPart, quantity: quantityPart };
           } else {
             // If no colon, use quantity from the Quantity field
+            console.log('[LRForm] No colon, using separate quantity:', { description: desc, quantity: quantityParts[index] || '' });
             return { description: desc, quantity: quantityParts[index] || '' };
           }
         });
         
+        console.log('[LRForm] Setting selected descriptions:', parsedDescriptions);
         setSelectedDescriptions(parsedDescriptions);
+      } else {
+        console.log('[LRForm] No descriptions or quantities to parse');
+        setSelectedDescriptions([]);
       }
       
       // Reset the manual edit flag when loading new editing data
