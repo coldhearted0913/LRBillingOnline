@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Save, Trash2, Truck, MapPin, Package, FileText, TrendingUp, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LRData } from '@/lib/database';
@@ -53,17 +53,36 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const [selectedConsignees, setSelectedConsignees] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasKOEL, setHasKOEL] = useState(false);
+  const koelGateEntryManuallyEdited = useRef(false);
+  
+  // Helper function to convert dd-mm-yyyy to yyyy-mm-dd
+  const convertDateToInputFormat = (dateStr: string): string => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      return `${year}-${month}-${day}`;
+    }
+    return dateStr;
+  };
   
   // Load editing data
   useEffect(() => {
     if (editingLr) {
-      setFormData(editingLr);
-      if (editingLr['Consignor']) {
-        setSelectedConsignors(editingLr['Consignor'].split('/').map(c => c.trim()).filter(c => c));
+      const editedData = { ...editingLr };
+      // Convert LR Date from dd-mm-yyyy to yyyy-mm-dd for date input
+      if (editedData['LR Date']) {
+        editedData['LR Date'] = convertDateToInputFormat(editedData['LR Date']);
       }
-      if (editingLr['Consignee']) {
-        setSelectedConsignees(editingLr['Consignee'].split('/').map(c => c.trim()).filter(c => c));
+      setFormData(editedData);
+      if (editedData['Consignor']) {
+        setSelectedConsignors(editedData['Consignor'].split('/').map(c => c.trim()).filter(c => c));
       }
+      if (editedData['Consignee']) {
+        setSelectedConsignees(editedData['Consignee'].split('/').map(c => c.trim()).filter(c => c));
+      }
+      // Reset the manual edit flag when loading new editing data
+      koelGateEntryManuallyEdited.current = false;
     }
   }, [editingLr]);
   
@@ -75,15 +94,18 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     
     setHasKOEL(!!hasKOELFlag);
     
-    if (hasKOELFlag) {
-      // If has KOEL (consignor or consignee), clear the field for user input
-      if (formData['Koel Gate Entry No'] === '99') {
-        setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '' }));
-      }
-    } else {
-      // If no KOEL, set to 99 and make it non-editable
-      if (formData['Koel Gate Entry No'] !== '99') {
-        setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '99' }));
+    // Only auto-update if the user hasn't manually edited the field
+    if (!koelGateEntryManuallyEdited.current) {
+      if (hasKOELFlag) {
+        // If has KOEL (consignor or consignee), clear the field for user input
+        if (formData['Koel Gate Entry No'] === '99') {
+          setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '' }));
+        }
+      } else {
+        // If no KOEL, set to 99 and make it non-editable
+        if (formData['Koel Gate Entry No'] !== '99') {
+          setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '99' }));
+        }
       }
     }
   }, [formData['Consignor'], formData['Consignee']]);
@@ -117,6 +139,11 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   // Handle input change
   const handleChange = (field: keyof LRData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Track manual edits to Koel Gate Entry No
+    if (field === 'Koel Gate Entry No') {
+      koelGateEntryManuallyEdited.current = true;
+    }
     
     // Sync Koel Gate Entry Date to GRR Date
     if (field === 'Koel Gate Entry Date' && !formData['GRR Date']) {
