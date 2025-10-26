@@ -90,6 +90,19 @@ model User {
   @@map("users")
 }
 
+// Vehicle model for storing vehicle numbers by type
+model Vehicle {
+  id            String   @id @default(cuid())
+  vehicleNumber String   @map("vehicle_number")
+  vehicleType   String   @map("vehicle_type") // PICKUP, TRUCK, TOROUS
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  
+  @@unique([vehicleNumber, vehicleType])
+  @@index([vehicleType])
+  @@map("vehicles")
+}
+
 // Audit log model for tracking all actions
 model AuditLog {
   id            String    @id @default(cuid())

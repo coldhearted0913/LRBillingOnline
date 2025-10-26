@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Save, Trash2, Truck, MapPin, Package, FileText, TrendingUp, Check } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Truck, MapPin, Package, FileText, TrendingUp, Check, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LRData } from '@/lib/database';
 import { 
@@ -54,6 +54,9 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const [loading, setLoading] = useState(false);
   const [hasKOEL, setHasKOEL] = useState(false);
   const koelGateEntryManuallyEdited = useRef(false);
+  const [availableVehicles, setAvailableVehicles] = useState<string[]>([]);
+  const [showAddVehicle, setShowAddVehicle] = useState(false);
+  const [newVehicleNumber, setNewVehicleNumber] = useState('');
   
   // Helper function to convert dd-mm-yyyy to yyyy-mm-dd
   const convertDateToInputFormat = (dateStr: string): string => {
@@ -109,6 +112,95 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       }
     }
   }, [formData['Consignor'], formData['Consignee']]);
+  
+  // Fetch vehicles when vehicle type changes
+  useEffect(() => {
+    const fetchVehicles = async () => {
+      if (formData['Vehicle Type']) {
+        try {
+          const response = await fetch(`/api/vehicles?vehicleType=${formData['Vehicle Type']}`);
+          if (response.ok) {
+            const data = await response.json();
+            setAvailableVehicles(data.vehicles || []);
+          }
+        } catch (error) {
+          console.error('Error fetching vehicles:', error);
+        }
+      } else {
+        setAvailableVehicles([]);
+      }
+    };
+    
+    fetchVehicles();
+  }, [formData['Vehicle Type']]);
+  
+  // Add new vehicle
+  const handleAddVehicle = async () => {
+    if (!newVehicleNumber.trim()) {
+      toast.error('Please enter a vehicle number');
+      return;
+    }
+    
+    if (!formData['Vehicle Type']) {
+      toast.error('Please select a vehicle type first');
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/vehicles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vehicleNumber: newVehicleNumber.trim(),
+          vehicleType: formData['Vehicle Type'],
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success('Vehicle added successfully');
+        setAvailableVehicles([...availableVehicles, newVehicleNumber.trim().toUpperCase()]);
+        setFormData(prev => ({ ...prev, 'Vehicle Number': newVehicleNumber.trim().toUpperCase() }));
+        setNewVehicleNumber('');
+        setShowAddVehicle(false);
+      } else {
+        toast.error(data.error || 'Failed to add vehicle');
+      }
+    } catch (error) {
+      console.error('Error adding vehicle:', error);
+      toast.error('Failed to add vehicle');
+    }
+  };
+  
+  // Delete vehicle
+  const handleDeleteVehicle = async (vehicleNumber: string) => {
+    if (!confirm(`Are you sure you want to delete vehicle ${vehicleNumber}?`)) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(
+        `/api/vehicles?vehicleNumber=${vehicleNumber}&vehicleType=${formData['Vehicle Type']}`,
+        { method: 'DELETE' }
+      );
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success('Vehicle deleted successfully');
+        setAvailableVehicles(availableVehicles.filter(v => v !== vehicleNumber));
+        if (formData['Vehicle Number'] === vehicleNumber) {
+          setFormData(prev => ({ ...prev, 'Vehicle Number': '' }));
+        }
+      } else {
+        toast.error(data.error || 'Failed to delete vehicle');
+      }
+    } catch (error) {
+      console.error('Error deleting vehicle:', error);
+      toast.error('Failed to delete vehicle');
+    }
+  };
   
   // Handle consignor selection
   const toggleConsignor = (consignor: string) => {
@@ -531,15 +623,103 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   </select>
                 </div>
                 
-                <div>
+                <div className="md:col-span-2">
                   <Label htmlFor="vehicleNumber">Vehicle Number</Label>
-                  <Input
-                    id="vehicleNumber"
-                    value={formData['Vehicle Number'] || ''}
-                    onChange={(e) => handleChange('Vehicle Number', e.target.value.toUpperCase())}
-                    placeholder="e.g., MH12AB1234"
-                    className="border-gray-300 focus:ring-purple-500 focus:border-transparent"
-                  />
+                  <div className="flex gap-2">
+                    <select
+                      id="vehicleNumber"
+                      value={formData['Vehicle Number'] || ''}
+                      onChange={(e) => handleChange('Vehicle Number', e.target.value)}
+                      className="flex h-10 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                      disabled={!formData['Vehicle Type']}
+                    >
+                      <option value="">
+                        {formData['Vehicle Type'] ? 'Select vehicle...' : 'Select vehicle type first'}
+                      </option>
+                      {availableVehicles.map(vehicle => (
+                        <option key={vehicle} value={vehicle}>{vehicle}</option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      onClick={() => setShowAddVehicle(!showAddVehicle)}
+                      variant="outline"
+                      size="sm"
+                      disabled={!formData['Vehicle Type']}
+                      className="px-3"
+                      title="Add new vehicle"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  {showAddVehicle && formData['Vehicle Type'] && (
+                    <div className="mt-2 p-3 bg-gray-50 border border-gray-300 rounded-md">
+                      <div className="flex gap-2">
+                        <Input
+                          value={newVehicleNumber}
+                          onChange={(e) => setNewVehicleNumber(e.target.value.toUpperCase())}
+                          placeholder="Enter vehicle number"
+                          className="flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddVehicle();
+                            } else if (e.key === 'Escape') {
+                              setShowAddVehicle(false);
+                              setNewVehicleNumber('');
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          onClick={handleAddVehicle}
+                          variant="default"
+                          size="sm"
+                          className="px-3"
+                        >
+                          Add
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            setShowAddVehicle(false);
+                            setNewVehicleNumber('');
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="px-3"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {availableVehicles.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {availableVehicles.map(vehicle => (
+                        <Badge
+                          key={vehicle}
+                          variant={formData['Vehicle Number'] === vehicle ? 'default' : 'outline'}
+                          className="cursor-pointer hover:bg-gray-100 flex items-center gap-1"
+                          onClick={() => handleChange('Vehicle Number', vehicle)}
+                        >
+                          {vehicle}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteVehicle(vehicle);
+                            }}
+                            className="ml-1 hover:text-red-600"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
