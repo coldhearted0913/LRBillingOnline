@@ -52,6 +52,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const [selectedConsignors, setSelectedConsignors] = useState<string[]>([]);
   const [selectedConsignees, setSelectedConsignees] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasKOEL, setHasKOEL] = useState(false);
   
   // Load editing data
   useEffect(() => {
@@ -68,14 +69,16 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   
   // Auto-update Koel Gate Entry No based on consignor/consignee
   useEffect(() => {
-    const hasKOEL = 
+    const hasKOELFlag = 
       formData['Consignor']?.toUpperCase().includes('KOEL') || 
-      formData['Consignee']?.toUpperCase().includes('KOEL');
+      formData['Consignee']?.toUpperCase().includes('KOEL') || false;
     
-    if (!hasKOEL && formData['Koel Gate Entry No'] !== '99') {
+    setHasKOEL(!!hasKOELFlag);
+    
+    if (!hasKOELFlag && formData['Koel Gate Entry No'] !== '99') {
       // If no KOEL, set to 99 and make it non-editable
       setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '99' }));
-    } else if (hasKOEL && formData['Koel Gate Entry No'] === '99') {
+    } else if (hasKOELFlag && formData['Koel Gate Entry No'] === '99') {
       // If has KOEL and currently set to 99, clear it for user input
       setFormData(prev => ({ ...prev, 'Koel Gate Entry No': '' }));
     }
@@ -660,9 +663,12 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                     id="koelGateEntry"
                     value={formData['Koel Gate Entry No'] || '99'}
                     onChange={(e) => handleChange('Koel Gate Entry No', e.target.value)}
-                    disabled={formData['Koel Gate Entry No'] === '99'}
-                    className={formData['Koel Gate Entry No'] === '99' ? 'bg-gray-100 cursor-not-allowed' : ''}
+                    disabled={!hasKOEL}
+                    className={!hasKOEL ? 'bg-gray-100 cursor-not-allowed' : ''}
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {hasKOEL ? 'Editable (KOEL consignor/consignee detected)' : 'Locked to 99 (non-KOEL)'}
+                  </p>
                 </div>
                 
                 <div>
