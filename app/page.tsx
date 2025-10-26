@@ -1282,7 +1282,7 @@ export default function Dashboard() {
             <div className="rounded-md border overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-muted/50">
+                  <thead className="bg-muted/50 sticky top-0 z-10 shadow-sm">
                     <tr className="border-b">
                       <th className="px-1 md:px-4 py-3 text-left w-10">
                         <input
@@ -1311,7 +1311,9 @@ export default function Dashboard() {
                           </span>
                         </button>
                       </th>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider">Vehicle No</th>
+                      <th className="px-2 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider hover:bg-muted/70 transition-colors">
+                        Vehicle No
+                      </th>
                       <th className="px-2 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
                         <button
                           onClick={() => {
@@ -1408,7 +1410,7 @@ export default function Dashboard() {
                       paginatedLrs.map((lr, index) => (
                         <tr 
                           key={lr['LR No']} 
-                          className={`hover:bg-muted/50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                          className={`group hover:bg-blue-50/50 hover:shadow-sm transition-all duration-200 cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
                         >
                           <td className="px-1 md:px-4 py-3 w-10">
                             <input
@@ -1494,7 +1496,7 @@ export default function Dashboard() {
                               onClick={() => editLR(lr)}
                               variant="ghost"
                               size="sm"
-                              className="text-[10px] md:text-sm h-7 md:h-8 px-1.5 md:px-3"
+                              className="text-[10px] md:text-sm h-7 md:h-8 px-1.5 md:px-3 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-100"
                             >
                               Edit
                             </Button>
