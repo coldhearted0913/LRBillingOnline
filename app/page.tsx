@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Plus, RefreshCw, Check, X, Trash2, FileText, Download, 
   Truck, Calendar, MapPin, Package, TrendingUp, BarChart3, Search, Folder, 
@@ -76,20 +77,96 @@ export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
   
-  // Load LRs function
-  const loadLRs = async () => {
-    setLoading(true);
-    try {
+  // React Query Client
+  const queryClient = useQueryClient();
+  
+  // Fetch LRs with React Query
+  const { data: lrsData = [], isLoading: isLoadingLRs, refetch: refetchLRs } = useQuery({
+    queryKey: ['lrs'],
+    queryFn: async () => {
       const response = await fetch('/api/lrs');
       const data = await response.json();
-      if (data.success) {
-        setLrs(data.lrs);
-      }
-    } catch (error) {
-      console.error('Failed to load LRs:', error);
+      if (!data.success) throw new Error(data.error || 'Failed to fetch LRs');
+      return data.lrs;
+    },
+    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (formerly cacheTime)
+  });
+  
+  // Update local state when React Query data changes
+  useEffect(() => {
+    if (lrsData) {
+      setLrs(lrsData);
     }
-    setLoading(false);
+  }, [lrsData]);
+  
+  // Load LRs function (for manual refresh)
+  const loadLRs = () => {
+    refetchLRs();
   };
+  
+  // Bulk status update mutation
+  const bulkStatusUpdateMutation = useMutation({
+    mutationFn: async ({ lrNumbers, status }: { lrNumbers: string[], status: string }) => {
+      const response = await fetch('/api/lrs/bulk-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lrNumbers, status }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Failed to update status');
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lrs'] });
+      toast.success('Status updated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update status: ${error.message}`);
+    },
+  });
+  
+  // Single status update mutation
+  const statusUpdateMutation = useMutation({
+    mutationFn: async ({ lrNo, status }: { lrNo: string, status: string }) => {
+      const response = await fetch(`/api/lrs/${encodeURIComponent(lrNo)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Failed to update status');
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lrs'] });
+      toast.success('Status updated successfully');
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update status: ${error.message}`);
+    },
+  });
+  
+  // Delete LRs mutation
+  const deleteLRsMutation = useMutation({
+    mutationFn: async (lrNumbers: string[]) => {
+      const response = await fetch('/api/lrs', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lrNumbers }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Failed to delete LRs');
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lrs'] });
+      setSelectedLrs(new Set());
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete LRs: ${error.message}`);
+    },
+  });
   
   // Filter LRs by month/year and search
   const filterLRs = (allLrs: LRData[], month: string, year: string, search: string = '', statuses: Set<string> = new Set()) => {
@@ -296,7 +373,7 @@ export default function Dashboard() {
     setSelectedLrs(new Set());
   };
   
-  // Delete selected LRs
+  // Delete selected LRs (using React Query mutation)
   const deleteSelected = async () => {
     if (selectedLrs.size === 0) {
       toast.error('Please select at least one LR to delete');
@@ -307,24 +384,7 @@ export default function Dashboard() {
       return;
     }
     
-    try {
-      const response = await fetch('/api/lrs', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lrNumbers: Array.from(selectedLrs) }),
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        setSelectedLrs(new Set());
-        toast.success(`Successfully deleted ${selectedLrs.size} LR(s)`);
-        loadLRs();
-      } else {
-        toast.error('Failed to delete LRs');
-      }
-    } catch (error) {
-      toast.error('Failed to delete LRs');
-    }
+    deleteLRsMutation.mutate(Array.from(selectedLrs));
   };
   
   // Edit LR
@@ -493,34 +553,6 @@ export default function Dashboard() {
     
     // Categorize LRs first
     const categorized = categorizeSelectedLrs();
-    
-    // Debug logging
-    console.log('🔍 Categorized LRs:', categorized);
-    console.log('  Rework LRs:', categorized.reworkLrs);
-    console.log('  Additional LRs:', categorized.additionalLrs);
-    console.log('  Regular LRs:', categorized.regularLrs);
-    
-    // Log details for debugging
-    Array.from(selectedLrs).forEach(lrNo => {
-      const lr = lrs.find(l => l['LR No'] === lrNo);
-      if (lr) {
-        const consigneeCount = lr['Consignee']?.split('/').length || 0;
-        const from = (lr['FROM'] || '').toString().toLowerCase().trim();
-        const to = (lr['TO'] || '').toString().toLowerCase().trim();
-        const isRework = from === 'kolhapur' && to === 'solapur';
-        const qualifiesForAdditional = !isRework && consigneeCount >= 2;
-        
-        console.log(`📋 LR: ${lrNo}`, {
-          FROM: lr['FROM'],
-          TO: lr['TO'],
-          Consignee: lr['Consignee'],
-          consigneeCount,
-          isRework,
-          qualifiesForAdditional,
-        });
-      }
-    });
-    
     setCategorizedLrs(categorized);
     
     // Show modal with bill number inputs
@@ -675,36 +707,17 @@ export default function Dashboard() {
     }
   };
   
-  // Update LR status
+  // Update LR status (using React Query mutation)
   const updateLRStatus = async (lrNo: string, newStatus: string) => {
-    try {
-      // Optimistically update the UI first
-      setLrs(prevLrs => 
-        prevLrs.map(lr => 
-          lr['LR No'] === lrNo ? { ...lr, status: newStatus } : lr
-        )
-      );
-      
-      // Then update the API
-      const response = await fetch(`/api/lrs/${encodeURIComponent(lrNo)}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      
-      const data = await response.json();
-      if (!data.success) {
-        // Revert on error by reloading
-        loadLRs();
-        toast.error('Failed to update status');
-      } else {
-        toast.success('Status updated successfully');
-      }
-    } catch (error) {
-      // Revert on error by reloading
-      loadLRs();
-      toast.error('Failed to update status');
-    }
+    // Optimistically update the UI first
+    setLrs(prevLrs => 
+      prevLrs.map(lr => 
+        lr['LR No'] === lrNo ? { ...lr, status: newStatus } : lr
+      )
+    );
+    
+    // Then update the API using mutation
+    statusUpdateMutation.mutate({ lrNo, status: newStatus });
   };
   
   // Bulk status change
@@ -720,33 +733,17 @@ export default function Dashboard() {
     if (!bulkStatus) return;
     
     setShowBulkStatusModal(false);
-    setLoading(true);
     
-    try {
-      const response = await fetch('/api/lrs/bulk-status', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lrNumbers: Array.from(selectedLrs),
-          status: bulkStatus,
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        toast.success(`Updated ${data.count} LR(s) to status: ${bulkStatus}`);
-        setSelectedLrs(new Set());
-        setBulkStatus('LR Done');
-        loadLRs();
-      } else {
-        toast.error('Failed to update status');
+    // Use React Query mutation for bulk status update
+    bulkStatusUpdateMutation.mutate(
+      { lrNumbers: Array.from(selectedLrs), status: bulkStatus },
+      {
+        onSuccess: () => {
+          setSelectedLrs(new Set());
+          setBulkStatus('LR Done');
+        },
       }
-    } catch (error) {
-      toast.error('Failed to update status');
-    } finally {
-      setLoading(false);
-    }
+    );
   };
   
   // Get status color
@@ -1404,7 +1401,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {loading ? (
+                    {isLoadingLRs ? (
                       <>
                         {[...Array(5)].map((_, i) => (
                           <tr key={i} className="border-b">
