@@ -428,6 +428,7 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
                 <Button
                   onClick={async () => {
                     await downloadFile(generatedFile.filePath, generatedFile.filePath.split(/[/\\]/).pop() || 'rework-bill.xlsx');
+                    toast.success('Rework bill generated successfully!');
                   }}
                   className="w-full bg-green-600 hover:bg-green-700 text-white"
                   size="lg"

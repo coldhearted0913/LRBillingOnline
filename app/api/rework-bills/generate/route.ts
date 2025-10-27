@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateReworkBill } from '@/lib/excelGenerator';
+import { generateReworkBill, generateMangeshInvoiceForRework } from '@/lib/excelGenerator';
 import { uploadFileToS3 } from '@/lib/s3Upload';
 import { updateLR } from '@/lib/database';
 
@@ -15,19 +15,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate Excel file with all entries
-    const absoluteFilePath = await generateReworkBill({
+    // Generate Rework Bill Excel file with all entries
+    const billFilePath = await generateReworkBill({
       'Submission Date': submissionDate,
       'Bill No': billNo,
       allEntries: entries,
     }, submissionDate);
     
-    // Get relative path from invoices folder
-    const path = require('path');
-    const relativePath = absoluteFilePath.split(path.sep + 'invoices' + path.sep)[1] || absoluteFilePath;
+    // Generate Mangesh Transport Invoice
+    const invoiceFilePath = await generateMangeshInvoiceForRework({
+      'Submission Date': submissionDate,
+      'Bill No': billNo,
+      allEntries: entries,
+    }, submissionDate);
     
-    // Upload to S3 - save under submission date folder
-    const s3Result = await uploadFileToS3(absoluteFilePath, submissionDate);
+    // Get relative paths from invoices folder
+    const path = require('path');
+    const billRelativePath = billFilePath.split(path.sep + 'invoices' + path.sep)[1] || billFilePath;
+    const invoiceRelativePath = invoiceFilePath.split(path.sep + 'invoices' + path.sep)[1] || invoiceFilePath;
+    
+    // Upload both files to S3 - save under submission date folder
+    const billS3Result = await uploadFileToS3(billFilePath, submissionDate);
+    const invoiceS3Result = await uploadFileToS3(invoiceFilePath, submissionDate);
     
     // Update all entries to "Bill Done" status and set submission date
     for (const entry of entries) {
@@ -46,9 +55,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Rework bill generated successfully',
-      filePath: relativePath,
-      s3Url: s3Result.url,
+      message: 'Rework bill and invoice generated successfully',
+      billFilePath: billRelativePath,
+      invoiceFilePath: invoiceRelativePath,
+      billS3Url: billS3Result.url,
+      invoiceS3Url: invoiceS3Result.url,
       entriesProcessed: entries.length
     });
 

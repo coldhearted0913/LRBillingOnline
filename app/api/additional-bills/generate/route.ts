@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateAdditionalBill } from '@/lib/excelGenerator';
+import { generateAdditionalBill, generateMangeshInvoiceForAdditional } from '@/lib/excelGenerator';
 import { uploadFileToS3 } from '@/lib/s3Upload';
 import { updateLR } from '@/lib/database';
 
@@ -20,23 +20,34 @@ export async function POST(request: NextRequest) {
 
     console.log('[ADDITIONAL-BILL-GENERATE] Generating bill with entries:', entries);
 
-    // Generate Excel file with all entries
-    const absoluteFilePath = await generateAdditionalBill({
+    // Generate Additional Bill Excel file with all entries
+    const billFilePath = await generateAdditionalBill({
       'Submission Date': submissionDate,
       'Bill No': billNo,
       allEntries: entries,
     }, submissionDate);
     
-    console.log('[ADDITIONAL-BILL-GENERATE] Generated file at:', absoluteFilePath);
+    console.log('[ADDITIONAL-BILL-GENERATE] Generated bill file at:', billFilePath);
     
-    // Get relative path from invoices folder
+    // Generate Mangesh Transport Invoice
+    const invoiceFilePath = await generateMangeshInvoiceForAdditional({
+      'Submission Date': submissionDate,
+      'Bill No': billNo,
+      allEntries: entries,
+    }, submissionDate);
+    
+    console.log('[ADDITIONAL-BILL-GENERATE] Generated invoice file at:', invoiceFilePath);
+    
+    // Get relative paths from invoices folder
     const path = require('path');
-    const relativePath = absoluteFilePath.split(path.sep + 'invoices' + path.sep)[1] || absoluteFilePath;
+    const billRelativePath = billFilePath.split(path.sep + 'invoices' + path.sep)[1] || billFilePath;
+    const invoiceRelativePath = invoiceFilePath.split(path.sep + 'invoices' + path.sep)[1] || invoiceFilePath;
     
-    // Upload to S3 - save under submission date folder
-    const s3Result = await uploadFileToS3(absoluteFilePath, submissionDate);
+    // Upload both files to S3 - save under submission date folder
+    const billS3Result = await uploadFileToS3(billFilePath, submissionDate);
+    const invoiceS3Result = await uploadFileToS3(invoiceFilePath, submissionDate);
     
-    console.log('[ADDITIONAL-BILL-GENERATE] S3 upload result:', s3Result);
+    console.log('[ADDITIONAL-BILL-GENERATE] S3 upload results:', { bill: billS3Result, invoice: invoiceS3Result });
     
     // Update all entries to "Bill Done" status and set submission date
     for (const entry of entries) {
@@ -55,9 +66,11 @@ export async function POST(request: NextRequest) {
 
     const response = {
       success: true,
-      message: 'Additional bill generated successfully',
-      filePath: relativePath,
-      s3Url: s3Result.url,
+      message: 'Additional bill and invoice generated successfully',
+      billFilePath: billRelativePath,
+      invoiceFilePath: invoiceRelativePath,
+      billS3Url: billS3Result.url,
+      invoiceS3Url: invoiceS3Result.url,
       entriesProcessed: entries.length
     };
     

@@ -479,3 +479,107 @@ export const generateAdditionalBill = async (data: any, submissionDate: string):
   return filePath;
 };
 
+// Generate Mangesh Transport Invoice for Rework Bills
+export const generateMangeshInvoiceForRework = async (
+  data: any,
+  submissionDate: string
+): Promise<string> => {
+  const folder = ensureInvoiceDir(submissionDate);
+  
+  // Load template
+  const workbook = await getTemplate('MANGESH TRANSPORT BILLING INVOICE COPY-1.xlsx');
+  const worksheet = workbook.getWorksheet(1);
+  
+  if (!worksheet) throw new Error('Invoice template worksheet not found');
+  
+  // Calculate total amount from all entries
+  const entries = data.allEntries || [data];
+  const totalAmount = entries.reduce((sum: number, entry: any) => sum + (parseFloat(entry['Amount']) || 0), 0);
+  
+  // Fill invoice data
+  // Bill No in E7
+  worksheet.getCell('E7').value = data['Bill No'] || '';
+  
+  // Submission Date in E8
+  worksheet.getCell('E8').value = submissionDate;
+  
+  // Write N/A in E10 and E11
+  worksheet.getCell('E10').value = 'N/A';
+  worksheet.getCell('E11').value = 'N/A';
+  
+  // Write 'As per attached annexure' in C14
+  worksheet.getCell('C14').value = 'As per attached annexure';
+  
+  // Amount in E14 and E39
+  const amountStr = `${totalAmount}/-RS`;
+  worksheet.getCell('E14').value = amountStr;
+  worksheet.getCell('E39').value = amountStr;
+  
+  // Amount in words in A37
+  const amountWords = numberToWords(totalAmount).toUpperCase() + ' RUPEES ONLY';
+  worksheet.mergeCells('A37:D37');
+  worksheet.getCell('A37').value = amountWords;
+  
+  // Extract just the bill number for filename
+  const billNoOnly = data['Bill No'].replace('MT/25-26/', '').replace(/\//g, '_');
+  
+  // Save file
+  const fileName = `REWORK_INV_MT_25-26_${billNoOnly}.xlsx`;
+  const filePath = path.join(folder, fileName);
+  await workbook.xlsx.writeFile(filePath);
+  
+  return filePath;
+};
+
+// Generate Mangesh Transport Invoice for Additional Bills
+export const generateMangeshInvoiceForAdditional = async (
+  data: any,
+  submissionDate: string
+): Promise<string> => {
+  const folder = ensureInvoiceDir(submissionDate);
+  
+  // Load template
+  const workbook = await getTemplate('MANGESH TRANSPORT BILLING INVOICE COPY-1.xlsx');
+  const worksheet = workbook.getWorksheet(1);
+  
+  if (!worksheet) throw new Error('Invoice template worksheet not found');
+  
+  // Calculate total amount from all entries
+  const entries = data.allEntries || [data];
+  const totalAmount = entries.reduce((sum: number, entry: any) => sum + (parseFloat(entry['Amount']) || 0), 0);
+  
+  // Fill invoice data
+  // Bill No in E7
+  worksheet.getCell('E7').value = data['Bill No'] || '';
+  
+  // Submission Date in E8
+  worksheet.getCell('E8').value = submissionDate;
+  
+  // Write N/A in E10 and E11
+  worksheet.getCell('E10').value = 'N/A';
+  worksheet.getCell('E11').value = 'N/A';
+  
+  // Write 'As per attached annexure' in C14
+  worksheet.getCell('C14').value = 'As per attached annexure';
+  
+  // Amount in E14 and E39
+  const amountStr = `${totalAmount}/-RS`;
+  worksheet.getCell('E14').value = amountStr;
+  worksheet.getCell('E39').value = amountStr;
+  
+  // Amount in words in A37
+  const amountWords = numberToWords(totalAmount).toUpperCase() + ' RUPEES ONLY';
+  worksheet.mergeCells('A37:D37');
+  worksheet.getCell('A37').value = amountWords;
+  
+  // Extract just the bill number for filename
+  const billNoOnly = data['Bill No'].replace('MT/25-26/', '').replace(/\//g, '_');
+  
+  // Save file
+  const fileName = `ADDITIONAL_INV_MT_25-26_${billNoOnly}.xlsx`;
+  const filePath = path.join(folder, fileName);
+  await workbook.xlsx.writeFile(filePath);
+  
+  return filePath;
+};
+

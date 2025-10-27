@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Plus, RefreshCw, Check, X, Trash2, FileText, Download, 
   Truck, Calendar, MapPin, Package, TrendingUp, BarChart3, Search, Folder, 
-  DollarSign, PieChart, ChevronLeft, ChevronRight
+  DollarSign, PieChart, ChevronLeft, ChevronRight, Eye, EyeOff
 } from 'lucide-react';
 import JSZip from 'jszip';
 import toast from 'react-hot-toast';
@@ -15,7 +15,7 @@ import LRForm from '@/components/LRForm';
 import ReworkBillForm from '@/components/ReworkBillForm';
 import AdditionalBillForm from '@/components/AdditionalBillForm';
 import { LRData } from '@/lib/database';
-import { MONTHS, VEHICLE_AMOUNTS, ADDITIONAL_BILL_AMOUNTS, LR_STATUS_OPTIONS, STATUS_COLORS } from '@/lib/constants';
+import { MONTHS, VEHICLE_AMOUNTS, DRIVER_PAYMENTS, REWORK_DRIVER_PAYMENTS, REWORK_REVENUE_MULTIPLIER, ADDITIONAL_BILL_AMOUNTS, LR_STATUS_OPTIONS, STATUS_COLORS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,9 +32,10 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import EmptyState from '@/components/EmptyState';
+import DashboardCharts from '@/components/DashboardCharts';
 
 export default function Dashboard() {
-  const [filteredLrs, setFilteredLrs] = useState<LRData[]>([]);
+  // Removed filteredLrs state - using memoizedFilteredLrs directly
   const [selectedLrs, setSelectedLrs] = useState<Set<string>>(new Set());
   const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'rework-bill' | 'additional-bill'>('dashboard');
   const [editingLr, setEditingLr] = useState<LRData | null>(null);
@@ -55,6 +56,9 @@ export default function Dashboard() {
   const [selectedBillTypes, setSelectedBillTypes] = useState<Set<string>>(new Set(['rework', 'additional', 'regular']));
   const [includeFinalSheet, setIncludeFinalSheet] = useState(true);
   const [zipDownloading, setZipDownloading] = useState(false);
+  const [showProfitBreakdown, setShowProfitBreakdown] = useState(false);
+  const [showBillTypeBreakdown, setShowBillTypeBreakdown] = useState(false);
+  const [showMonthlyProfit, setShowMonthlyProfit] = useState(false);
   
   // Filters & Search
   const [selectedMonth, setSelectedMonth] = useState('All Months');
@@ -62,6 +66,7 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [tempStatuses, setTempStatuses] = useState<Set<string>>(new Set());
+  const [activeStatusFilter, setActiveStatusFilter] = useState<string | null>(null);
   
   // Sorting
   const [sortBy, setSortBy] = useState<'lrNo' | 'date' | 'none'>('none');
@@ -159,25 +164,25 @@ export default function Dashboard() {
     },
   });
   
-  // Filter LRs by month/year and search
-  const filterLRs = (allLrs: LRData[], month: string, year: string, search: string = '', statuses: Set<string> = new Set()) => {
-    let filtered = allLrs;
+  // Memoized filtered LRs - Calculate filtered LRs with useMemo to prevent infinite loop
+  const memoizedFilteredLrs = useMemo(() => {
+    let filtered = lrs;
     
     // Filter by year (dates are in DD-MM-YYYY format)
-    if (year !== 'All Years') {
-      filtered = filtered.filter(lr => {
+    if (selectedYear !== 'All Years') {
+      filtered = filtered.filter((lr: LRData) => {
         const lrDate = lr['LR Date'];
         if (!lrDate) return false;
         const parts = lrDate.split('-');
         // parts[2] is the year in DD-MM-YYYY format
-        return parts.length === 3 && parts[2] === year;
+        return parts.length === 3 && parts[2] === selectedYear;
       });
     }
     
     // Filter by month (dates are in DD-MM-YYYY format)
-    if (month !== 'All Months') {
-      const monthIndex = MONTHS.indexOf(month) + 1;
-      filtered = filtered.filter(lr => {
+    if (selectedMonth !== 'All Months') {
+      const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
+      filtered = filtered.filter((lr: LRData) => {
         const lrDate = lr['LR Date'];
         if (!lrDate) return false;
         const parts = lrDate.split('-');
@@ -187,14 +192,19 @@ export default function Dashboard() {
     }
 
     // Filter by statuses
-    if (statuses.size > 0) {
-      filtered = filtered.filter(lr => lr.status && statuses.has(lr.status));
+    if (selectedStatuses.size > 0) {
+      filtered = filtered.filter((lr: LRData) => lr.status && selectedStatuses.has(lr.status));
+    }
+    
+    // Filter by active status filter (from card clicks)
+    if (activeStatusFilter) {
+      filtered = filtered.filter((lr: LRData) => lr.status === activeStatusFilter);
     }
     
     // Search filter
-    if (search.trim()) {
-      const searchLower = search.toLowerCase();
-      filtered = filtered.filter(lr => 
+    if (searchQuery.trim()) {
+      const searchLower = searchQuery.toLowerCase();
+      filtered = filtered.filter((lr: LRData) => 
         lr['LR No']?.toLowerCase().includes(searchLower) ||
         lr['Vehicle Number']?.toLowerCase().includes(searchLower) ||
         lr['FROM']?.toLowerCase().includes(searchLower) ||
@@ -207,13 +217,13 @@ export default function Dashboard() {
     
     // Apply sorting
     if (sortBy === 'lrNo') {
-      filtered.sort((a, b) => {
+      filtered.sort((a: LRData, b: LRData) => {
         const aNo = a['LR No'] || '';
         const bNo = b['LR No'] || '';
         return sortOrder === 'asc' ? aNo.localeCompare(bNo) : bNo.localeCompare(aNo);
       });
     } else if (sortBy === 'date') {
-      filtered.sort((a, b) => {
+      filtered.sort((a: LRData, b: LRData) => {
         // Parse DD-MM-YYYY to YYYYMMDD for numeric comparison
         const parseDate = (dateStr: string) => {
           if (!dateStr) return 0;
@@ -227,9 +237,10 @@ export default function Dashboard() {
       });
     }
     
-    setFilteredLrs(filtered);
-    setCurrentPage(1); // Reset to first page when filtering
-  };
+    return filtered;
+  }, [lrs, selectedMonth, selectedYear, selectedStatuses, activeStatusFilter, searchQuery, sortBy, sortOrder]);
+
+  // Using memoizedFilteredLrs directly instead of separate state
   
   // Memoized filtered data calculations
   const statsData = useMemo(() => {
@@ -269,14 +280,110 @@ export default function Dashboard() {
       TOROUS: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'TOROUS').length,
     };
     
-    // Calculate revenue based on status (only Bill Done or Bill Submitted count as revenue)
-    let revenue = 0;
+    // Calculate revenue and expenses based on ALL LRs in the selected month
+    let totalRevenue = 0;
+    let totalExpenses = 0;
+    
+    // Track separate revenue/expenses for rework, additional, and regular bills
+    let reworkRevenue = 0;
+    let reworkExpenses = 0;
+    let additionalRevenue = 0;
+    let additionalExpenses = 0;
+    let regularRevenue = 0;
+    let regularExpenses = 0;
+    
     statsData.forEach((lr: LRData) => {
-      if (lr.status === 'Bill Done' || lr.status === 'Bill Submitted') {
-        const vehicleType = lr['Vehicle Type'] || 'PICKUP';
-        revenue += VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
+      const vehicleType = lr['Vehicle Type'] || 'PICKUP';
+      
+      // Check if it's an additional bill (LR No starts with "ADDITIONAL-")
+      const lrNo = (lr['LR No'] || '').toString();
+      const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
+      
+      // Check if Consignee column has multiple locations separated by '/'
+      const consigneeColumn = (lr['Consignee'] || '').toString().trim();
+      const consigneeLocations = consigneeColumn.split('/').filter(loc => loc.trim().length > 0);
+      const hasAdditionalDelivery = consigneeLocations.length > 1;
+      
+      // For backwards compatibility, also check TO column
+      const toColumn = (lr['TO'] || '').toString().trim();
+      const toLocations = toColumn.split('/').filter(loc => loc.trim().length > 0);
+      const hasAdditionalDeliveryInTO = toLocations.length > 1;
+      
+      // Use either Consignee or TO for multiple locations
+      const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
+      const finalLocationCount = hasAdditionalDelivery ? consigneeLocations.length : (hasAdditionalDeliveryInTO ? toLocations.length : 1);
+      
+      // Check if it's a rework (Kolhapur → Solapur) - only for non-additional records
+      const from = (lr['FROM'] || '').toString().toLowerCase().trim();
+      const to = toColumn.toLowerCase().trim();
+      const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
+      
+      // Calculate revenue
+      const baseRevenue = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
+      let revenue = 0;
+      let isAdditional = false;
+      
+      if (isAdditionalRecord) {
+        // Additional bill records: Revenue is already in the Amount field
+        revenue = lr['Amount'] || 0;
+        additionalRevenue += revenue;
+        isAdditional = true;
+      } else if (finalHasAdditionalDelivery && !isRework) {
+        // Regular LR with multiple delivery locations: Calculate additional amount
+        // If 2 locations (1 '/'): charge 1x additional amount
+        // If 3 locations (2 '/'): charge 2x additional amount
+        // If 4 locations (3 '/'): charge 3x additional amount
+        const additionalMultiplier = finalLocationCount - 1;
+        const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
+        const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
+        
+        // Base revenue goes to regular bills, additional amount goes to additional bills
+        revenue = baseRevenue + calculatedAdditionalAmount;
+        regularRevenue += baseRevenue; // Base revenue in regular bills
+        additionalRevenue += calculatedAdditionalAmount; // Only additional amount in additional bills
+        isAdditional = true;
+      } else if (isRework) {
+        // Rework bills: 80% of regular revenue
+        revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
+        reworkRevenue += revenue;
+      } else {
+        // Regular bills: Full revenue
+        revenue = baseRevenue;
+        regularRevenue += revenue;
       }
+      
+      totalRevenue += revenue;
+      
+      // Calculate expenses (driver payments)
+      let driverPayment = 0;
+      
+      if (isAdditionalRecord) {
+        // Additional bill records: No driver payment (already included in main LR)
+        driverPayment = 0;
+        additionalExpenses += driverPayment;
+      } else if (finalHasAdditionalDelivery && !isRework) {
+        // Regular LR with additional deliveries: Still pay regular driver payment
+        // (Additional revenue doesn't affect driver payment - driver is paid as regular)
+        driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
+        // Add to regular expenses since it's a regular LR with additional deliveries
+        regularExpenses += driverPayment;
+      } else if (isRework) {
+        // Rework bills: Rework driver payment
+        driverPayment = REWORK_DRIVER_PAYMENTS[vehicleType as keyof typeof REWORK_DRIVER_PAYMENTS] || 0;
+        reworkExpenses += driverPayment;
+      } else {
+        // Regular bills: Regular driver payment
+        driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
+        regularExpenses += driverPayment;
+      }
+      
+      totalExpenses += driverPayment;
     });
+    
+    const totalProfit = totalRevenue - totalExpenses;
+    const reworkProfit = reworkRevenue - reworkExpenses;
+    const additionalProfit = additionalRevenue - additionalExpenses;
+    const regularProfit = regularRevenue - regularExpenses;
     
     return {
       total: statsData.length,
@@ -288,28 +395,239 @@ export default function Dashboard() {
       pendingSubmission: statsData.filter((lr: LRData) => lr.status === 'Bill Done').length, // Bills ready to submit
       thisMonth: statsData.length, // Already filtered by month/year, so just show the count
       vehicleTypeBreakdown, // Vehicle type breakdown
-      estimatedRevenue: revenue, // Estimated revenue
+      estimatedRevenue: totalRevenue, // Total revenue
+      totalExpenses, // Total expenses
+      totalProfit, // Total profit
+      // Bill type breakdown
+      reworkRevenue,
+      reworkExpenses,
+      reworkProfit,
+      additionalRevenue,
+      additionalExpenses,
+      additionalProfit,
+      regularRevenue,
+      regularExpenses,
+      regularProfit,
       billCompletionRate: statsData.length > 0 ? Math.round((statsData.filter((lr: LRData) => lr.status === 'Bill Done' || lr.status === 'Bill Submitted').length / statsData.length) * 100) : 0, // Percentage of LRs with bills
     };
   }, [statsData]);
 
-  // Apply filters
-  useEffect(() => {
-    filterLRs(lrs, selectedMonth, selectedYear, searchQuery, selectedStatuses);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedYear, searchQuery, lrs, selectedStatuses, sortBy, sortOrder]);
+  // Calculate charts data from real LR data
+  const chartsData = useMemo(() => {
+    // Vehicle Type Breakdown with real calculations
+    const vehicleBreakdown = {
+      PICKUP: { revenue: 0, expenses: 0, profit: 0, count: 0 },
+      TRUCK: { revenue: 0, expenses: 0, profit: 0, count: 0 },
+      TOROUS: { revenue: 0, expenses: 0, profit: 0, count: 0 },
+    };
+
+    statsData.forEach((lr: LRData) => {
+      const vehicleType = lr['Vehicle Type'] || 'PICKUP';
+      const lrNo = (lr['LR No'] || '').toString();
+      const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
+      
+      const consigneeColumn = (lr['Consignee'] || '').toString().trim();
+      const consigneeLocations = consigneeColumn.split('/').filter(loc => loc.trim().length > 0);
+      const hasAdditionalDelivery = consigneeLocations.length > 1;
+      
+      const toColumn = (lr['TO'] || '').toString().trim();
+      const toLocations = toColumn.split('/').filter(loc => loc.trim().length > 0);
+      const hasAdditionalDeliveryInTO = toLocations.length > 1;
+      
+      const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
+      const finalLocationCount = hasAdditionalDelivery ? consigneeLocations.length : (hasAdditionalDeliveryInTO ? toLocations.length : 1);
+      
+      const from = (lr['FROM'] || '').toString().toLowerCase().trim();
+      const to = toColumn.toLowerCase().trim();
+      const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
+      
+      const baseRevenue = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
+      let revenue = 0;
+      
+      if (isAdditionalRecord) {
+        revenue = lr['Amount'] || 0;
+      } else if (finalHasAdditionalDelivery && !isRework) {
+        const additionalMultiplier = finalLocationCount - 1;
+        const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
+        const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
+        revenue = baseRevenue + calculatedAdditionalAmount;
+      } else if (isRework) {
+        revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
+      } else {
+        revenue = baseRevenue;
+      }
+      
+      let driverPayment = 0;
+      if (isAdditionalRecord) {
+        driverPayment = 0;
+      } else if (finalHasAdditionalDelivery && !isRework) {
+        driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
+      } else if (isRework) {
+        driverPayment = REWORK_DRIVER_PAYMENTS[vehicleType as keyof typeof REWORK_DRIVER_PAYMENTS] || 0;
+      } else {
+        driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
+      }
+      
+      vehicleBreakdown[vehicleType as keyof typeof vehicleBreakdown].revenue += revenue;
+      vehicleBreakdown[vehicleType as keyof typeof vehicleBreakdown].expenses += driverPayment;
+      vehicleBreakdown[vehicleType as keyof typeof vehicleBreakdown].profit += (revenue - driverPayment);
+      vehicleBreakdown[vehicleType as keyof typeof vehicleBreakdown].count += 1;
+    });
+
+    const vehicleData = [
+      { name: 'PICKUP', count: vehicleBreakdown.PICKUP.count, revenue: vehicleBreakdown.PICKUP.revenue, expenses: vehicleBreakdown.PICKUP.expenses, profit: vehicleBreakdown.PICKUP.profit },
+      { name: 'TRUCK', count: vehicleBreakdown.TRUCK.count, revenue: vehicleBreakdown.TRUCK.revenue, expenses: vehicleBreakdown.TRUCK.expenses, profit: vehicleBreakdown.TRUCK.profit },
+      { name: 'TOROUS', count: vehicleBreakdown.TOROUS.count, revenue: vehicleBreakdown.TOROUS.revenue, expenses: vehicleBreakdown.TOROUS.expenses, profit: vehicleBreakdown.TOROUS.profit },
+    ];
+
+    // Bill Type Distribution - Calculate from statsData instead of using stats
+    let regularRevenue = 0;
+    let reworkRevenue = 0;
+    let additionalRevenue = 0;
+
+    statsData.forEach((lr: LRData) => {
+      const vehicleType = lr['Vehicle Type'] || 'PICKUP';
+      const lrNo = (lr['LR No'] || '').toString();
+      const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
+      
+      const consigneeColumn = (lr['Consignee'] || '').toString().trim();
+      const consigneeLocations = consigneeColumn.split('/').filter(loc => loc.trim().length > 0);
+      const hasAdditionalDelivery = consigneeLocations.length > 1;
+      
+      const toColumn = (lr['TO'] || '').toString().trim();
+      const toLocations = toColumn.split('/').filter(loc => loc.trim().length > 0);
+      const hasAdditionalDeliveryInTO = toLocations.length > 1;
+      
+      const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
+      const finalLocationCount = hasAdditionalDelivery ? consigneeLocations.length : (hasAdditionalDeliveryInTO ? toLocations.length : 1);
+      
+      const from = (lr['FROM'] || '').toString().toLowerCase().trim();
+      const to = toColumn.toLowerCase().trim();
+      const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
+      
+      const baseRevenue = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
+      let revenue = 0;
+      
+      if (isAdditionalRecord) {
+        revenue = lr['Amount'] || 0;
+        additionalRevenue += revenue;
+      } else if (finalHasAdditionalDelivery && !isRework) {
+        const additionalMultiplier = finalLocationCount - 1;
+        const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
+        const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
+        regularRevenue += baseRevenue;
+        additionalRevenue += calculatedAdditionalAmount;
+        revenue = baseRevenue + calculatedAdditionalAmount;
+      } else if (isRework) {
+        revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
+        reworkRevenue += revenue;
+      } else {
+        revenue = baseRevenue;
+        regularRevenue += revenue;
+      }
+    });
+
+    const billTypeTotal = regularRevenue + reworkRevenue + additionalRevenue;
+    const billTypeData = [
+      { name: 'Regular', value: billTypeTotal > 0 ? Math.round((regularRevenue / billTypeTotal) * 100) : 0, color: '#0088FE' },
+      { name: 'Rework', value: billTypeTotal > 0 ? Math.round((reworkRevenue / billTypeTotal) * 100) : 0, color: '#00C49F' },
+      { name: 'Additional', value: billTypeTotal > 0 ? Math.round((additionalRevenue / billTypeTotal) * 100) : 0, color: '#FFBB28' },
+    ];
+
+    // Monthly Trends (last 6 months from current month)
+    const monthlyData = [];
+    const currentDate = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const targetDate = new Date(currentDate);
+      targetDate.setMonth(currentDate.getMonth() - i);
+      const monthName = targetDate.toLocaleDateString('en-US', { month: 'short' });
+      const targetMonth = targetDate.getMonth() + 1;
+      const targetYear = targetDate.getFullYear().toString();
+
+      let monthRevenue = 0;
+      let monthExpenses = 0;
+
+      statsData.forEach((lr: LRData) => {
+        const lrDate = lr['LR Date'];
+        if (!lrDate) return;
+        const parts = lrDate.split('-');
+        if (parts.length !== 3) return;
+        if (parts[1] !== targetMonth.toString() || parts[2] !== targetYear) return;
+
+        const vehicleType = lr['Vehicle Type'] || 'PICKUP';
+        const lrNo = (lr['LR No'] || '').toString();
+        const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
+        
+        const consigneeColumn = (lr['Consignee'] || '').toString().trim();
+        const consigneeLocations = consigneeColumn.split('/').filter(loc => loc.trim().length > 0);
+        const hasAdditionalDelivery = consigneeLocations.length > 1;
+        
+        const toColumn = (lr['TO'] || '').toString().trim();
+        const toLocations = toColumn.split('/').filter(loc => loc.trim().length > 0);
+        const hasAdditionalDeliveryInTO = toLocations.length > 1;
+        
+        const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
+        const finalLocationCount = hasAdditionalDelivery ? consigneeLocations.length : (hasAdditionalDeliveryInTO ? toLocations.length : 1);
+        
+        const from = (lr['FROM'] || '').toString().toLowerCase().trim();
+        const to = toColumn.toLowerCase().trim();
+        const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
+        
+        const baseRevenue = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
+        let revenue = 0;
+        
+        if (isAdditionalRecord) {
+          revenue = lr['Amount'] || 0;
+        } else if (finalHasAdditionalDelivery && !isRework) {
+          const additionalMultiplier = finalLocationCount - 1;
+          const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
+          const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
+          revenue = baseRevenue + calculatedAdditionalAmount;
+        } else if (isRework) {
+          revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
+        } else {
+          revenue = baseRevenue;
+        }
+        
+        let driverPayment = 0;
+        if (isAdditionalRecord) {
+          driverPayment = 0;
+        } else if (finalHasAdditionalDelivery && !isRework) {
+          driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
+        } else if (isRework) {
+          driverPayment = REWORK_DRIVER_PAYMENTS[vehicleType as keyof typeof REWORK_DRIVER_PAYMENTS] || 0;
+        } else {
+          driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
+        }
+        
+        monthRevenue += revenue;
+        monthExpenses += driverPayment;
+      });
+
+      monthlyData.push({
+        month: monthName,
+        revenue: monthRevenue,
+        expenses: monthExpenses,
+        profit: monthRevenue - monthExpenses,
+      });
+    }
+
+    return { vehicleData, monthlyData, billTypeData };
+  }, [statsData]);
+
+  // Removed the old useEffect that called filterLRs - now using memoized filtered LRs
   
   // Memoized pagination calculations
-  const totalPages = Math.ceil(filteredLrs.length / itemsPerPage);
+  const totalPages = Math.ceil(memoizedFilteredLrs.length / itemsPerPage);
   const { paginatedLrs, startIndex, endIndex } = useMemo(() => {
     const startIdx = (currentPage - 1) * itemsPerPage;
     const endIdx = startIdx + itemsPerPage;
     return {
-      paginatedLrs: filteredLrs.slice(startIdx, endIdx),
+      paginatedLrs: memoizedFilteredLrs.slice(startIdx, endIdx),
       startIndex: startIdx,
       endIndex: endIdx,
     };
-  }, [filteredLrs, currentPage, itemsPerPage]);
+  }, [memoizedFilteredLrs, currentPage, itemsPerPage]);
   
   // ALL OTHER HOOKS MUST BE BEFORE RETURNS
   useEffect(() => {
@@ -356,7 +674,7 @@ export default function Dashboard() {
   
   // Select/Deselect all
   const selectAll = () => {
-    const newSelected = new Set(filteredLrs.map(lr => lr['LR No']));
+    const newSelected = new Set<string>(memoizedFilteredLrs.map((lr: LRData) => lr['LR No']).filter((lrNo: string | undefined): lrNo is string => !!lrNo));
     setSelectedLrs(newSelected);
   };
   
@@ -903,21 +1221,47 @@ export default function Dashboard() {
             }
           } else if (result.type === 'rework' && result.data) {
             // Add rework bill file
-            const fileName = result.data.filePath || 'rework.xlsx';
-            const fileResponse = await fetch(`/api/download-file?path=${encodeURIComponent(fileName)}`);
-            if (fileResponse.ok) {
-              const fileBlob = await fileResponse.blob();
-              zip.file(fileName.split('/').pop()?.split('\\').pop() || 'rework.xlsx', fileBlob);
-              fileCount++;
+            if (result.data.billFilePath) {
+              const billFileName = result.data.billFilePath.split('/').pop()?.split('\\').pop() || 'rework-bill.xlsx';
+              const billResponse = await fetch(`/api/download-file?path=${encodeURIComponent(result.data.billFilePath)}`);
+              if (billResponse.ok) {
+                const billBlob = await billResponse.blob();
+                zip.file(billFileName, billBlob);
+                fileCount++;
+              }
+            }
+            
+            // Add rework invoice file
+            if (result.data.invoiceFilePath) {
+              const invoiceFileName = result.data.invoiceFilePath.split('/').pop()?.split('\\').pop() || 'rework-invoice.xlsx';
+              const invoiceResponse = await fetch(`/api/download-file?path=${encodeURIComponent(result.data.invoiceFilePath)}`);
+              if (invoiceResponse.ok) {
+                const invoiceBlob = await invoiceResponse.blob();
+                zip.file(invoiceFileName, invoiceBlob);
+                fileCount++;
+              }
             }
           } else if (result.type === 'additional' && result.data) {
             // Add additional bill file
-            const fileName = result.data.filePath || 'additional.xlsx';
-            const fileResponse = await fetch(`/api/download-file?path=${encodeURIComponent(fileName)}`);
-            if (fileResponse.ok) {
-              const fileBlob = await fileResponse.blob();
-              zip.file(fileName.split('/').pop()?.split('\\').pop() || 'additional.xlsx', fileBlob);
-              fileCount++;
+            if (result.data.billFilePath) {
+              const billFileName = result.data.billFilePath.split('/').pop()?.split('\\').pop() || 'additional-bill.xlsx';
+              const billResponse = await fetch(`/api/download-file?path=${encodeURIComponent(result.data.billFilePath)}`);
+              if (billResponse.ok) {
+                const billBlob = await billResponse.blob();
+                zip.file(billFileName, billBlob);
+                fileCount++;
+              }
+            }
+            
+            // Add additional invoice file
+            if (result.data.invoiceFilePath) {
+              const invoiceFileName = result.data.invoiceFilePath.split('/').pop()?.split('\\').pop() || 'additional-invoice.xlsx';
+              const invoiceResponse = await fetch(`/api/download-file?path=${encodeURIComponent(result.data.invoiceFilePath)}`);
+              if (invoiceResponse.ok) {
+                const invoiceBlob = await invoiceResponse.blob();
+                zip.file(invoiceFileName, invoiceBlob);
+                fileCount++;
+              }
             }
           }
         }
@@ -1035,7 +1379,11 @@ export default function Dashboard() {
 
         {/* Stats Cards - Responsive Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0" style={{ animation: 'slide-up 0.5s ease-out forwards, fade-in 0.3s ease-out forwards' }}>
+          <Card 
+            className={`bg-gradient-to-br from-green-50 to-green-100 border-green-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === null ? 'ring-2 ring-green-500' : ''}`} 
+            style={{ animation: 'slide-up 0.5s ease-out forwards, fade-in 0.3s ease-out forwards' }}
+            onClick={() => setActiveStatusFilter(null)}
+          >
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="bg-green-500 p-2 md:p-3 rounded-lg flex-shrink-0">
@@ -1049,7 +1397,11 @@ export default function Dashboard() {
             </CardHeader>
           </Card>
           
-          <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0" style={{ animation: 'slide-up 0.5s ease-out 0.1s forwards, fade-in 0.3s ease-out 0.1s forwards' }}>
+          <Card 
+            className={`bg-gradient-to-br from-amber-50 to-amber-100 border-amber-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === 'LR Done' ? 'ring-2 ring-amber-500' : ''}`} 
+            style={{ animation: 'slide-up 0.5s ease-out 0.1s forwards, fade-in 0.3s ease-out 0.1s forwards' }}
+            onClick={() => setActiveStatusFilter('LR Done')}
+          >
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="bg-amber-500 p-2 md:p-3 rounded-lg flex-shrink-0">
@@ -1064,7 +1416,11 @@ export default function Dashboard() {
             </CardHeader>
           </Card>
           
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0" style={{ animation: 'slide-up 0.5s ease-out 0.2s forwards, fade-in 0.3s ease-out 0.2s forwards' }}>
+          <Card 
+            className={`bg-gradient-to-br from-orange-50 to-orange-100 border-orange-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === 'LR Collected' ? 'ring-2 ring-orange-500' : ''}`} 
+            style={{ animation: 'slide-up 0.5s ease-out 0.2s forwards, fade-in 0.3s ease-out 0.2s forwards' }}
+            onClick={() => setActiveStatusFilter('LR Collected')}
+          >
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="bg-orange-500 p-2 md:p-3 rounded-lg flex-shrink-0">
@@ -1079,7 +1435,11 @@ export default function Dashboard() {
             </CardHeader>
           </Card>
           
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0" style={{ animation: 'slide-up 0.5s ease-out 0.3s forwards, fade-in 0.3s ease-out 0.3s forwards' }}>
+          <Card 
+            className={`bg-gradient-to-br from-purple-50 to-purple-100 border-purple-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === 'Bill Done' ? 'ring-2 ring-purple-500' : ''}`} 
+            style={{ animation: 'slide-up 0.5s ease-out 0.3s forwards, fade-in 0.3s ease-out 0.3s forwards' }}
+            onClick={() => setActiveStatusFilter('Bill Done')}
+          >
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="bg-purple-500 p-2 md:p-3 rounded-lg flex-shrink-0">
@@ -1097,47 +1457,76 @@ export default function Dashboard() {
         
         {/* Analytics Section - Additional Insights (CEO Only) */}
         {(session?.user as any)?.role === 'CEO' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
-          {/* Estimated Revenue Card */}
-          <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-300">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
+          {/* Monthly Profit Card */}
+          <Card className="bg-gradient-to-br from-teal-50 to-teal-100 border-teal-300 hover:shadow-lg transition-shadow">
             <CardHeader className="pb-3 md:pb-4">
-              <div className="flex items-center gap-2 md:gap-3">
-                <div className="bg-indigo-500 p-2 md:p-3 rounded-lg flex-shrink-0">
-                  <DollarSign className="h-5 w-5 md:h-6 md:w-6 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <CardDescription className="text-indigo-700 text-xs md:text-sm">Estimated Revenue</CardDescription>
-                  <CardTitle className="text-xl md:text-2xl text-indigo-600">₹{stats.estimatedRevenue.toLocaleString()}</CardTitle>
-                  <p className="text-[10px] md:text-xs text-indigo-600 mt-0.5">From {stats.billDone + stats.billSubmitted} completed bills</p>
-                </div>
+              <div className="flex items-center justify-between mb-2">
+                <CardDescription className="text-teal-700 text-xs md:text-sm">Monthly Profit</CardDescription>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMonthlyProfit(!showMonthlyProfit);
+                  }}
+                  className="h-8 w-8 p-0 hover:bg-teal-200"
+                >
+                  {showMonthlyProfit ? (
+                    <Eye className="h-4 w-4 text-teal-700" />
+                  ) : (
+                    <EyeOff className="h-4 w-4 text-teal-700" />
+                  )}
+                </Button>
               </div>
-            </CardHeader>
-          </Card>
-          
-          {/* Bill Completion Rate Card with Progress Bar */}
-          <Card className="bg-gradient-to-br from-teal-50 to-teal-100 border-teal-300">
-            <CardHeader className="pb-3 md:pb-4">
-              <div className="flex items-center gap-2 md:gap-3">
-                <div className="bg-teal-500 p-2 md:p-3 rounded-lg flex-shrink-0">
-                  <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-white" />
-        </div>
-                <div className="min-w-0 flex-1">
-                  <CardDescription className="text-teal-700 text-xs md:text-sm">Bill Completion Rate</CardDescription>
-                  <CardTitle className="text-xl md:text-2xl text-teal-600">{stats.billCompletionRate}%</CardTitle>
-                  <div className="mt-2">
-                    <div className="w-full bg-teal-200 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="bg-gradient-to-r from-teal-500 to-teal-600 h-2 rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${Math.min(stats.billCompletionRate, 100)}%` }}
-                      ></div>
+              {showMonthlyProfit ? (
+                <div 
+                  className="cursor-pointer" 
+                  onClick={() => setShowProfitBreakdown(true)}
+                >
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <div className="bg-teal-500 p-2 md:p-3 rounded-lg flex-shrink-0">
+                      <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className={`text-xl md:text-2xl ${stats.totalProfit >= 0 ? 'text-teal-600' : 'text-red-600'}`}>
+                        ₹{stats.totalProfit.toLocaleString()}
+                      </CardTitle>
+                      <div className="mt-2">
+                        <div className="w-full bg-teal-200 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-500 ease-out ${
+                              stats.totalProfit >= 0 
+                                ? 'bg-gradient-to-r from-teal-500 to-teal-600' 
+                                : 'bg-gradient-to-r from-red-500 to-red-600'
+                            }`}
+                            style={{ width: stats.estimatedRevenue > 0 ? `${Math.abs((stats.totalProfit / stats.estimatedRevenue) * 100)}%` : '0%' }}
+                          ></div>
+                        </div>
+                      </div>
+                      <p className="text-[10px] md:text-xs text-teal-600 mt-1">
+                        Revenue: ₹{stats.estimatedRevenue.toLocaleString()} | Expenses: ₹{stats.totalExpenses.toLocaleString()}
+                      </p>
+                      <p className="text-[9px] md:text-[10px] text-teal-500 mt-1 font-medium">Click for detailed breakdown →</p>
                     </div>
                   </div>
-                  <p className="text-[10px] md:text-xs text-teal-600 mt-1">{stats.total - (stats.billDone + stats.billSubmitted)} LRs pending bills</p>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <Skeleton className="h-12 w-12 rounded-lg flex-shrink-0 bg-teal-200/50" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-7 w-32 bg-teal-200/50" />
+                      <Skeleton className="h-2 w-full rounded-full bg-teal-200/50" />
+                      <Skeleton className="h-4 w-48 bg-teal-200/50" />
+                      <Skeleton className="h-3 w-40 bg-teal-200/50" />
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardHeader>
           </Card>
-          
+
           {/* Vehicle Type Breakdown Card with Progress Bars */}
           <Card className="bg-gradient-to-br from-rose-50 to-rose-100 border-rose-300">
             <CardHeader className="pb-3 md:pb-4">
@@ -1226,7 +1615,10 @@ export default function Dashboard() {
                 <Calendar className="h-4 w-4 text-muted-foreground hidden sm:inline" />
                 <select 
                   value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedMonth(e.target.value);
+                    setActiveStatusFilter(null);
+                  }}
                   className="flex h-10 w-full sm:w-auto rounded-md border border-input bg-background px-2 sm:px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option>All Months</option>
@@ -1239,7 +1631,10 @@ export default function Dashboard() {
               {/* Year Filter */}
               <select 
                 value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
+                onChange={(e) => {
+                  setSelectedYear(e.target.value);
+                  setActiveStatusFilter(null);
+                }}
                 className="flex h-10 w-full sm:w-auto rounded-md border border-input bg-background px-2 sm:px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {years.map(year => (
@@ -1379,8 +1774,8 @@ export default function Dashboard() {
               <div>
                 <CardTitle className="text-xl md:text-2xl">LR Records</CardTitle>
                 <CardDescription className="mt-2 text-xs md:text-sm">
-                  Showing {startIndex + 1}-{Math.min(endIndex, filteredLrs.length)} of {filteredLrs.length} LRs
-                  {filteredLrs.length !== lrs.length && ` (filtered from ${lrs.length} total)`}
+                  Showing {startIndex + 1}-{Math.min(endIndex, memoizedFilteredLrs.length)} of {memoizedFilteredLrs.length} LRs
+                  {memoizedFilteredLrs.length !== lrs.length && ` (filtered from ${lrs.length} total)`}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -1402,8 +1797,8 @@ export default function Dashboard() {
                       <th className="px-1 md:px-4 py-3 text-left w-10">
                         <input
                           type="checkbox"
-                          checked={selectedLrs.size === filteredLrs.length && filteredLrs.length > 0}
-                          onChange={() => selectedLrs.size === filteredLrs.length ? deselectAll() : selectAll()}
+                          checked={selectedLrs.size === memoizedFilteredLrs.length && memoizedFilteredLrs.length > 0}
+                          onChange={() => selectedLrs.size === memoizedFilteredLrs.length ? deselectAll() : selectAll()}
                           className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
                         />
                       </th>
@@ -1505,7 +1900,7 @@ export default function Dashboard() {
                           </tr>
                         ))}
                       </>
-                    ) : filteredLrs.length === 0 ? (
+                    ) : memoizedFilteredLrs.length === 0 ? (
                       <tr>
                         <td colSpan={12} className="px-0">
                           <div className="px-4 py-8">
@@ -1522,7 +1917,7 @@ export default function Dashboard() {
                         </td>
                       </tr>
                     ) : (
-                      paginatedLrs.map((lr, index) => (
+                      paginatedLrs.map((lr: LRData, index: number) => (
                         <tr 
                           key={lr['LR No']} 
                           className={`group hover:bg-blue-50/50 hover:shadow-sm transition-all duration-200 cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
@@ -1628,7 +2023,7 @@ export default function Dashboard() {
             {totalPages > 1 && (
               <div className="mt-4 md:mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-4">
                 <div className="text-xs md:text-sm text-muted-foreground text-center sm:text-left">
-                  Showing {startIndex + 1} to {Math.min(endIndex, filteredLrs.length)} of {filteredLrs.length} results
+                  Showing {startIndex + 1} to {Math.min(endIndex, memoizedFilteredLrs.length)} of {memoizedFilteredLrs.length} results
                 </div>
                 
                 <div className="flex items-center gap-1 md:gap-2">
@@ -2232,7 +2627,7 @@ export default function Dashboard() {
                               size="sm"
                             >
                               <Download className="mr-2 h-4 w-4" />
-                              {result.type === 'regular' ? 'View Files' : 'Download'}
+                              Download
                             </Button>
                           </div>
                         </CardContent>
@@ -2300,6 +2695,327 @@ export default function Dashboard() {
               setShowResultsModal(false);
               loadLRs();
             }}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Profit Breakdown Modal */}
+      <Dialog open={showProfitBreakdown} onOpenChange={setShowProfitBreakdown}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto w-[95vw] sm:w-full mx-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingUp className="h-6 w-6 text-teal-600" />
+              Monthly Profit Breakdown
+            </DialogTitle>
+            <DialogDescription>
+              Detailed financial analysis for {selectedMonth === 'All Months' ? 'All Months' : selectedMonth} {selectedYear === 'All Years' ? '' : selectedYear}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            {/* Total LR Count for Selected Month - Moved to top */}
+            <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-300">
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <div className="text-sm text-gray-600 mb-2">Total LRs for Selected Month</div>
+                  <div className="text-4xl font-bold text-slate-700">{stats.total}</div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Summary Cards - Reordered: Expenses, Revenue, Profit */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-300">
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-2xl md:text-3xl font-bold text-red-600">₹{stats.totalExpenses.toLocaleString()}</div>
+                    <div className="text-sm text-red-700 mt-1">Total Expenses</div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-300">
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-2xl md:text-3xl font-bold text-green-600">₹{stats.estimatedRevenue.toLocaleString()}</div>
+                    <div className="text-sm text-green-700 mt-1">Total Revenue</div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className={`bg-gradient-to-br ${stats.totalProfit >= 0 ? 'from-teal-50 to-teal-100 border-teal-300' : 'from-orange-50 to-orange-100 border-orange-300'}`}>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className={`text-2xl md:text-3xl font-bold ${stats.totalProfit >= 0 ? 'text-teal-600' : 'text-orange-600'}`}>
+                      ₹{stats.totalProfit.toLocaleString()}
+                    </div>
+                    <div className={`text-sm mt-1 ${stats.totalProfit >= 0 ? 'text-teal-700' : 'text-orange-700'}`}>
+                      Net Profit
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Profit Margin */}
+            <Card className="bg-slate-50">
+              <CardHeader>
+                <CardTitle className="text-lg">Profit Margin</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <div className="w-full bg-slate-200 rounded-full h-4 overflow-hidden">
+                      <div 
+                        className={`h-4 rounded-full transition-all duration-500 ease-out ${
+                          stats.totalProfit >= 0 
+                            ? 'bg-gradient-to-r from-teal-500 to-teal-600' 
+                            : 'bg-gradient-to-r from-red-500 to-red-600'
+                        }`}
+                        style={{ 
+                          width: stats.estimatedRevenue > 0 
+                            ? `${Math.abs((stats.totalProfit / stats.estimatedRevenue) * 100)}%` 
+                            : '0%' 
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold">
+                    {stats.estimatedRevenue > 0 
+                      ? `${((stats.totalProfit / stats.estimatedRevenue) * 100).toFixed(1)}%`
+                      : '0%'
+                    }
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 mt-2">
+                  {(stats.totalProfit / stats.estimatedRevenue * 100).toFixed(1)}% of revenue retained as profit
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Breakdown by Vehicle Type */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Truck className="h-5 w-5" />
+                  Breakdown by Vehicle Type
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {['PICKUP', 'TRUCK', 'TOROUS'].map((type) => {
+                    const vehicleLrs = statsData.filter((lr: LRData) => 
+                      lr['Vehicle Type'] === type
+                    );
+                    
+                    if (vehicleLrs.length === 0) return null;
+
+                    let vehicleRevenue = 0;
+                    let vehicleExpenses = 0;
+
+                    vehicleLrs.forEach((lr: LRData) => {
+                      const lrNo = (lr['LR No'] || '').toString();
+                      const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
+                      
+                      // Check if Consignee column has multiple locations separated by '/'
+                      const consigneeColumn = (lr['Consignee'] || '').toString().trim();
+                      const consigneeLocations = consigneeColumn.split('/').filter(loc => loc.trim().length > 0);
+                      const hasAdditionalDelivery = consigneeLocations.length > 1;
+                      
+                      // For backwards compatibility, also check TO column
+                      const toColumn = (lr['TO'] || '').toString().trim();
+                      const toLocations = toColumn.split('/').filter(loc => loc.trim().length > 0);
+                      const hasAdditionalDeliveryInTO = toLocations.length > 1;
+                      
+                      // Use either Consignee or TO for multiple locations
+                      const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
+                      const finalLocationCount = hasAdditionalDelivery ? consigneeLocations.length : (hasAdditionalDeliveryInTO ? toLocations.length : 1);
+                      
+                      const from = (lr['FROM'] || '').toString().toLowerCase().trim();
+                      const to = toColumn.toLowerCase().trim();
+                      const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
+
+                      let revenue = 0;
+                      let driverPayment = 0;
+                      
+                      const baseRevenue = VEHICLE_AMOUNTS[type as keyof typeof VEHICLE_AMOUNTS] || 0;
+                      
+                      if (isAdditionalRecord) {
+                        // Additional bill records: Revenue is already in the Amount field
+                        revenue = lr['Amount'] || 0;
+                        driverPayment = 0; // No driver payment for additional records
+                      } else if (finalHasAdditionalDelivery && !isRework) {
+                        // Regular LR with multiple delivery locations
+                        const additionalMultiplier = finalLocationCount - 1;
+                        const additionalAmount = ADDITIONAL_BILL_AMOUNTS[type as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
+                        const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
+                        revenue = baseRevenue + calculatedAdditionalAmount;
+                        driverPayment = DRIVER_PAYMENTS[type as keyof typeof DRIVER_PAYMENTS] || 0;
+                      } else if (isRework) {
+                        // Rework bills: 80% of regular revenue
+                        revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
+                        driverPayment = REWORK_DRIVER_PAYMENTS[type as keyof typeof DRIVER_PAYMENTS] || 0;
+                      } else {
+                        // Regular bills
+                        revenue = baseRevenue;
+                        driverPayment = DRIVER_PAYMENTS[type as keyof typeof DRIVER_PAYMENTS] || 0;
+                      }
+                      
+                      vehicleRevenue += revenue;
+                      vehicleExpenses += driverPayment;
+                    });
+
+                    const vehicleProfit = vehicleRevenue - vehicleExpenses;
+
+                    return (
+                      <div key={type} className="p-4 border rounded-lg bg-slate-50">
+                        <div className="flex justify-between items-center mb-2">
+                          <h4 className="font-semibold">{type}</h4>
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                            {vehicleLrs.length} LR{vehicleLrs.length > 1 ? 's' : ''}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <div className="text-gray-600">Expenses</div>
+                            <div className="text-red-600 font-semibold">₹{vehicleExpenses.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600">Revenue</div>
+                            <div className="text-green-600 font-semibold">₹{vehicleRevenue.toLocaleString()}</div>
+                          </div>
+                          <div>
+                            <div className="text-gray-600">Profit</div>
+                            <div className={`font-semibold ${vehicleProfit >= 0 ? 'text-teal-600' : 'text-orange-600'}`}>
+                              ₹{vehicleProfit.toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Breakdown by Bill Type - Collapsible */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Breakdown by Bill Type
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowBillTypeBreakdown(!showBillTypeBreakdown)}
+                    className="text-xs"
+                  >
+                    {showBillTypeBreakdown ? 'Hide' : 'View'} Breakdown
+                  </Button>
+                </div>
+              </CardHeader>
+              {showBillTypeBreakdown && (
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Regular Bills */}
+                  <div className="p-4 border rounded-lg bg-blue-50">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="font-semibold text-blue-900">Regular Bills</h4>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <div className="text-gray-600">Expenses</div>
+                        <div className="text-red-600 font-semibold">₹{stats.regularExpenses.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Revenue</div>
+                        <div className="text-green-600 font-semibold">₹{stats.regularRevenue.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Profit</div>
+                        <div className={`font-semibold ${stats.regularProfit >= 0 ? 'text-teal-600' : 'text-orange-600'}`}>
+                          ₹{stats.regularProfit.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rework Bills */}
+                  <div className="p-4 border rounded-lg bg-purple-50">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="font-semibold text-purple-900">Rework Bills (Kolhapur → Solapur)</h4>
+                      <Badge variant="secondary" className="bg-purple-200 text-purple-800">
+                        @ 80% rate
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <div className="text-gray-600">Expenses</div>
+                        <div className="text-red-600 font-semibold">₹{stats.reworkExpenses.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Revenue</div>
+                        <div className="text-green-600 font-semibold">₹{stats.reworkRevenue.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Profit</div>
+                        <div className={`font-semibold ${stats.reworkProfit >= 0 ? 'text-teal-600' : 'text-orange-600'}`}>
+                          ₹{stats.reworkProfit.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Additional Bills */}
+                  <div className="p-4 border rounded-lg bg-amber-50">
+                    <div className="flex justify-between items-center mb-3">
+                      <h4 className="font-semibold text-amber-900">Additional Bills</h4>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <div className="text-gray-600">Expenses</div>
+                        <div className="text-red-600 font-semibold">₹{stats.additionalExpenses.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Revenue</div>
+                        <div className="text-green-600 font-semibold">₹{stats.additionalRevenue.toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Profit</div>
+                        <div className={`font-semibold ${stats.additionalProfit >= 0 ? 'text-teal-600' : 'text-orange-600'}`}>
+                          ₹{stats.additionalProfit.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2 italic">Additional revenue from multiple delivery locations only. Base revenue and driver expenses are in Regular Bills.</p>
+                  </div>
+                </div>
+              </CardContent>
+              )}
+            </Card>
+
+            {/* Visual Charts Section - Moved to bottom */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Visual Analytics
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DashboardCharts
+                  vehicleData={chartsData.vehicleData}
+                  monthlyData={chartsData.monthlyData}
+                  billTypeData={chartsData.billTypeData}
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowProfitBreakdown(false)}>
               Close
             </Button>
           </DialogFooter>

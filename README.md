@@ -2,6 +2,17 @@
 
 A modern, production-ready web application for managing LR (Lorry Receipt) billing with authentication, real-time updates, and automated bill generation.
 
+## 🎯 Live Demo
+
+> **🚀 [Try the Live Demo](https://your-demo-url.vercel.app/demo)** | **📂 [View Source Code](https://github.com/coldhearted0913/LRBillingOnline)**
+
+**Demo Login Credentials:**
+- Admin: `demo@test.com` / `demo123`
+- Manager: `manager@test.com` / `demo123`
+- Worker: `worker@test.com` / `demo123`
+
+---
+
 ## ✨ Key Features
 
 ### 🔐 Authentication & Security
@@ -81,7 +92,7 @@ A modern, production-ready web application for managing LR (Lorry Receipt) billi
    ```
 
 3. **Set up environment variables:**
-   Create a `.env.local` file:
+   Create a `.env.local` file in the root directory (copy from `.env.example` if available):
    ```env
    DATABASE_URL="your-postgresql-url"
    NEXTAUTH_SECRET="your-secret-key"
@@ -91,6 +102,7 @@ A modern, production-ready web application for managing LR (Lorry Receipt) billi
    AWS_REGION="your-region"
    S3_BUCKET_NAME="your-bucket"
    ```
+   ⚠️ **Important:** Never commit `.env.local` to version control. These are sensitive credentials.
 
 4. **Set up the database:**
    ```bash

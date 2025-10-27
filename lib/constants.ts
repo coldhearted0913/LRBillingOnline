@@ -1,10 +1,28 @@
 export const LR_PREFIX = 'MT/25-26/';
 
+// Revenue: What we get paid
 export const VEHICLE_AMOUNTS = {
   'PICKUP': 5500,
   'TRUCK': 12484,
   'TOROUS': 26933,
 } as const;
+
+// Expenses: What we pay to drivers (Regular)
+export const DRIVER_PAYMENTS = {
+  'PICKUP': 5000,
+  'TRUCK': 9900,
+  'TOROUS': 18000,
+} as const;
+
+// Expenses: What we pay to drivers (Rework)
+export const REWORK_DRIVER_PAYMENTS = {
+  'PICKUP': 4400,
+  'TRUCK': 8800,
+  'TOROUS': 14500,
+} as const;
+
+// Rework revenue is 80% of regular
+export const REWORK_REVENUE_MULTIPLIER = 0.8;
 
 export const ADDITIONAL_BILL_AMOUNTS = {
   'PICKUP': 1200,
