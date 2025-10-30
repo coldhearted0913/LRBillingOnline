@@ -64,6 +64,8 @@ export default function Dashboard() {
   const [showStatsPasswordModal, setShowStatsPasswordModal] = useState(false);
   const [statsPassword, setStatsPassword] = useState('');
   const [statsAuthLoading, setStatsAuthLoading] = useState(false);
+  const [showLrDetails, setShowLrDetails] = useState(false);
+  const [detailLr, setDetailLr] = useState<LRData | null>(null);
   
   // Filters & Search
   const [selectedMonth, setSelectedMonth] = useState('All Months');
@@ -1976,7 +1978,14 @@ export default function Dashboard() {
                             />
                           </td>
                           <td className="px-1 md:px-4 py-3">
-                            <div className="font-medium text-[10px] md:text-sm text-foreground">{lr['LR No']}</div>
+                            <button
+                              type="button"
+                              onClick={() => { setDetailLr(lr); setShowLrDetails(true); }}
+                              className="font-semibold text-[10px] md:text-sm text-gray-900 hover:underline active:opacity-80"
+                              title="View LR details"
+                            >
+                              {lr['LR No']}
+                            </button>
                           </td>
                           <td className="px-1 md:px-4 py-3 text-[10px] md:text-sm text-muted-foreground">
                             {lr['Vehicle Number'] || <span className="text-yellow-600 italic">Not set</span>}
@@ -3127,6 +3136,47 @@ export default function Dashboard() {
             >
               {statsAuthLoading ? 'Verifying...' : 'Verify'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* LR Details Modal */}
+      <Dialog open={showLrDetails} onOpenChange={setShowLrDetails}>
+        <DialogContent className="w-[95vw] sm:w-full max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg">LR Details</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">Quick view of selected LR record</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-3 sm:gap-4">
+            <div className="flex items-center justify-between text-xs sm:text-sm">
+              <span className="text-gray-600">LR No</span>
+              <span className="font-semibold text-gray-900">{detailLr?.['LR No'] || '-'}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs sm:text-sm">
+              <span className="text-gray-600">LR Date</span>
+              <span className="font-semibold text-gray-900">{detailLr?.['LR Date'] || '-'}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs sm:text-sm">
+              <span className="text-gray-600">Vehicle No</span>
+              <span className="font-semibold text-gray-900">{detailLr?.['Vehicle Number'] || (detailLr as any)?.['Vehicle No'] || '-'}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs sm:text-sm">
+              <span className="text-gray-600">Vehicle Type</span>
+              <span className="font-semibold text-gray-900">{detailLr?.['Vehicle Type'] || '-'}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs sm:text-sm">
+              <span className="text-gray-600">Description of Goods</span>
+              <span className="font-semibold text-gray-900 text-right max-w-[65%] truncate" title={detailLr?.['Description of Goods'] || ''}>{detailLr?.['Description of Goods'] || '-'}</span>
+            </div>
+            <div className="flex items-start justify-between text-xs sm:text-sm">
+              <span className="text-gray-600 mt-0.5">Remark</span>
+              <span className="font-medium text-gray-900 text-right max-w-[65%] whitespace-pre-wrap break-words">
+                {detailLr?.remark || '-'}
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLrDetails(false)} className="w-full sm:w-auto">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
