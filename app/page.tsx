@@ -71,11 +71,12 @@ export default function Dashboard() {
 
   const downloadAttachment = async (url: string, name?: string) => {
     try {
-      const res = await fetch(`/api/attachments/sign?url=${encodeURIComponent(url)}${name ? `&name=${encodeURIComponent(name)}` : ''}`);
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data?.error || 'Failed to sign');
-      // Navigate to presigned URL to trigger direct download from S3
-      window.location.href = data.url;
+      // Prefer same-origin proxy to avoid PWA navigation issues
+      const u = new URL(url);
+      const key = u.pathname.replace(/^\//, ''); // preserve %2F
+      const proxyUrl = `/api/attachments/download?key=${encodeURIComponent(key)}${name ? `&name=${encodeURIComponent(name)}` : ''}`;
+      // Open in new tab to avoid replacing the PWA view
+      window.open(proxyUrl, '_blank');
     } catch (e: any) {
       toast.error(e.message || 'Failed to download');
     }
