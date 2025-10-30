@@ -1,6 +1,3 @@
-// Prisma Schema for LR Billing App
-// Database: SQLite (local dev), PostgreSQL (production/Railway)
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,55 +8,36 @@ datasource db {
 }
 
 model LR {
-  id                    String   @id @default(cuid())
-  
-  // Main LR Fields
-  lrNo                  String   @unique @map("lr_no")
-  lrDate                String   @map("lr_date")
-  vehicleType           String   @map("vehicle_type")
-  vehicleNumber         String?  @map("vehicle_number")
-  
-  // Location Fields
-  fromLocation          String?  @map("from_location")
-  toLocation            String?   @map("to_location")
-  consignor             String?  @map("consignor")
-  consignee             String?  @map("consignee")
-  
-  // Weight & Cargo
-  loadedWeight          String?  @map("loaded_weight")
-  emptyWeight           String?  @map("empty_weight")
-  descriptionOfGoods    String?  @map("description_of_goods")
-  quantity              String?
-  
-  // Gate Entry Details
-  koelGateEntryNo       String?  @map("koel_gate_entry_no")
-  koelGateEntryDate     String?  @map("koel_gate_entry_date")
-  weightslipNo          String?  @map("weightslip_no")
-  
-  // Invoice Details
-  totalNoOfInvoices     String?  @map("total_no_of_invoices")
-  invoiceNo             String?  @map("invoice_no")
-  
-  // GRR Details
-  grrNo                 String?  @map("grr_no")
-  grrDate               String?  @map("grr_date")
-  
-  // Status tracking
-  status                String   @default("LR Done") @map("status")
-  
-  // Remarks/Notes
-  remark                String?  @map("remark")
-  
-  // Bill-specific fields for Rework and Additional Bills
-  billSubmissionDate    String?  @map("bill_submission_date")
-  billNumber           String?  @map("bill_number")
-  deliveryLocations    String?  @map("delivery_locations") // JSON string
-  amount               Float?   @map("amount")
-  
-  // Timestamps
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
-  
+  id                 String   @id @default(cuid())
+  lrNo               String   @unique @map("lr_no")
+  lrDate             String   @map("lr_date")
+  vehicleType        String   @map("vehicle_type")
+  vehicleNumber      String?  @map("vehicle_number")
+  fromLocation       String?  @map("from_location")
+  toLocation         String?  @map("to_location")
+  consignor          String?  @map("consignor")
+  consignee          String?  @map("consignee")
+  loadedWeight       String?  @map("loaded_weight")
+  emptyWeight        String?  @map("empty_weight")
+  descriptionOfGoods String?  @map("description_of_goods")
+  quantity           String?
+  koelGateEntryNo    String?  @map("koel_gate_entry_no")
+  koelGateEntryDate  String?  @map("koel_gate_entry_date")
+  weightslipNo       String?  @map("weightslip_no")
+  totalNoOfInvoices  String?  @map("total_no_of_invoices")
+  invoiceNo          String?  @map("invoice_no")
+  grrNo              String?  @map("grr_no")
+  grrDate            String?  @map("grr_date")
+  status             String   @default("LR Done") @map("status")
+  remark             String?  @map("remark")
+  billSubmissionDate String?  @map("bill_submission_date")
+  billNumber         String?  @map("bill_number")
+  deliveryLocations  String?  @map("delivery_locations")
+  amount             Float?   @map("amount")
+  attachments        String?  @map("attachments")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
   @@index([status])
   @@index([lrDate])
   @@index([createdAt])
@@ -69,116 +47,97 @@ model LR {
   @@map("lrs")
 }
 
-// User model for authentication
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String?   // hashed password
-  name          String?
-  role          String    @default("WORKER") // CEO, MANAGER, WORKER
-  phone         String?   // Phone number for SMS notifications
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  
-  // Relations
-  auditLogs     AuditLog[]
-  
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String?
+  name      String?
+  role      String     @default("WORKER")
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  phone     String?
+  auditLogs AuditLog[]
+
   @@index([email])
   @@index([role])
   @@index([isActive])
   @@map("users")
 }
 
-// Vehicle model for storing vehicle numbers by type
 model Vehicle {
   id            String   @id @default(cuid())
   vehicleNumber String   @map("vehicle_number")
-  vehicleType   String   @map("vehicle_type") // PICKUP, TRUCK, TOROUS
+  vehicleType   String   @map("vehicle_type")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
-  
+
   @@unique([vehicleNumber, vehicleType])
   @@index([vehicleType])
   @@map("vehicles")
 }
 
-// GoodsDescription model for storing goods descriptions
 model GoodsDescription {
   id          String   @id @default(cuid())
   description String   @unique
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
-  
+
   @@map("goods_descriptions")
 }
 
-// Audit log model for tracking all actions
 model AuditLog {
-  id            String    @id @default(cuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  action        String    // CREATE, EDIT, DELETE, LOGIN, LOGOUT, etc
-  resource      String    // LR, BILL, USER, etc
-  resourceId    String?   // which record was affected
-  oldValue      String?   // JSON string of old value
-  newValue      String?   // JSON string of new value
-  ipAddress     String?
-  timestamp     DateTime  @default(now())
-  
-  @@map("audit_logs")
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  resource   String
+  resourceId String?
+  oldValue   String?
+  newValue   String?
+  ipAddress  String?
+  timestamp  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([timestamp])
   @@index([userId, timestamp])
   @@index([action, resource])
+  @@map("audit_logs")
 }
 
-// Archive model for deleted LRs - permanent backup
 model ArchiveLR {
-  id                    String   @id @default(cuid())
-  
-  // Same fields as LR model
-  lrNo                  String   @map("lr_no")
-  lrDate                String   @map("lr_date")
-  vehicleType           String   @map("vehicle_type")
-  vehicleNumber         String?  @map("vehicle_number")
-  
-  fromLocation          String?  @map("from_location")
-  toLocation            String?  @map("to_location")
-  consignor             String?  @map("consignor")
-  consignee             String?  @map("consignee")
-  
-  loadedWeight          String?  @map("loaded_weight")
-  emptyWeight           String?  @map("empty_weight")
-  descriptionOfGoods    String?  @map("description_of_goods")
-  quantity              String?
-  
-  koelGateEntryNo       String?  @map("koel_gate_entry_no")
-  koelGateEntryDate     String?  @map("koel_gate_entry_date")
-  weightslipNo          String?  @map("weightslip_no")
-  
-  totalNoOfInvoices     String?  @map("total_no_of_invoices")
-  invoiceNo             String?  @map("invoice_no")
-  
-  grrNo                 String?  @map("grr_no")
-  grrDate               String?  @map("grr_date")
-  
-  status                String   @map("status")
-  remark                String?  @map("remark")
-  
-  billSubmissionDate    String?  @map("bill_submission_date")
-  billNumber           String?  @map("bill_number")
-  deliveryLocations    String?  @map("delivery_locations")
-  amount               Float?   @map("amount")
-  
-  // Archive metadata
-  originalCreatedAt     DateTime @map("original_created_at")
-  originalUpdatedAt     DateTime @map("original_updated_at")
-  deletedAt             DateTime @default(now()) @map("deleted_at")
-  deletedBy             String?  @map("deleted_by")
-  
-  @@map("archive_lrs")
+  id                 String   @id @default(cuid())
+  lrNo               String   @map("lr_no")
+  lrDate             String   @map("lr_date")
+  vehicleType        String   @map("vehicle_type")
+  vehicleNumber      String?  @map("vehicle_number")
+  fromLocation       String?  @map("from_location")
+  toLocation         String?  @map("to_location")
+  consignor          String?  @map("consignor")
+  consignee          String?  @map("consignee")
+  loadedWeight       String?  @map("loaded_weight")
+  emptyWeight        String?  @map("empty_weight")
+  descriptionOfGoods String?  @map("description_of_goods")
+  quantity           String?
+  koelGateEntryNo    String?  @map("koel_gate_entry_no")
+  koelGateEntryDate  String?  @map("koel_gate_entry_date")
+  weightslipNo       String?  @map("weightslip_no")
+  totalNoOfInvoices  String?  @map("total_no_of_invoices")
+  invoiceNo          String?  @map("invoice_no")
+  grrNo              String?  @map("grr_no")
+  grrDate            String?  @map("grr_date")
+  status             String   @map("status")
+  remark             String?  @map("remark")
+  billSubmissionDate String?  @map("bill_submission_date")
+  billNumber         String?  @map("bill_number")
+  deliveryLocations  String?  @map("delivery_locations")
+  amount             Float?   @map("amount")
+  originalCreatedAt  DateTime @map("original_created_at")
+  originalUpdatedAt  DateTime @map("original_updated_at")
+  deletedAt          DateTime @default(now()) @map("deleted_at")
+  deletedBy          String?  @map("deleted_by")
+
   @@index([lrNo])
   @@index([deletedAt])
+  @@map("archive_lrs")
 }
-

@@ -61,6 +61,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const [selectedDescriptions, setSelectedDescriptions] = useState<Array<{ description: string; quantity: string }>>([]);
   const [showAddDescription, setShowAddDescription] = useState(false);
   const [newDescription, setNewDescription] = useState('');
+  const [recentUploads, setRecentUploads] = useState<Array<{ url: string; name: string; type: string }>>([]);
   
   // Helper function to convert dd-mm-yyyy to yyyy-mm-dd
   const convertDateToInputFormat = (dateStr: string): string => {
@@ -555,15 +556,49 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                 <p className="text-blue-100 text-[10px] md:text-xs lg:text-sm mt-0.5 md:mt-1 hidden sm:block">{editingLr ? 'Update LR details' : 'Enter LR information to get started'}</p>
               </div>
             </div>
-            <Button 
-              onClick={onBack} 
-              variant="secondary"
-              className="bg-white/20 hover:bg-white/30 text-white border-0 text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap"
-            >
-              <ArrowLeft className="mr-1 md:mr-2 h-3 w-3 md:h-4 md:w-4" />
-              <span className="hidden sm:inline">Back to Dashboard</span>
-              <span className="sm:hidden">Back</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                onClick={onBack} 
+                variant="secondary"
+                className="bg-white/20 hover:bg-white/30 text-white border-0 text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap"
+              >
+                <ArrowLeft className="mr-1 md:mr-2 h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">Back to Dashboard</span>
+                <span className="sm:hidden">Back</span>
+              </Button>
+              <label className="inline-flex items-center px-2 py-2 text-[10px] md:text-xs bg-white/15 hover:bg-white/25 rounded cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = e.target.files;
+                    if (!files || files.length === 0) return;
+                    if (!formData['LR No'] || formData['LR No'] === LR_PREFIX) {
+                      toast.error('Save LR with a valid LR No before uploading files');
+                      const inputEl = e.target as HTMLInputElement;
+                      if (inputEl) inputEl.value = '';
+                      return;
+                    }
+                    const form = new FormData();
+                    Array.from(files).forEach(f => form.append('files', f));
+                    const res = await fetch(`/api/lrs/${encodeURIComponent(formData['LR No'])}/attachments`, { method: 'POST', body: form });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setRecentUploads(data.attachments || []);
+                      toast.success(`Uploaded ${data.uploadedCount || 0} file(s)`);
+                    } else {
+                      const err = await res.json().catch(() => ({}));
+                      toast.error(err.error || 'Upload failed');
+                    }
+                    const inputEl = e.target as HTMLInputElement;
+                    if (inputEl) inputEl.value = '';
+                  }}
+                />
+                <span className="text-white">Upload Files</span>
+              </label>
+            </div>
           </div>
         </div>
       </div>

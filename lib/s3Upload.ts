@@ -1,4 +1,5 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs';
 import path from 'path';
 
@@ -118,5 +119,62 @@ export const uploadMultipleFiles = async (
   }
   
   return results;
+};
+
+// Upload buffer (for API uploads)
+export const uploadBufferToS3 = async (
+  buffer: Buffer,
+  key: string,
+  contentType: string
+): Promise<{ success: boolean; url?: string; error?: string }> => {
+  try {
+    const client = getS3Client();
+    if (!client) return { success: false, error: 'S3 not configured - skipping upload' };
+    const config = getS3Config();
+    const fileName = key.split('/').pop() || 'file';
+    const command = new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+      ContentDisposition: `attachment; filename="${fileName}"`
+    });
+    await client.send(command);
+    const url = `https://${config.bucket}.s3.${config.region}.amazonaws.com/${key}`;
+    return { success: true, url };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Upload failed' };
+  }
+};
+
+// Create a presigned GET URL to download an object as attachment
+export const generatePresignedDownloadUrl = async (
+  input: { key?: string; url?: string; fileName?: string }
+): Promise<{ success: boolean; url?: string; error?: string }> => {
+  try {
+    const client = getS3Client();
+    if (!client) return { success: false, error: 'S3 not configured' };
+    const config = getS3Config();
+
+    // Derive key from either key or full URL
+    let { key } = input;
+    if (!key && input.url) {
+      const u = new URL(input.url);
+      // URL path begins with '/'. Do NOT decode; S3 object keys may contain literal %2F
+      key = u.pathname.replace(/^\//, '');
+    }
+    if (!key) return { success: false, error: 'Missing key/url' };
+
+    const fileName = input.fileName || key.split('/').pop() || 'file';
+    const command = new GetObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+      ResponseContentDisposition: `attachment; filename="${fileName}"`
+    });
+    const signed = await getSignedUrl(client as any, command as any, { expiresIn: 60 });
+    return { success: true, url: signed };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Failed to sign URL' };
+  }
 };
 

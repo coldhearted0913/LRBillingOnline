@@ -29,6 +29,7 @@ export interface LRData {
   "Bill Number"?: string;
   "Delivery Locations"?: string[];
   "Amount"?: number;
+  attachments?: Array<{ url: string; name: string; type: string }>;
 }
 
 // Convert Prisma LR to LRData format
@@ -60,6 +61,7 @@ const toPrismaFormat = (lrData: LRData) => {
     billNumber: lrData["Bill Number"] || null,
     deliveryLocations: lrData["Delivery Locations"] ? JSON.stringify(lrData["Delivery Locations"]) : null,
     amount: lrData["Amount"] || null,
+    attachments: lrData.attachments ? JSON.stringify(lrData.attachments) : null,
   };
 };
 
@@ -94,15 +96,16 @@ const fromPrismaFormat = (prismaLr: any): LRData => {
     "Bill Number": prismaLr.billNumber || "",
     "Delivery Locations": prismaLr.deliveryLocations ? JSON.parse(prismaLr.deliveryLocations) : [],
     "Amount": prismaLr.amount || 0,
+    attachments: prismaLr.attachments ? JSON.parse(prismaLr.attachments) : [],
   };
 };
 
 // Get all LRs (optimized with select to reduce data transfer)
 export const getAllLRs = async (): Promise<LRData[]> => {
   try {
+    // Primary path: select including attachments (requires latest schema/client)
     const lrs = await prisma.lR.findMany({
       orderBy: { createdAt: 'desc' },
-      // Only select fields we actually need to reduce data transfer
       select: {
         id: true,
         lrNo: true,
@@ -130,14 +133,54 @@ export const getAllLRs = async (): Promise<LRData[]> => {
         billNumber: true,
         deliveryLocations: true,
         amount: true,
+        attachments: true,
         createdAt: true,
         updatedAt: true,
       },
     });
     return lrs.map(fromPrismaFormat);
   } catch (error) {
-    console.error('Error getting all LRs:', error);
-    return [];
+    console.warn('[getAllLRs] attachments column not available yet; falling back without it. Error:', (error as any)?.message);
+    try {
+      const lrs = await prisma.lR.findMany({
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          lrNo: true,
+          lrDate: true,
+          vehicleType: true,
+          vehicleNumber: true,
+          fromLocation: true,
+          toLocation: true,
+          consignor: true,
+          consignee: true,
+          loadedWeight: true,
+          emptyWeight: true,
+          descriptionOfGoods: true,
+          quantity: true,
+          koelGateEntryNo: true,
+          koelGateEntryDate: true,
+          weightslipNo: true,
+          totalNoOfInvoices: true,
+          invoiceNo: true,
+          grrNo: true,
+          grrDate: true,
+          status: true,
+          remark: true,
+          billSubmissionDate: true,
+          billNumber: true,
+          deliveryLocations: true,
+          amount: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      // Map and set attachments empty to keep UI stable
+      return lrs.map(p => ({ ...fromPrismaFormat(p), attachments: [] }));
+    } catch (e) {
+      console.error('Error getting all LRs (fallback):', e);
+      return [];
+    }
   }
 };
 
@@ -203,6 +246,7 @@ export const updateLR = async (lrNo: string, lrData: Partial<LRData>): Promise<b
     if (lrData["Bill Number"] !== undefined) updateData.billNumber = lrData["Bill Number"] || null;
     if (lrData["Delivery Locations"] !== undefined) updateData.deliveryLocations = lrData["Delivery Locations"] ? JSON.stringify(lrData["Delivery Locations"]) : null;
     if (lrData["Amount"] !== undefined) updateData.amount = lrData["Amount"] || null;
+    if (lrData.attachments !== undefined) updateData.attachments = lrData.attachments ? JSON.stringify(lrData.attachments) : null;
     
     await prisma.lR.update({
       where: { lrNo },

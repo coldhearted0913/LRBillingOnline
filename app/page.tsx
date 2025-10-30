@@ -66,6 +66,20 @@ export default function Dashboard() {
   const [statsAuthLoading, setStatsAuthLoading] = useState(false);
   const [showLrDetails, setShowLrDetails] = useState(false);
   const [detailLr, setDetailLr] = useState<LRData | null>(null);
+  const [showDetailFiles, setShowDetailFiles] = useState(false);
+  const [consistencyLoading, setConsistencyLoading] = useState(false);
+
+  const downloadAttachment = async (url: string, name?: string) => {
+    try {
+      const res = await fetch(`/api/attachments/sign?url=${encodeURIComponent(url)}${name ? `&name=${encodeURIComponent(name)}` : ''}`);
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data?.error || 'Failed to sign');
+      // Navigate to presigned URL to trigger direct download from S3
+      window.location.href = data.url;
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to download');
+    }
+  };
   
   // Filters & Search
   const [selectedMonth, setSelectedMonth] = useState('All Months');
@@ -2177,6 +2191,30 @@ export default function Dashboard() {
                 <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                 {loading ? 'Generating...' : `Generate All Bills (${selectedLrs.size})`}
               </Button>
+              {(session?.user as any)?.role === 'CEO' && (
+                <Button
+                  onClick={async () => {
+                    setConsistencyLoading(true);
+                    try {
+                      const res = await fetch('/api/consistency/check');
+                      const data = await res.json();
+                      if (!res.ok || !data.success) throw new Error(data?.error || 'Failed');
+                      if (data.issuesCount === 0) toast.success('All records consistent');
+                      else toast.error(`Found ${data.issuesCount} potential issue(s)`);
+                    } catch (e: any) {
+                      toast.error(e.message || 'Consistency check failed');
+                    } finally {
+                      setConsistencyLoading(false);
+                    }
+                  }}
+                  disabled={consistencyLoading}
+                  variant="outline"
+                  className="w-full sm:w-auto text-xs md:text-sm min-h-[48px] touch-manipulation active:scale-95"
+                  title="Verify data consistency across key fields"
+                >
+                  {consistencyLoading ? 'Checking…' : 'Verify Data Consistency'}
+                </Button>
+              )}
               <Button
                 onClick={handleGenerateProvision}
                 disabled={provisionLoading}
@@ -3174,12 +3212,60 @@ export default function Dashboard() {
                 {detailLr?.remark || '-'}
               </span>
             </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDetailFiles(v => !v)}
+                className="px-2 py-1 text-[10px] sm:text-xs border rounded hover:bg-gray-50"
+              >
+                {showDetailFiles ? 'Hide Files' : `View Files${((detailLr as any)?.attachments?.length ? ` (${(detailLr as any).attachments.length})` : '')}`}
+              </button>
+              {showDetailFiles && (
+                <div className="space-y-2 mt-2 max-h-[40vh] overflow-auto">
+                  {(((detailLr as any)?.attachments) || []).length === 0 ? (
+                    <p className="text-xs text-gray-600">No files uploaded.</p>
+                  ) : (
+                    (((detailLr as any).attachments) as Array<{url:string; name:string; type:string; thumbUrl?: string; scanned?: boolean; infected?: boolean}>).map((f, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-3 text-xs sm:text-sm border rounded p-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {f.thumbUrl ? (
+                            <img src={f.thumbUrl} alt={f.name} className="w-10 h-10 rounded object-cover border" />
+                          ) : (
+                            <div className="w-10 h-10 rounded bg-gray-100 border flex items-center justify-center text-gray-500">{f.type?.startsWith('image/') ? 'IMG' : 'PDF'}</div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-medium text-gray-900 truncate max-w-[200px]" title={f.name}>{f.name}</div>
+                            <div className="text-gray-500 flex items-center gap-2">
+                              <span>{f.type}</span>
+                              {f.scanned ? (
+                                f.infected ? <span className="text-red-600 font-semibold">Infected</span> : <span className="text-green-600">Clean</span>
+                              ) : (
+                                <span className="text-amber-600">Pending scan</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => downloadAttachment(f.url, f.name)}
+                          className="px-2 py-1 border rounded hover:bg-gray-50"
+                        >
+                          Download
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowLrDetails(false)} className="w-full sm:w-auto">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      
     </div>
   );
 }

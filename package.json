@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.914.0",
+    "@aws-sdk/s3-request-presigner": "^3.914.0",
     "@prisma/client": "^5.7.1",
     "@radix-ui/react-checkbox": "^1.0.4",
     "@radix-ui/react-dialog": "^1.0.5",
@@ -42,6 +43,7 @@
     "react-hot-toast": "^2.6.0",
     "react-is": "^19.2.0",
     "recharts": "^3.3.0",
+    "sharp": "^0.33.5",
     "signature_pad": "^5.1.1",
     "tailwind-merge": "^2.2.0",
     "twilio": "^5.10.3",
