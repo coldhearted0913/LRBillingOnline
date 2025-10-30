@@ -583,8 +583,9 @@ export default function ProfileSettingsModal({
                               className="px-2 sm:px-3 py-1 border border-gray-300 rounded text-xs sm:text-sm text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none min-w-[100px] sm:min-w-0"
                               title={user.email === userEmail ? "Cannot change your own role" : user.role === 'CEO' ? "Cannot change CEO role" : ""}
                             >
-                              <option value="WORKER">Worker</option>
+                              <option value="CEO" disabled>CEO</option>
                               <option value="MANAGER">Manager</option>
+                              <option value="WORKER">Worker</option>
                             </select>
                             <button
                               onClick={() => handleDeleteUser(user.id)}
