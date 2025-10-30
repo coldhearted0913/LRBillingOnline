@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addLR } from '@/lib/database';
+import { VEHICLE_AMOUNTS } from '@/lib/constants';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +16,11 @@ export async function POST(request: NextRequest) {
         );
       }
     }
+
+    // Compute rework amount: 80% of regular amount per vehicle type
+    const vehicleType = (data['Vehicle Type'] || '').toString();
+    const baseAmount = (VEHICLE_AMOUNTS as any)[vehicleType] || 0;
+    const reworkAmount = Math.round(baseAmount * 0.8);
 
     // Store in database as a special LR record
     const lrData = {
@@ -35,7 +41,7 @@ export async function POST(request: NextRequest) {
       'status': 'LR Done',
       'Bill Submission Date': data['Submission Date'],
       'Bill Number': data['Bill No'],
-      'Amount': data['Amount'],
+      'Amount': reworkAmount,
     };
     
     await addLR(lrData);

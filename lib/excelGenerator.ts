@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { LRData } from './database';
 import { VEHICLE_AMOUNTS } from './constants';
+import { computeReworkAmount } from './utils';
 
 const INVOICE_DIR = path.join(process.cwd(), 'invoices');
 const TEMPLATES_DIR = process.cwd(); // Current directory for templates
@@ -58,7 +59,8 @@ const getTemplate = async (templateName: string): Promise<ExcelJS.Workbook> => {
 // Generate LR file from SAMPLE.xlsx
 export const generateLRFile = async (
   lrData: LRData,
-  submissionDate: string
+  submissionDate: string,
+  signatureImagePath?: string // NEW: Optional signature parameter
 ): Promise<string> => {
   const folder = ensureInvoiceDir(submissionDate);
   
@@ -318,10 +320,11 @@ export const updateFinalSubmissionSheet = async (
 // Generate all files for an LR
 export const generateAllFilesForLR = async (
   lrData: LRData,
-  submissionDate: string
+  submissionDate: string,
+  signatureImagePath?: string // NEW: Optional signature parameter
 ): Promise<{ lrFile: string; invoiceFile: string; finalSheet: string }> => {
   try {
-    const lrFile = await generateLRFile(lrData, submissionDate);
+    const lrFile = await generateLRFile(lrData, submissionDate, signatureImagePath);
     const invoiceFile = await generateMangeshInvoice(lrData, submissionDate);
     const finalSheet = await updateFinalSubmissionSheet(lrData, submissionDate);
     
@@ -398,6 +401,17 @@ export const generateReworkBill = async (data: any, submissionDate: string): Pro
   entries.forEach((entry: any, index: number) => {
     // Fill in the data for each entry
     // Column A - Leave empty
+    // If current row has a REWORK label in column A, skip to next row
+    const aCellVal = worksheet.getCell(currentRow, 1).value as any;
+    const aCellText = typeof aCellVal === 'string'
+      ? aCellVal
+      : aCellVal?.richText
+        ? aCellVal.richText.map((t: any) => t.text).join('')
+        : aCellVal?.toString?.() || '';
+    if (aCellText.toString().toUpperCase().includes('REWORK')) {
+      currentRow += 1;
+    }
+
     worksheet.getCell(currentRow, 2).value = index + 1; // Column B - Auto-increment serial number starting from 1
     worksheet.getCell(currentRow, 3).value = entry['LR Date'] || ''; // C - LR Date
     // Clean LR No: remove any existing MT/25-26/ prefix(es) and add it once
@@ -409,7 +423,26 @@ export const generateReworkBill = async (data: any, submissionDate: string): Pro
     worksheet.getCell(currentRow, 6).value = entry['Vehicle Type'] || ''; // F - Vehicle Type
     worksheet.getCell(currentRow, 7).value = entry['FROM'] || ''; // G - FROM
     worksheet.getCell(currentRow, 8).value = entry['TO'] || ''; // H - TO
-    worksheet.getCell(currentRow, 9).value = entry['Amount'] || 0; // I - Amount
+    // Use provided Amount (pre-computed server-side as 80% for rework)
+    const providedAmount = Number.isFinite(parseFloat(entry['Amount'])) ? parseFloat(entry['Amount']) : 0;
+    // Write amount in I and, conditionally, J columns for the current row
+    worksheet.getCell(currentRow, 9).value = providedAmount; // I - Amount
+    // Add an audit note with vehicle type, base, and effective amounts
+    try {
+      const { base, effective } = computeReworkAmount(entry['Vehicle Type'] || '');
+      const note = `Vehicle: ${(entry['Vehicle Type'] || '').toString()}\nBase: ${base}\nRework(80%): ${effective}`;
+      (worksheet.getCell(currentRow, 9) as any).note = note;
+    } catch {}
+    // Only write J if column A for this row does NOT contain 'REWORK'
+    const aCellValNow = worksheet.getCell(currentRow, 1).value as any;
+    const aCellTextNow = typeof aCellValNow === 'string'
+      ? aCellValNow
+      : aCellValNow?.richText
+        ? aCellValNow.richText.map((t: any) => t.text).join('')
+        : aCellValNow?.toString?.() || '';
+    if (!aCellTextNow.toString().toUpperCase().includes('REWORK')) {
+      worksheet.getCell(currentRow, 10).value = providedAmount; // J - only for data rows
+    }
     
     // Move to next row for next entry
     currentRow++;
@@ -494,7 +527,11 @@ export const generateMangeshInvoiceForRework = async (
   
   // Calculate total amount from all entries
   const entries = data.allEntries || [data];
-  const totalAmount = entries.reduce((sum: number, entry: any) => sum + (parseFloat(entry['Amount']) || 0), 0);
+  const totalAmount = entries.reduce((sum: number, entry: any) => {
+    const parsedProvided = parseFloat(entry['Amount']);
+    const amountVal = Number.isFinite(parsedProvided) && parsedProvided > 0 ? parsedProvided : 0;
+    return sum + amountVal;
+  }, 0);
   
   // Fill invoice data
   // Bill No in E7
@@ -580,6 +617,155 @@ export const generateMangeshInvoiceForAdditional = async (
   const filePath = path.join(folder, fileName);
   await workbook.xlsx.writeFile(filePath);
   
+  return filePath;
+};
+
+// Generate Provision Sheet from PROVISION FORMAT.xlsx
+export const generateProvisionSheet = async (
+  allLrs: LRData[],
+  submissionDate: string
+): Promise<string> => {
+  const folder = ensureInvoiceDir(submissionDate);
+
+  const workbook = await getTemplate('PROVISION FORMAT.xlsx');
+  const worksheet = workbook.getWorksheet(1);
+  if (!worksheet) throw new Error('Provision template worksheet not found');
+
+  const applyFullBorders = (rowNumber: number) => {
+    const border = { style: 'thin' as const };
+    const row = worksheet.getRow(rowNumber);
+    for (let c = 1; c <= 15; c++) { // A..O
+      const cell = row.getCell(c);
+      cell.border = {
+        top: border,
+        left: border,
+        bottom: border,
+        right: border,
+      };
+    }
+  };
+
+  const writeValuesIntoRow = (rowNumber: number, lr: LRData) => {
+    // Numeric cells
+    worksheet.getCell(`A${rowNumber}`).value = 957599; // number
+    worksheet.getCell(`B${rowNumber}`).value = 'Mangesh Transport';
+    worksheet.getCell(`C${rowNumber}`).value = lr['LR No'] || '';
+    worksheet.getCell(`D${rowNumber}`).value = lr['LR Date'] || '';
+    worksheet.getCell(`E${rowNumber}`).value = 71; // number
+    worksheet.getCell(`F${rowNumber}`).value = 621601; // number
+    worksheet.getCell(`G${rowNumber}`).value = 141000; // number
+    worksheet.getCell(`H${rowNumber}`).value = 940048; // number
+    applyFullBorders(rowNumber);
+  };
+
+  const eligible = (allLrs || []).filter(lr => (lr.status || '').toLowerCase() !== 'bill submitted');
+  const isRework = (lr: LRData) => (lr['FROM'] || '').toLowerCase() === 'kolhapur' && (lr['TO'] || '').toLowerCase() === 'solapur';
+  const rework = eligible.filter(isRework);
+  const regular = eligible.filter(lr => !isRework(lr));
+
+  // Sort by LR No ascending (numeric-aware)
+  const lrComparator = (a: LRData, b: LRData) => {
+    const an = (a['LR No'] || '').toString();
+    const bn = (b['LR No'] || '').toString();
+    const ai = parseInt(an.replace(/\D/g, ''), 10);
+    const bi = parseInt(bn.replace(/\D/g, ''), 10);
+    if (!isNaN(ai) && !isNaN(bi) && ai !== bi) return ai - bi;
+    return an.localeCompare(bn, undefined, { numeric: true, sensitivity: 'base' });
+  };
+  regular.sort(lrComparator);
+  rework.sort(lrComparator);
+
+  // Helper: month from LR Date (expects DD-MM-YYYY or similar with '-' separators)
+  const getMonthIndex = (dateStr: string): number => {
+    if (!dateStr) return 0;
+    const parts = dateStr.split('-');
+    if (parts.length >= 2) {
+      const m = parseInt(parts[1], 10);
+      return isNaN(m) ? 0 : m; // 1..12
+    }
+    return 0;
+  };
+  const MONTH_ABBR = ['','JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+
+  // Regular rows: insert a new row each time at currentRow, so any existing content (including REWORK label) shifts down
+  let currentRow = 2;
+  const insertedRowNumbers: number[] = [];
+  const allOrdered: LRData[] = [];
+  for (const lr of regular) {
+    worksheet.insertRow(currentRow, []);
+    writeValuesIntoRow(currentRow, lr);
+    insertedRowNumbers.push(currentRow);
+    allOrdered.push(lr);
+    currentRow++;
+  }
+
+  // Find REWORK anchor in column A
+  let reworkAnchorRow = -1;
+  const totalRows = Math.max(worksheet.rowCount, currentRow, 100);
+  for (let r = 1; r <= totalRows; r++) {
+    const v = worksheet.getCell(`A${r}`).value as any;
+    const text = typeof v === 'string'
+      ? v
+      : v?.richText
+        ? v.richText.map((t: any) => t.text).join('')
+        : v?.toString?.() || '';
+    if (text.toString().toUpperCase().includes('REWORK')) {
+      reworkAnchorRow = r;
+      break;
+    }
+  }
+
+  if (reworkAnchorRow === -1) {
+    reworkAnchorRow = Math.max(currentRow, worksheet.lastRow?.number || 1) + 1;
+    worksheet.getCell(`A${reworkAnchorRow}`).value = 'REWORK';
+  }
+
+  // Rework rows: insert sequentially starting right below the REWORK label without changing the label cell
+  let insertionRow = reworkAnchorRow + 1;
+  for (const lr of rework) {
+    worksheet.insertRow(insertionRow, []);
+    writeValuesIntoRow(insertionRow, lr);
+    insertedRowNumbers.push(insertionRow);
+    allOrdered.push(lr);
+    insertionRow += 1;
+  }
+
+  // Build month columns (I.. beyond): header row 1 with month name, values from row 2 down
+  // Build month columns (I..): set header once per month, and write value at the actual inserted row for each LR
+  const monthLabelsSet = new Set<string>();
+  const labelToColumnIndex: Record<string, number> = {};
+  let nextMonthCol = 9; // I
+  for (let i = 0; i < allOrdered.length; i++) {
+    const lr = allOrdered[i];
+    const rowNum = insertedRowNumbers[i];
+    const monthIdx = getMonthIndex(lr['LR Date'] || '');
+    if (monthIdx < 1 || monthIdx > 12) continue;
+    const label = MONTH_ABBR[monthIdx];
+    if (!monthLabelsSet.has(label)) {
+      monthLabelsSet.add(label);
+      labelToColumnIndex[label] = nextMonthCol;
+      worksheet.getCell(1, nextMonthCol).value = label; // header
+      nextMonthCol += 1;
+    }
+    const col = labelToColumnIndex[label];
+    const vehicleType = lr['Vehicle Type'];
+    const baseAmount = (VEHICLE_AMOUNTS as any)[vehicleType] || 0;
+    const fromVal = (lr['FROM'] || '').toString().trim().toLowerCase();
+    const toVal = (lr['TO'] || '').toString().trim().toLowerCase();
+    const isReworkRoute = fromVal === 'kolhapur' && toVal === 'solapur';
+    const amount = isReworkRoute ? Math.round(baseAmount * 0.8) : baseAmount;
+    const cell = worksheet.getCell(rowNum, col);
+    cell.value = amount;
+    cell.border = {
+      top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' },
+    } as any;
+  }
+
+  // Name file as PROVISION For [Month]
+  const dt = new Date(submissionDate);
+  const monthName = dt.toLocaleString('en-US', { month: 'long' });
+  const filePath = path.join(folder, `PROVISION For ${monthName}.xlsx`);
+  await workbook.xlsx.writeFile(filePath);
   return filePath;
 };
 

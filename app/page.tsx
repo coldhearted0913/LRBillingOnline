@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -59,6 +60,10 @@ export default function Dashboard() {
   const [showProfitBreakdown, setShowProfitBreakdown] = useState(false);
   const [showBillTypeBreakdown, setShowBillTypeBreakdown] = useState(false);
   const [showMonthlyProfit, setShowMonthlyProfit] = useState(false);
+  const [provisionLoading, setProvisionLoading] = useState(false);
+  const [showStatsPasswordModal, setShowStatsPasswordModal] = useState(false);
+  const [statsPassword, setStatsPassword] = useState('');
+  const [statsAuthLoading, setStatsAuthLoading] = useState(false);
   
   // Filters & Search
   const [selectedMonth, setSelectedMonth] = useState('All Months');
@@ -1135,9 +1140,11 @@ export default function Dashboard() {
   
   // Download file
   const downloadFile = (filePath: string) => {
+    // If caller passed a path containing a folder, use it directly. Otherwise fall back to current submissionDate.
+    const hasFolder = /[/\\]/.test(filePath);
     const fileName = filePath.split(/[/\\]/).pop() || 'file.xlsx';
-    const relativePath = `${submissionDate}/${fileName}`;
-    
+    const relativePath = hasFolder ? filePath : `${submissionDate}/${fileName}`;
+
     const link = document.createElement('a');
     link.href = `/api/download-file?path=${encodeURIComponent(relativePath)}`;
     link.download = fileName;
@@ -1160,6 +1167,29 @@ export default function Dashboard() {
     
     if (generatedFiles.length > 0) {
       downloadFile(generatedFiles[0].files.finalSheet);
+    }
+  };
+
+  // Generate Provision sheet and download
+  const handleGenerateProvision = async () => {
+    setProvisionLoading(true);
+    try {
+      const res = await fetch('/api/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error || 'Failed to generate');
+      }
+      // data.filePath is relative to invoices; reuse existing downloader
+      downloadFile(data.filePath);
+      toast.success('Provision sheet generated');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to generate provision');
+    } finally {
+      setProvisionLoading(false);
     }
   };
   
@@ -1458,17 +1488,32 @@ export default function Dashboard() {
         {/* Analytics Section - Additional Insights (CEO Only) */}
         {(session?.user as any)?.role === 'CEO' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
-          {/* Monthly Profit Card */}
+          {/* Statistics Card */}
           <Card className="bg-gradient-to-br from-teal-50 to-teal-100 border-teal-300 hover:shadow-lg transition-shadow">
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center justify-between mb-2">
-                <CardDescription className="text-teal-700 text-xs md:text-sm">Monthly Profit</CardDescription>
+                <CardDescription className="text-teal-700 text-xs md:text-sm">Statistics</CardDescription>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setShowMonthlyProfit(!showMonthlyProfit);
+                    // Require authentication and CEO role to view statistics
+                    if (status !== 'authenticated' || !session) {
+                      router.push('/login');
+                      return;
+                    }
+                    const role = (session.user as any)?.role;
+                    if (role !== 'CEO') {
+                      toast.error('Unauthorized: Only CEO can view statistics');
+                      return;
+                    }
+                    // If currently visible, hide without asking password; otherwise prompt for password
+                    if (showMonthlyProfit) {
+                      setShowMonthlyProfit(false);
+                      return;
+                    }
+                    setShowStatsPasswordModal(true);
                   }}
                   className="h-8 w-8 p-0 hover:bg-teal-200"
                 >
@@ -2123,6 +2168,15 @@ export default function Dashboard() {
                 <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                 {loading ? 'Generating...' : `Generate All Bills (${selectedLrs.size})`}
               </Button>
+              <Button
+                onClick={handleGenerateProvision}
+                disabled={provisionLoading}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 w-full sm:w-auto text-white font-semibold shadow-lg text-xs md:text-sm min-h-[48px] touch-manipulation active:scale-95 disabled:opacity-50"
+                title="Generate Provision sheet from PROVISION FORMAT.xlsx for all non-submitted bills"
+              >
+                <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
+                {provisionLoading ? 'Generating Provision...' : 'Generate Provision'}
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -2651,25 +2705,34 @@ export default function Dashboard() {
                             <p className="text-sm text-gray-600">Summary of all bills</p>
                           </div>
                         </div>
-                        {generationResults.results.find((r: any) => r.type === 'regular' && r.results) && (
-                          <Button
-                            onClick={() => {
-                              const regularResult = generationResults.results.find((r: any) => r.type === 'regular' && r.results);
-                              if (regularResult?.results) {
-                                // Download final sheet
-                                const finalSheetFile = regularResult.results[0]?.files?.finalSheet;
-                                if (finalSheetFile) {
-                                  downloadFile(finalSheetFile);
+                        <div className="flex items-center gap-2">
+                          {generationResults.results.find((r: any) => r.type === 'regular' && r.results) && (
+                            <Button
+                              onClick={() => {
+                                const regularResult = generationResults.results.find((r: any) => r.type === 'regular' && r.results);
+                                if (regularResult?.results) {
+                                  const finalSheetFile = regularResult.results[0]?.files?.finalSheet;
+                                  if (finalSheetFile) {
+                                    downloadFile(finalSheetFile);
+                                  }
                                 }
-                              }
-                            }}
-                            variant="outline"
+                              }}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <Download className="mr-2 h-4 w-4" />
+                              Download
+                            </Button>
+                          )}
+                          <Button
+                            onClick={handleGenerateProvision}
                             size="sm"
+                            disabled={!submissionDate || provisionLoading}
+                            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold shadow-md active:scale-95 disabled:opacity-50"
                           >
-                            <Download className="mr-2 h-4 w-4" />
-                            Download
+                            {provisionLoading ? 'Generating Provision...' : 'Generate Provision'}
                           </Button>
-                        )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -2701,13 +2764,13 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Profit Breakdown Modal */}
+      {/* Statistics Breakdown Modal */}
       <Dialog open={showProfitBreakdown} onOpenChange={setShowProfitBreakdown}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto w-[95vw] sm:w-full mx-4">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <TrendingUp className="h-6 w-6 text-teal-600" />
-              Monthly Profit Breakdown
+              Statistics Breakdown
             </DialogTitle>
             <DialogDescription>
               Detailed financial analysis for {selectedMonth === 'All Months' ? 'All Months' : selectedMonth} {selectedYear === 'All Years' ? '' : selectedYear}
@@ -3017,6 +3080,52 @@ export default function Dashboard() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowProfitBreakdown(false)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stats Password Modal */}
+      <Dialog open={showStatsPasswordModal} onOpenChange={(o) => { setShowStatsPasswordModal(o); if (!o) setStatsPassword(''); }}>
+        <DialogContent className="w-[95vw] sm:w-full max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enter Password</DialogTitle>
+            <DialogDescription>For security, please enter the statistics password.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              type="password"
+              placeholder="Password"
+              value={statsPassword}
+              onChange={(e) => setStatsPassword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') (document.getElementById('stats-auth-btn') as HTMLButtonElement)?.click(); }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowStatsPasswordModal(false); setStatsPassword(''); }}>Cancel</Button>
+            <Button
+              id="stats-auth-btn"
+              disabled={statsAuthLoading || statsPassword.length === 0}
+              onClick={async () => {
+                setStatsAuthLoading(true);
+                try {
+                  const res = await fetch('/api/stats-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: statsPassword }) });
+                  const data = await res.json();
+                  if (!res.ok || !data.success) {
+                    throw new Error(data?.error || 'Invalid password');
+                  }
+                  setShowStatsPasswordModal(false);
+                  setStatsPassword('');
+                  setShowMonthlyProfit(true);
+                } catch (err: any) {
+                  toast.error(err.message || 'Authentication failed');
+                } finally {
+                  setStatsAuthLoading(false);
+                }
+              }}
+              className="bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white"
+            >
+              {statsAuthLoading ? 'Verifying...' : 'Verify'}
             </Button>
           </DialogFooter>
         </DialogContent>

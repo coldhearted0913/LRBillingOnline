@@ -92,15 +92,23 @@ A modern, production-ready web application for managing LR (Lorry Receipt) billi
    ```
 
 3. **Set up environment variables:**
-   Create a `.env.local` file in the root directory (copy from `.env.example` if available):
+   Create a `.env.local` file in the root directory (copy from `.env.example`):
    ```env
-   DATABASE_URL="your-postgresql-url"
-   NEXTAUTH_SECRET="your-secret-key"
+   # Database (Neon/Railway PostgreSQL)
+   DATABASE_URL="postgresql://..."
+
+   # NextAuth
+   NEXTAUTH_SECRET="random-32+chars"
    NEXTAUTH_URL="http://localhost:3000"
-   AWS_ACCESS_KEY_ID="your-s3-key"
-   AWS_SECRET_ACCESS_KEY="your-s3-secret"
-   AWS_REGION="your-region"
+
+   # AWS S3
+   S3_ACCESS_KEY_ID="your-s3-key"
+   S3_SECRET_ACCESS_KEY="your-s3-secret"
+   S3_REGION="ap-south-1"
    S3_BUCKET_NAME="your-bucket"
+
+   # Dashboard Statistics password prompt
+   STATS_PASSWORD="set-a-strong-password"
    ```
    ⚠️ **Important:** Never commit `.env.local` to version control. These are sensitive credentials.
 
@@ -204,10 +212,11 @@ LRBillingOnline/
 - `DATABASE_URL` - PostgreSQL connection string
 - `NEXTAUTH_SECRET` - Random 32+ character string
 - `NEXTAUTH_URL` - Your production URL
-- `AWS_ACCESS_KEY_ID` - S3 access key
-- `AWS_SECRET_ACCESS_KEY` - S3 secret
-- `AWS_REGION` - AWS region
+- `S3_ACCESS_KEY_ID` - S3 access key
+- `S3_SECRET_ACCESS_KEY` - S3 secret
+- `S3_REGION` - AWS region
 - `S3_BUCKET_NAME` - S3 bucket name
+- `STATS_PASSWORD` - Password required to reveal dashboard statistics
 
 ## 🎨 Customization
 
@@ -218,10 +227,18 @@ Edit `lib/constants.ts` to change bill amounts for PICKUP, TRUCK, and TOUROUS.
 Modify `STATUS_COLORS` in `lib/constants.ts` for custom status styling.
 
 ### Bill Templates
-Update Excel templates in the root directory:
+Update Excel templates in the project root directory (validated by a health check route):
 - `SAMPLE.xlsx` - Regular bills
 - `REWORK BILL Format.xlsx` - Rework bills
 - `Additional Bill Format.xlsx` - Additional bills
+ - `MANGESH TRANSPORT BILLING INVOICE COPY-1.xlsx` - Invoice template
+ - `PROVISION FORMAT.xlsx` - Provision sheet template
+ - `Final Submission Sheet.xlsx` - Final summary template
+
+#### Template Health Check
+- Local: open `http://localhost:3000/api/health/templates`
+- Production: open `[your-domain]/api/health/templates`
+The endpoint returns which templates are present. Status code 200 means all templates are found; 500 means one or more are missing.
 
 ## 📱 Mobile Support
 

@@ -5,7 +5,11 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Truck, Lock, Mail, ArrowRight, AlertCircle, CheckCircle, Eye, EyeOff } from "lucide-react";
 
-export const LoginForm = () => {
+type LoginFormProps = {
+  minimal?: boolean;
+};
+
+export const LoginForm = ({ minimal = false }: LoginFormProps) => {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,31 +53,43 @@ export const LoginForm = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700 flex items-center justify-center p-4 sm:p-6">
+    <div className={`${minimal ? '' : 'min-h-screen bg-gradient-to-br from-blue-600 via-blue-500 to-blue-700'} flex items-center justify-center p-4 sm:p-6 relative`}>
       {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl"></div>
-      </div>
+      {!minimal && (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-blue-400/10 rounded-full blur-3xl"></div>
+        </div>
+      )}
 
       {/* Main login card */}
       <div className="w-full max-w-md relative z-10 animate-in fade-in zoom-in duration-500">
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden transform transition-all hover:shadow-3xl">
-          {/* Top accent bar */}
-          <div className="h-1 bg-gradient-to-r from-blue-600 via-blue-500 to-blue-400"></div>
-
+        {/* Subtle glow effect */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-blue-600/20 via-cyan-500/20 to-blue-600/20 rounded-3xl blur-lg opacity-75"></div>
+        
+        <div className="relative bg-white rounded-3xl shadow-2xl overflow-hidden transform transition-all hover:shadow-blue-500/20 border border-gray-200/50 hover:border-blue-300/50">
           {/* Header section */}
-          <div className="px-6 sm:px-8 pt-8 pb-6 bg-gradient-to-b from-white to-gray-50">
-            <div className="flex items-center justify-center mb-6">
-              <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-3 sm:p-4 rounded-xl shadow-lg animate-bounce">
-                <Truck className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
+          <div className="px-6 sm:px-8 pt-8 pb-6 bg-gradient-to-b from-white to-gray-50/30">
+            <div className="flex items-center justify-center mb-7">
+              <div className="relative group">
+                {/* Outer glow ring */}
+                <div className="absolute -inset-2 bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-500 rounded-2xl blur opacity-75 group-hover:opacity-100 animate-pulse"></div>
+                
+                {/* Main icon container */}
+                <div className="relative bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-4 sm:p-5 rounded-xl shadow-2xl transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 group-hover:shadow-blue-500/50">
+                  {/* Inner shimmer effect */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-xl"></div>
+                  
+                  {/* Truck icon with rotation */}
+                  <Truck className="w-10 h-10 sm:w-12 sm:h-12 text-white relative z-10 drop-shadow-lg group-hover:scale-110 transition-transform duration-300" />
+                </div>
               </div>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-2">
+            <h1 className="text-3xl sm:text-4xl font-bold text-center text-gray-900 mb-3">
               LR Billing System
             </h1>
-            <p className="text-center text-gray-600 text-sm">
+            <p className="text-center text-gray-600 text-base">
               Streamline your logistics billing
             </p>
           </div>
@@ -91,7 +107,7 @@ export const LoginForm = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
               {/* Email or Phone field */}
               <div>
                 <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
@@ -108,7 +124,7 @@ export const LoginForm = () => {
                   placeholder="you@company.com or 9853012345"
                   required
                   disabled={loading}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition disabled:bg-gray-50 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400 text-sm sm:text-base"
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all hover:border-blue-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400 text-sm sm:text-base shadow-sm hover:shadow-md focus:shadow-lg"
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   You can login with your email or phone number
@@ -132,7 +148,7 @@ export const LoginForm = () => {
                     placeholder="Enter your password"
                     required
                     disabled={loading}
-                    className="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition disabled:bg-gray-50 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400 text-sm sm:text-base"
+                    className="w-full px-4 py-2.5 pr-12 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all hover:border-blue-300 disabled:bg-gray-50 disabled:cursor-not-allowed text-gray-900 placeholder-gray-400 text-sm sm:text-base shadow-sm hover:shadow-md focus:shadow-lg"
                   />
                   <button
                     type="button"
@@ -149,24 +165,26 @@ export const LoginForm = () => {
               <button
                 type="submit"
                 disabled={loading || !email || !password}
-                className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 group shadow-lg text-sm sm:text-base transform hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 group shadow-lg hover:shadow-xl text-sm sm:text-base transform hover:scale-[1.02] active:scale-[0.98] relative overflow-hidden"
               >
+                {/* Button shine effect */}
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></span>
                 {loading ? (
-                  <>
+                  <span className="relative z-10 flex items-center gap-2">
                     <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                    <span>Signing in...</span>
-                  </>
+                    Signing in...
+                  </span>
                 ) : (
-                  <>
-                    <span>Sign In</span>
+                  <span className="relative z-10 flex items-center gap-2">
+                    Sign In
                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                  </>
+                  </span>
                 )}
               </button>
             </form>
 
             {/* Info message */}
-            <div className="mt-6 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="mt-5 p-3 bg-gradient-to-br from-blue-50 to-cyan-50/50 rounded-lg border border-blue-200/50 shadow-sm">
               <div className="flex items-start gap-3">
                 <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div>
@@ -180,7 +198,7 @@ export const LoginForm = () => {
           </div>
 
           {/* Footer */}
-          <div className="px-6 sm:px-8 py-4 bg-gray-50 border-t border-gray-200">
+          <div className="px-6 sm:px-8 py-4 bg-gradient-to-b from-gray-50 to-white border-t border-gray-200/50">
             <p className="text-center text-xs text-gray-600">
               <span className="font-semibold">Mangesh Transport</span> | LR Billing System v1.0
             </p>

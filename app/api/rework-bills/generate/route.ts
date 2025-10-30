@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateReworkBill, generateMangeshInvoiceForRework } from '@/lib/excelGenerator';
 import { uploadFileToS3 } from '@/lib/s3Upload';
 import { updateLR } from '@/lib/database';
+import { VEHICLE_AMOUNTS } from '@/lib/constants';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,18 +16,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ensure each entry has Amount = 80% of vehicle-type base
+    const normalizedEntries = (entries as any[]).map((e: any) => {
+      const vehicleType = (e['Vehicle Type'] || '').toString();
+      const baseAmount = (VEHICLE_AMOUNTS as any)[vehicleType] || 0;
+      const reworkAmount = Math.round(baseAmount * 0.8);
+      return { ...e, Amount: reworkAmount };
+    });
+
     // Generate Rework Bill Excel file with all entries
     const billFilePath = await generateReworkBill({
       'Submission Date': submissionDate,
       'Bill No': billNo,
-      allEntries: entries,
+      allEntries: normalizedEntries,
     }, submissionDate);
     
     // Generate Mangesh Transport Invoice
     const invoiceFilePath = await generateMangeshInvoiceForRework({
       'Submission Date': submissionDate,
       'Bill No': billNo,
-      allEntries: entries,
+      allEntries: normalizedEntries,
     }, submissionDate);
     
     // Get relative paths from invoices folder

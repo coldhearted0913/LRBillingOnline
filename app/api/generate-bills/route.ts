@@ -5,7 +5,7 @@ import { uploadMultipleFiles } from '@/lib/s3Upload';
 
 export async function POST(request: NextRequest) {
   try {
-    const { lrNumbers, submissionDate } = await request.json();
+    const { lrNumbers, submissionDate, signatureImagePath } = await request.json(); // NEW: Accept signature
     
     // Validate input
     if (!Array.isArray(lrNumbers) || lrNumbers.length === 0) {
@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
           continue;
         }
         
-        // Generate files
-        const files = await generateAllFilesForLR(lrData, submissionDate);
+        // Generate files with optional signature
+        const files = await generateAllFilesForLR(lrData, submissionDate, signatureImagePath);
         
         // Upload to S3 (optional - won't fail if not configured)
         let s3Results = null;

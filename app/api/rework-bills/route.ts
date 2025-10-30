@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateReworkBill } from '@/lib/excelGenerator';
 import { uploadFileToS3 } from '@/lib/s3Upload';
 import { addLR } from '@/lib/database';
+import { VEHICLE_AMOUNTS } from '@/lib/constants';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,8 +19,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Compute rework amount: 80% of vehicle-type base
+    const vehicleType = (data['Vehicle Type'] || '').toString();
+    const baseAmount = (VEHICLE_AMOUNTS as any)[vehicleType] || 0;
+    const reworkAmount = Math.round(baseAmount * 0.8);
+    const payload = { ...data, Amount: reworkAmount };
+
     // Generate Excel file
-    const filePath = await generateReworkBill(data, data['Submission Date']);
+    const filePath = await generateReworkBill(payload, data['Submission Date']);
     
     // Upload to S3
     const sanitizedBillNo = data['Bill No'].replace(/\//g, '_');
@@ -27,7 +34,7 @@ export async function POST(request: NextRequest) {
     
     // Store in database as a special LR record
     const lrData = {
-      ...data,
+      ...payload,
       'LR No': `REWORK-${data['LR No']}`,
       'Description of Goods': 'Rework Bill',
       'Quantity': '1',

@@ -452,7 +452,7 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
     
     // Show loading modal while generating
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-slate-50 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-transparent flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader>
             <CardTitle className="flex items-center gap-3">
@@ -470,7 +470,7 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
 
   // Show bill number modal (auto-generates when Continue is clicked)
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-slate-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-transparent flex items-center justify-center p-4">
       {/* Bill Number Modal */}
       <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
             <div className="flex items-center gap-3 mb-4">

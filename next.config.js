@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  images: {
+    domains: [
+      'images.unsplash.com',
+    ],
+  },
   env: {
     LR_PREFIX: 'MT/25-26/',
     DATABASE_URL: process.env.DATABASE_URL || '',
