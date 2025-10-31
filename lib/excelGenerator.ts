@@ -132,7 +132,7 @@ export const generateLRFile = async (
     
     // Special handling for date fields
     if (field === 'LR Date' || field === 'Koel Gate Entry Date' || field === 'GRR Date') {
-      value = formatDateToDDMMYYYY(value);
+      value = formatDateToDDMMYYYY(String(value));
     }
     
     // Special handling
