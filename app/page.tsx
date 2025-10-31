@@ -1317,11 +1317,16 @@ export default function Dashboard() {
       // Add final submission sheet if selected
       if (includeFinalSheet) {
         const regularResult = generationResults.results.find((r: any) => r.type === 'regular' && r.results);
-        if (regularResult?.results?.[0]?.files?.finalSheet) {
-          const finalSheetResponse = await fetch(`/api/download-file?path=${encodeURIComponent(submissionDate + '/Final_Submission_Sheet.xlsx')}`);
+        const finalSheetPath = regularResult?.results?.[0]?.files?.finalSheet;
+        if (finalSheetPath) {
+          const fileName = finalSheetPath.split('/').pop()?.split('\\').pop() || 'Final Submission Sheet.xlsx';
+          const rel = finalSheetPath.includes('/invoices/')
+            ? finalSheetPath.split('/invoices/')[1]
+            : (finalSheetPath.includes('\\invoices\\') ? finalSheetPath.split('\\invoices\\')[1] : finalSheetPath);
+          const finalSheetResponse = await fetch(`/api/download-file?path=${encodeURIComponent(rel)}`);
           if (finalSheetResponse.ok) {
             const finalBlob = await finalSheetResponse.blob();
-            zip.file('Final_Submission_Sheet.xlsx', finalBlob);
+            zip.file(fileName, finalBlob);
             fileCount++;
           }
         }
@@ -2758,11 +2763,14 @@ export default function Dashboard() {
                             <Button
                               onClick={() => {
                                 const regularResult = generationResults.results.find((r: any) => r.type === 'regular' && r.results);
-                                if (regularResult?.results) {
-                                  const finalSheetFile = regularResult.results[0]?.files?.finalSheet;
-                                  if (finalSheetFile) {
-                                    downloadFile(finalSheetFile);
-                                  }
+                                const finalSheetPath = regularResult?.results?.[0]?.files?.finalSheet;
+                                if (finalSheetPath) {
+                                  const rel = finalSheetPath.includes('/invoices/')
+                                    ? finalSheetPath.split('/invoices/')[1]
+                                    : (finalSheetPath.includes('\\invoices\\') ? finalSheetPath.split('\\invoices\\')[1] : finalSheetPath);
+                                  downloadFile(rel);
+                                } else {
+                                  toast.error('Final Submission Sheet not available');
                                 }
                               }}
                               variant="outline"
@@ -2772,14 +2780,6 @@ export default function Dashboard() {
                               Download
                             </Button>
                           )}
-                          <Button
-                            onClick={handleGenerateProvision}
-                            size="sm"
-                            disabled={!submissionDate || provisionLoading}
-                            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold shadow-md active:scale-95 disabled:opacity-50"
-                          >
-                            {provisionLoading ? 'Generating Provision...' : 'Generate Provision'}
-                          </Button>
                         </div>
                       </div>
                     </CardContent>
@@ -3238,11 +3238,7 @@ export default function Dashboard() {
                             <div className="font-medium text-gray-900 truncate max-w-[200px]" title={f.name}>{f.name}</div>
                             <div className="text-gray-500 flex items-center gap-2">
                               <span>{f.type}</span>
-                              {f.scanned ? (
-                                f.infected ? <span className="text-red-600 font-semibold">Infected</span> : <span className="text-green-600">Clean</span>
-                              ) : (
-                                <span className="text-amber-600">Pending scan</span>
-                              )}
+                              <span className="text-green-600">Ready</span>
                             </div>
                           </div>
                         </div>
@@ -3250,6 +3246,7 @@ export default function Dashboard() {
                           type="button"
                           onClick={() => downloadAttachment(f.url, f.name)}
                           className="px-2 py-1 border rounded hover:bg-gray-50"
+                          title="Download"
                         >
                           Download
                         </button>

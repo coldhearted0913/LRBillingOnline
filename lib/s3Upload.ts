@@ -51,6 +51,18 @@ const getS3Client = () => {
   return s3Client;
 };
 
+// Normalize folder names like YYYY-MM-DD to DD-MM-YYYY for S3 paths
+const normalizeFolderDate = (folder: string | undefined | null): string => {
+  const f = (folder || '').trim();
+  // If matches 4-2-2 with dashes, convert to DD-MM-YYYY
+  const m = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.exec(f);
+  if (m) {
+    const [, y, mo, d] = m;
+    return `${d}-${mo}-${y}`;
+  }
+  return f;
+};
+
 // Upload file to S3
 export const uploadFileToS3 = async (
   filePath: string,
@@ -69,7 +81,8 @@ export const uploadFileToS3 = async (
     // Read file
     const fileContent = fs.readFileSync(filePath);
     const fileName = path.basename(filePath);
-    const s3Key = `${s3Folder}/${fileName}`;
+    const folder = normalizeFolderDate(s3Folder);
+    const s3Key = `${folder}/${fileName}`;
     
     // Get config for bucket name
     const config = getS3Config();
@@ -106,18 +119,25 @@ export const uploadFileToS3 = async (
 // Upload multiple files
 export const uploadMultipleFiles = async (
   filePaths: string[],
-  s3Folder: string
+  s3Folder: string,
+  concurrency = 6
 ): Promise<Array<{ file: string; success: boolean; url?: string; error?: string }>> => {
-  const results = [];
-  
-  for (const filePath of filePaths) {
-    const result = await uploadFileToS3(filePath, s3Folder);
-    results.push({
-      file: path.basename(filePath),
-      ...result,
-    });
+  const results: Array<{ file: string; success: boolean; url?: string; error?: string }> = new Array(filePaths.length);
+  let idx = 0;
+  async function worker() {
+    while (idx < filePaths.length) {
+      const i = idx++;
+      const filePath = filePaths[i];
+      try {
+        const result = await uploadFileToS3(filePath, s3Folder);
+        results[i] = { file: path.basename(filePath), ...result } as any;
+      } catch (e: any) {
+        results[i] = { file: path.basename(filePath), success: false, error: e?.message || 'Upload failed' };
+      }
+    }
   }
-  
+  const runners = Array.from({ length: Math.min(concurrency, filePaths.length) }, () => worker());
+  await Promise.allSettled(runners);
   return results;
 };
 

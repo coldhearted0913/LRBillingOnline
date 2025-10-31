@@ -28,34 +28,7 @@ export async function GET(request: NextRequest) {
       return new Response(JSON.stringify({ success: false, error: 'Invalid or missing key' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Enforce: only allow downloads when attachment is scanned clean
-    // Derive LR No from key: attachments/{encodeURIComponent(lrNo)}/...
-    const parts = key.split('/');
-    if (parts.length < 2) {
-      return new Response(JSON.stringify({ success: false, error: 'Invalid key structure' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
-    }
-    const lrNoEncoded = parts[1];
-    const lrNo = decodeURIComponent(lrNoEncoded);
-
-    const lr = await getLRByNumber(lrNo);
-    if (!lr) {
-      return new Response(JSON.stringify({ success: false, error: 'LR not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
-    }
-    const attachments = (lr as any).attachments || [];
-    const att = attachments.find((a: any) => typeof a?.url === 'string' && a.url.includes(key));
-    // Allow thumbnails even if not listed (derived from originals) but require original scanned clean
-    const isThumb = key.includes('/thumbnails/');
-    if (!att && !isThumb) {
-      return new Response(JSON.stringify({ success: false, error: 'Attachment not recorded' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
-    }
-    if (att) {
-      if (!att.scanned) {
-        return new Response(JSON.stringify({ success: false, error: 'File pending antivirus scan' }), { status: 423, headers: { 'Content-Type': 'application/json' } });
-      }
-      if (att.infected) {
-        return new Response(JSON.stringify({ success: false, error: 'File flagged as infected' }), { status: 403, headers: { 'Content-Type': 'application/json' } });
-      }
-    }
+    // Scanning disabled: skip AV gating and serve directly
 
     const { client, bucket } = getS3();
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });

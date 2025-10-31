@@ -62,6 +62,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const [showAddDescription, setShowAddDescription] = useState(false);
   const [newDescription, setNewDescription] = useState('');
   const [recentUploads, setRecentUploads] = useState<Array<{ url: string; name: string; type: string }>>([]);
+  const [isDirty, setIsDirty] = useState(false);
   
   // Helper function to convert dd-mm-yyyy to yyyy-mm-dd
   const convertDateToInputFormat = (dateStr: string): string => {
@@ -370,6 +371,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   // Handle input change
   const handleChange = (field: keyof LRData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    setIsDirty(true);
     
     // Track manual edits to Koel Gate Entry No
     if (field === 'Koel Gate Entry No') {
@@ -389,6 +391,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     } else {
       setFormData(prev => ({ ...prev, 'LR No': value }));
     }
+    setIsDirty(true);
   };
   
   // Submit form
@@ -491,6 +494,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       
       if (data.success) {
         toast.success(editingLr ? 'LR updated successfully!' : 'LR created successfully!');
+        setIsDirty(false);
         onBack();
       } else {
         // Enhanced error message with details
@@ -536,8 +540,21 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       });
       setSelectedConsignors([]);
       setSelectedConsignees([]);
+      setIsDirty(false);
     }
   };
+
+  // Warn if navigating away with unsaved changes (browser back/close)
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
@@ -558,7 +575,13 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
             </div>
             <div className="flex items-center gap-2">
               <Button 
-                onClick={onBack} 
+                onClick={() => {
+                  if (isDirty) {
+                    const proceed = confirm('You have unsaved changes. Do you really want to go back?');
+                    if (!proceed) return;
+                  }
+                  onBack();
+                }} 
                 variant="secondary"
                 className="bg-white/20 hover:bg-white/30 text-white border-0 text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap"
               >

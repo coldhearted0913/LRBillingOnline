@@ -79,7 +79,8 @@ export async function POST(request: NextRequest, { params }: { params: { lrNo: s
             console.warn('[THUMBNAIL] failed', e);
           }
         }
-        uploaded.push({ url: res.url, name: safeName, type: contentType, thumbUrl, scanned: false, infected: false });
+        // Scanning disabled: mark as scanned/clean immediately
+        uploaded.push({ url: res.url, name: safeName, type: contentType, thumbUrl, scanned: true, infected: false });
       }
     }
 

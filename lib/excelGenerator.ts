@@ -44,15 +44,18 @@ const getToValue = (consignee: string): string => {
 };
 
 // Copy template file
+// Simple in-memory cache for template buffers to avoid disk I/O per LR
+const templateBufferCache: Record<string, Buffer> = Object.create(null);
 const getTemplate = async (templateName: string): Promise<ExcelJS.Workbook> => {
   const templatePath = path.join(TEMPLATES_DIR, templateName);
-  
-  if (!fs.existsSync(templatePath)) {
-    throw new Error(`Template not found: ${templateName}`);
+  if (!fs.existsSync(templatePath)) throw new Error(`Template not found: ${templateName}`);
+  let buf = templateBufferCache[templateName];
+  if (!buf) {
+    buf = fs.readFileSync(templatePath);
+    templateBufferCache[templateName] = buf;
   }
-  
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.readFile(templatePath);
+  await workbook.xlsx.load(buf);
   return workbook;
 };
 
@@ -172,6 +175,15 @@ export const generateMangeshInvoice = async (
 };
 
 // Update Final Submission Sheet
+export const resetFinalSubmissionSheet = async (submissionDate: string): Promise<string> => {
+  const folder = ensureInvoiceDir(submissionDate);
+  const finalSheetPath = path.join(folder, 'Final Submission Sheet.xlsx');
+  // Load fresh template and overwrite any existing file
+  const freshWb = await getTemplate('Final Submission Sheet.xlsx');
+  await freshWb.xlsx.writeFile(finalSheetPath);
+  return finalSheetPath;
+};
+
 export const updateFinalSubmissionSheet = async (
   lrData: LRData,
   submissionDate: string
@@ -335,6 +347,100 @@ export const generateAllFilesForLR = async (
   }
 };
 
+// Variant without updating Final Submission Sheet (for batch writes)
+export const generateAllFilesForLRNoFinal = async (
+  lrData: LRData,
+  submissionDate: string,
+  signatureImagePath?: string
+): Promise<{ lrFile: string; invoiceFile: string }> => {
+  const lrFile = await generateLRFile(lrData, submissionDate, signatureImagePath);
+  const invoiceFile = await generateMangeshInvoice(lrData, submissionDate);
+  return { lrFile, invoiceFile };
+};
+
+// Batch append to Final Submission Sheet for a set of LRs
+export const appendFinalSubmissionSheetBatch = async (
+  lrs: LRData[],
+  submissionDate: string
+): Promise<string> => {
+  const folder = ensureInvoiceDir(submissionDate);
+  const finalSheetPath = path.join(folder, 'Final Submission Sheet.xlsx');
+
+  let workbook: ExcelJS.Workbook;
+  if (fs.existsSync(finalSheetPath)) {
+    workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(finalSheetPath);
+  } else {
+    const wb = await getTemplate('Final Submission Sheet.xlsx');
+    await wb.xlsx.writeFile(finalSheetPath);
+    workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(finalSheetPath);
+  }
+
+  const worksheet = workbook.getWorksheet(1);
+  if (!worksheet) throw new Error('Final Submission Sheet worksheet not found');
+
+  const vehicleHeadings = ['PICKUP', 'TRUCK', 'TOROUS'];
+
+  const findHeadingRow = (vehicleType: string): number => {
+    for (let r = 1; r <= worksheet.rowCount; r++) {
+      const cellValue = worksheet.getCell(r, 1).value?.toString().trim().toUpperCase();
+      if (cellValue === vehicleType.toUpperCase()) return r;
+    }
+    return 0;
+  };
+
+  const findInsertRow = (headingRow: number): number => {
+    let insertRow = headingRow + 2; // after header row
+    while (insertRow <= (worksheet.lastRow?.number || insertRow)) {
+      const v = worksheet.getCell(insertRow, 1).value?.toString().trim().toUpperCase();
+      const b = worksheet.getCell(insertRow, 2).value; // LR No
+      if (v && vehicleHeadings.includes(v)) break; // next section
+      if (!b) break; // empty row
+      insertRow++;
+    }
+    return insertRow;
+  };
+
+  for (const lrData of lrs) {
+    const vehicleType = lrData['Vehicle Type'];
+    const headingRow = findHeadingRow(vehicleType);
+    if (!headingRow) continue;
+    const insertRow = findInsertRow(headingRow);
+
+    worksheet.insertRow(insertRow, []);
+    // copy formatting from header row (headingRow+1)
+    const sourceRow = worksheet.getRow(headingRow + 1);
+    const targetRow = worksheet.getRow(insertRow);
+    sourceRow.eachCell({ includeEmpty: true }, (cell, col) => {
+      const t = targetRow.getCell(col) as any;
+      const s: any = cell;
+      if (s && s.style) {
+        t.style = { ...s.style, font: s.style?.font ? { ...s.style.font, bold: false } : undefined };
+      }
+    });
+
+    // serial number
+    let srNo = 1;
+    if (insertRow > headingRow + 2) {
+      const prev = worksheet.getCell(insertRow - 1, 1).value;
+      if (prev && !isNaN(Number(prev))) srNo = Number(prev) + 1;
+    }
+
+    const amount = (VEHICLE_AMOUNTS as any)[vehicleType] || 0;
+    worksheet.getCell(insertRow, 1).value = srNo;
+    worksheet.getCell(insertRow, 2).value = lrData['LR No'] || '';
+    worksheet.getCell(insertRow, 3).value = lrData['LR Date'] || '';
+    worksheet.getCell(insertRow, 4).value = (lrData['Vehicle Number'] || '').toString();
+    worksheet.getCell(insertRow, 5).value = amount;
+    worksheet.getCell(insertRow, 6).value = lrData['LR No'] || '';
+  }
+
+  worksheet.getCell('B5').value = submissionDate;
+  await workbook.xlsx.writeFile(finalSheetPath);
+  return finalSheetPath;
+};
+
 // Simple number to words converter (basic version)
 function numberToWords(num: number): string {
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
@@ -425,7 +531,7 @@ export const generateReworkBill = async (data: any, submissionDate: string): Pro
     worksheet.getCell(currentRow, 8).value = entry['TO'] || ''; // H - TO
     // Use provided Amount (pre-computed server-side as 80% for rework)
     const providedAmount = Number.isFinite(parseFloat(entry['Amount'])) ? parseFloat(entry['Amount']) : 0;
-    // Write amount in I and, conditionally, J columns for the current row
+    // Write amount only in I column; ensure J stays blank
     worksheet.getCell(currentRow, 9).value = providedAmount; // I - Amount
     // Add an audit note with vehicle type, base, and effective amounts
     try {
@@ -433,15 +539,19 @@ export const generateReworkBill = async (data: any, submissionDate: string): Pro
       const note = `Vehicle: ${(entry['Vehicle Type'] || '').toString()}\nBase: ${base}\nRework(80%): ${effective}`;
       (worksheet.getCell(currentRow, 9) as any).note = note;
     } catch {}
-    // Only write J if column A for this row does NOT contain 'REWORK'
-    const aCellValNow = worksheet.getCell(currentRow, 1).value as any;
-    const aCellTextNow = typeof aCellValNow === 'string'
-      ? aCellValNow
-      : aCellValNow?.richText
-        ? aCellValNow.richText.map((t: any) => t.text).join('')
-        : aCellValNow?.toString?.() || '';
-    if (!aCellTextNow.toString().toUpperCase().includes('REWORK')) {
-      worksheet.getCell(currentRow, 10).value = providedAmount; // J - only for data rows
+    worksheet.getCell(currentRow, 10).value = null; // J - keep empty for data rows
+
+    // Copy border from previous row to maintain table styling
+    if (currentRow > 4) {
+      const prevRow = worksheet.getRow(currentRow - 1);
+      const thisRow = worksheet.getRow(currentRow);
+      for (let c = 1; c <= 10; c++) {
+        const prevCell: any = prevRow.getCell(c);
+        const cell: any = thisRow.getCell(c);
+        if (prevCell && prevCell.border) {
+          cell.border = { ...prevCell.border };
+        }
+      }
     }
     
     // Move to next row for next entry
@@ -496,6 +606,20 @@ export const generateAdditionalBill = async (data: any, submissionDate: string):
     const firstWords = deliveryLocations.map((location: string) => extractFirstWord(location)).filter((w: string) => w.length > 0);
     worksheet.getCell(currentRow, 8).value = firstWords.join('/') || ''; // H - Destination
     worksheet.getCell(currentRow, 9).value = entry['Amount'] || 0; // I - Amount
+    worksheet.getCell(currentRow, 10).value = null; // ensure J stays blank
+
+    // Copy border from previous row for consistent styling
+    if (currentRow > 4) {
+      const prevRow = worksheet.getRow(currentRow - 1);
+      const thisRow = worksheet.getRow(currentRow);
+      for (let c = 1; c <= 10; c++) {
+        const prevCell: any = prevRow.getCell(c);
+        const cell: any = thisRow.getCell(c);
+        if (prevCell && prevCell.border) {
+          cell.border = { ...prevCell.border };
+        }
+      }
+    }
     
     // Move to next row for next entry
     currentRow++;
