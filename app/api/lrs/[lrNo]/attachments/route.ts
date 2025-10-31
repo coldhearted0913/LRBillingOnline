@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLRByNumber, updateLR } from '@/lib/database';
-import { uploadBufferToS3 } from '@/lib/s3Upload';
+import { uploadBufferToS3, deleteFromS3 } from '@/lib/s3Upload';
 import sharp from 'sharp';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -109,3 +109,44 @@ export async function POST(request: NextRequest, { params }: { params: { lrNo: s
 }
 
 
+export async function DELETE(request: NextRequest, { params }: { params: { lrNo: string } }) {
+  try {
+    const session = await getServerSession(authOptions as any);
+    if (!session) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    const lrNo = decodeURIComponent(params.lrNo);
+    const { url } = await request.json();
+    if (!url) return NextResponse.json({ success: false, error: 'Missing url' }, { status: 400 });
+
+    const existing = await getLRByNumber(lrNo);
+    if (!existing) return NextResponse.json({ success: false, error: 'LR not found' }, { status: 404 });
+    const attachments = (existing.attachments || []) as any[];
+    const idx = attachments.findIndex((a) => a?.url === url);
+    if (idx === -1) return NextResponse.json({ success: false, error: 'Attachment not found' }, { status: 404 });
+
+    // Delete original and thumbnail (if present)
+    await deleteFromS3({ url });
+    if (attachments[idx]?.thumbUrl) await deleteFromS3({ url: attachments[idx].thumbUrl });
+
+    attachments.splice(idx, 1);
+    const ok = await updateLR(lrNo, { attachments } as any);
+    if (!ok) return NextResponse.json({ success: false, error: 'Failed to update record' }, { status: 500 });
+
+    // Audit
+    try {
+      const s: any = session;
+      await logAudit({
+        userId: s?.user?.id || s?.user?.email || 'unknown',
+        action: 'DELETE',
+        resource: 'LR_ATTACHMENT',
+        resourceId: lrNo,
+        oldValue: url,
+      });
+    } catch {}
+
+    return NextResponse.json({ success: true, attachments });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e.message || 'Delete failed' }, { status: 500 });
+  }
+}

@@ -68,6 +68,7 @@ export default function Dashboard() {
   const [detailLr, setDetailLr] = useState<LRData | null>(null);
   const [showDetailFiles, setShowDetailFiles] = useState(false);
   const [consistencyLoading, setConsistencyLoading] = useState(false);
+  const [deletingAttachments, setDeletingAttachments] = useState<Set<string>>(new Set());
 
   const downloadAttachment = async (url: string, name?: string) => {
     try {
@@ -79,6 +80,33 @@ export default function Dashboard() {
       window.open(proxyUrl, '_blank');
     } catch (e: any) {
       toast.error(e.message || 'Failed to download');
+    }
+  };
+  const deleteAttachment = async (lrNo: string, url: string) => {
+    try {
+      setDeletingAttachments(prev => new Set(prev).add(url));
+      const res = await fetch(`/api/lrs/${encodeURIComponent(lrNo)}/attachments`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.attachments) {
+          setDetailLr(prev => (prev ? ({ ...prev, attachments: data.attachments } as any) : prev));
+        } else {
+          const r = await fetch(`/api/lrs/${encodeURIComponent(lrNo)}`);
+          const d = await r.json();
+          if (d?.success) setDetailLr(d.lr);
+        }
+      } else {
+        toast.error('Failed to delete file');
+      }
+    } catch {
+      toast.error('Delete failed');
+    }
+    finally {
+      setDeletingAttachments(prev => { const n = new Set(prev); n.delete(url); return n; });
     }
   };
   
@@ -3203,9 +3231,34 @@ export default function Dashboard() {
               <span className="text-gray-600">Vehicle Type</span>
               <span className="font-semibold text-gray-900">{detailLr?.['Vehicle Type'] || '-'}</span>
             </div>
-            <div className="flex items-center justify-between text-xs sm:text-sm">
-              <span className="text-gray-600">Description of Goods</span>
-              <span className="font-semibold text-gray-900 text-right max-w-[65%] truncate" title={detailLr?.['Description of Goods'] || ''}>{detailLr?.['Description of Goods'] || '-'}</span>
+            <div className="flex items-start justify-between text-xs sm:text-sm gap-4">
+              <span className="text-gray-600 mt-0.5">Description of Goods</span>
+              <span className="font-semibold text-gray-900 text-right max-w-[65%] whitespace-pre-line break-words" title={detailLr?.['Description of Goods'] || ''}>
+                {(() => {
+                  const raw = (detailLr?.['Description of Goods'] || '').toString();
+                  if (!raw) return '-';
+                  const pre = raw
+                    .replace(/[;,|]/g, '\n')
+                    .replace(/\s*\n+\s*/g, '\n')
+                    .trim();
+                  const lines = pre.split(/\n+/).filter(Boolean);
+                  const formatted = lines.map((line) => {
+                    const s = line.trim().replace(/\s+/g, ' ');
+                    // If already has a colon, keep as is
+                    if (/:/.test(s)) return s;
+                    // Match trailing numeric quantity after a name
+                    const m = /^(.*?)(?:\s|-)?(\d+(?:\.\d+)?)$/.exec(s);
+                    if (m) {
+                      const label = m[1].trim();
+                      const qty = m[2];
+                      if (label) return `${label}: ${qty}`;
+                    }
+                    // Insert break between number and following letters (e.g., 56A -> 56\nA handled earlier by split, but keep fallback)
+                    return s.replace(/([0-9])(\s*[A-Za-z])/g, '$1\n$2');
+                  }).join('\n');
+                  return formatted || '-';
+                })()}
+              </span>
             </div>
             <div className="flex items-start justify-between text-xs sm:text-sm">
               <span className="text-gray-600 mt-0.5">Remark</span>
@@ -3242,14 +3295,30 @@ export default function Dashboard() {
                             </div>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => downloadAttachment(f.url, f.name)}
-                          className="px-2 py-1 border rounded hover:bg-gray-50"
-                          title="Download"
-                        >
-                          Download
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => downloadAttachment(f.url, f.name)}
+                            className="px-2 py-1 border rounded hover:bg-gray-50"
+                            title="Download"
+                          >
+                            Download
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteAttachment(detailLr?.['LR No'] as string, f.url)}
+                            className={`px-2 py-1 border rounded text-red-600 hover:bg-red-50 flex items-center gap-1 ${deletingAttachments.has(f.url) ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            disabled={deletingAttachments.has(f.url)}
+                            title="Delete"
+                          >
+                            {deletingAttachments.has(f.url) ? (
+                              <>
+                                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                <span>Deleting</span>
+                              </>
+                            ) : 'Delete'}
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}

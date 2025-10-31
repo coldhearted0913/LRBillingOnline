@@ -1048,7 +1048,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                       <div className="space-y-2 mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
                         <p className="text-xs font-medium text-blue-700 mb-2">Selected Descriptions:</p>
                         {selectedDescriptions.map((item, index) => (
-                          <div key={index} className="flex gap-2 items-center bg-white p-2 rounded border border-gray-200">
+                          <div key={index} className="flex flex-col sm:flex-row gap-2 sm:items-center bg-white p-2 rounded border border-gray-200">
                             <Badge variant="default" className="px-3 py-1.5">
                               {item.description}
                             </Badge>
@@ -1056,7 +1056,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                               value={item.quantity}
                               onChange={(e) => handleUpdateQuantity(item.description, e.target.value)}
                               placeholder="Enter quantity"
-                              className="flex-1"
+                              className="w-full sm:flex-1"
                             />
                             <button
                               type="button"

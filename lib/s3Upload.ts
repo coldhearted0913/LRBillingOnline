@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs';
 import path from 'path';
@@ -195,6 +195,26 @@ export const generatePresignedDownloadUrl = async (
     return { success: true, url: signed };
   } catch (e: any) {
     return { success: false, error: e.message || 'Failed to sign URL' };
+  }
+};
+
+// Delete object by key or URL
+export const deleteFromS3 = async (input: { key?: string; url?: string }): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const client = getS3Client();
+    if (!client) return { success: false, error: 'S3 not configured' };
+    const config = getS3Config();
+    let { key } = input;
+    if (!key && input.url) {
+      const u = new URL(input.url);
+      key = u.pathname.replace(/^\//, '');
+    }
+    if (!key) return { success: false, error: 'Missing key/url' };
+    const cmd = new DeleteObjectCommand({ Bucket: config.bucket, Key: key });
+    await (client as any).send(cmd as any);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || 'Delete failed' };
   }
 };
 
