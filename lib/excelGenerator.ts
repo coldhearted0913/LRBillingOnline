@@ -43,6 +43,42 @@ const getToValue = (consignee: string): string => {
   return firstWords.length > 0 ? firstWords.join('/') : '';
 };
 
+// Format date to DD-MM-YYYY consistently across all Excel files
+const formatDateToDDMMYYYY = (date: string | Date): string => {
+  if (!date) return '';
+  let d: Date;
+  if (typeof date === 'string') {
+    // If already in DD-MM-YYYY, validate and return as-is
+    const ddMmYyyyMatch = /^(\d{2})-(\d{2})-(\d{4})$/.exec(date);
+    if (ddMmYyyyMatch) {
+      const [, day, month, year] = ddMmYyyyMatch;
+      // Validate and return normalized (ensure 2-digit day/month)
+      return `${day.padStart(2, '0')}-${month.padStart(2, '0')}-${year}`;
+    }
+    // If in YYYY-MM-DD format, convert
+    const yyyyMmDdMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    if (yyyyMmDdMatch) {
+      const [, year, month, day] = yyyyMmDdMatch;
+      return `${day}-${month}-${year}`;
+    }
+    // If in DD/MM/YYYY format, convert
+    const ddSlashMmSlashYyyyMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(date);
+    if (ddSlashMmSlashYyyyMatch) {
+      const [, day, month, year] = ddSlashMmSlashYyyyMatch;
+      return `${day}-${month}-${year}`;
+    }
+    // Try parsing as date string
+    d = new Date(date);
+    if (isNaN(d.getTime())) return date; // Invalid date, return as-is
+  } else {
+    d = date;
+  }
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 // Copy template file
 // Simple in-memory cache for template buffers to avoid disk I/O per LR
 const templateBufferCache: Record<string, Buffer> = Object.create(null);
@@ -93,6 +129,11 @@ export const generateLRFile = async (
   // Fill cells
   Object.entries(cellMap).forEach(([field, cell]) => {
     let value = lrData[field as keyof LRData] || '';
+    
+    // Special handling for date fields
+    if (field === 'LR Date' || field === 'Koel Gate Entry Date' || field === 'GRR Date') {
+      value = formatDateToDDMMYYYY(value);
+    }
     
     // Special handling
     if (field === 'Loaded Weight' || field === 'Empty Weight') {
@@ -158,7 +199,7 @@ export const generateMangeshInvoice = async (
   
   // Other fields
   worksheet.getCell('E7').value = lrData['LR No'];
-  worksheet.getCell('E8').value = new Date().toLocaleDateString('en-GB');
+  worksheet.getCell('E8').value = formatDateToDDMMYYYY(new Date());
   worksheet.getCell('E10').value = lrData['Vehicle Number'] || '';
   worksheet.getCell('E11').value = vehicleType;
   
@@ -307,7 +348,7 @@ export const updateFinalSubmissionSheet = async (
   
   worksheet.getCell(insertRow, 1).value = srNo; // Sr No
   worksheet.getCell(insertRow, 2).value = lrData['LR No'].toUpperCase(); // LR No
-  worksheet.getCell(insertRow, 3).value = lrData['LR Date'].toUpperCase(); // LR Date
+  worksheet.getCell(insertRow, 3).value = formatDateToDDMMYYYY(lrData['LR Date']).toUpperCase(); // LR Date
   worksheet.getCell(insertRow, 4).value = (lrData['Vehicle Number'] || '').toUpperCase(); // Vehicle No
   worksheet.getCell(insertRow, 5).value = amount; // Amount
   worksheet.getCell(insertRow, 6).value = lrData['LR No'].toUpperCase(); // Bill No
@@ -320,7 +361,7 @@ export const updateFinalSubmissionSheet = async (
   });
   
   // Update submission date
-  worksheet.getCell('B5').value = submissionDate;
+  worksheet.getCell('B5').value = formatDateToDDMMYYYY(submissionDate);
   
   // Save file
   await workbook.xlsx.writeFile(finalSheetPath);
@@ -430,13 +471,13 @@ export const appendFinalSubmissionSheetBatch = async (
     const amount = (VEHICLE_AMOUNTS as any)[vehicleType] || 0;
     worksheet.getCell(insertRow, 1).value = srNo;
     worksheet.getCell(insertRow, 2).value = lrData['LR No'] || '';
-    worksheet.getCell(insertRow, 3).value = lrData['LR Date'] || '';
+    worksheet.getCell(insertRow, 3).value = formatDateToDDMMYYYY(lrData['LR Date'] || '');
     worksheet.getCell(insertRow, 4).value = (lrData['Vehicle Number'] || '').toString();
     worksheet.getCell(insertRow, 5).value = amount;
     worksheet.getCell(insertRow, 6).value = lrData['LR No'] || '';
   }
 
-  worksheet.getCell('B5').value = submissionDate;
+  worksheet.getCell('B5').value = formatDateToDDMMYYYY(submissionDate);
   await workbook.xlsx.writeFile(finalSheetPath);
   return finalSheetPath;
 };
@@ -519,7 +560,7 @@ export const generateReworkBill = async (data: any, submissionDate: string): Pro
     }
 
     worksheet.getCell(currentRow, 2).value = index + 1; // Column B - Auto-increment serial number starting from 1
-    worksheet.getCell(currentRow, 3).value = entry['LR Date'] || ''; // C - LR Date
+    worksheet.getCell(currentRow, 3).value = formatDateToDDMMYYYY(entry['LR Date'] || ''); // C - LR Date
     // Clean LR No: remove any existing MT/25-26/ prefix(es) and add it once
     const lrNo = entry['LR No'] || '';
     const cleanLrNo = lrNo.replace(/^(MT\/25-26\/)+/, ''); // Remove all leading MT/25-26/ prefixes
@@ -592,7 +633,7 @@ export const generateAdditionalBill = async (data: any, submissionDate: string):
     // Fill in the data for each entry
     // Column A - Leave empty
     worksheet.getCell(currentRow, 2).value = index + 1; // Column B - Auto-increment serial number starting from 1
-    worksheet.getCell(currentRow, 3).value = entry['LR Date'] || ''; // C - LR Date
+    worksheet.getCell(currentRow, 3).value = formatDateToDDMMYYYY(entry['LR Date'] || ''); // C - LR Date
     // Clean LR No: remove any existing MT/25-26/ prefix(es) and add it once
     const lrNo = entry['LR No'] || '';
     const cleanLrNo = lrNo.replace(/^(MT\/25-26\/)+/, ''); // Remove all leading MT/25-26/ prefixes
@@ -662,7 +703,7 @@ export const generateMangeshInvoiceForRework = async (
   worksheet.getCell('E7').value = data['Bill No'] || '';
   
   // Submission Date in E8
-  worksheet.getCell('E8').value = submissionDate;
+  worksheet.getCell('E8').value = formatDateToDDMMYYYY(submissionDate);
   
   // Write N/A in E10 and E11
   worksheet.getCell('E10').value = 'N/A';
@@ -714,7 +755,7 @@ export const generateMangeshInvoiceForAdditional = async (
   worksheet.getCell('E7').value = data['Bill No'] || '';
   
   // Submission Date in E8
-  worksheet.getCell('E8').value = submissionDate;
+  worksheet.getCell('E8').value = formatDateToDDMMYYYY(submissionDate);
   
   // Write N/A in E10 and E11
   worksheet.getCell('E10').value = 'N/A';
@@ -774,7 +815,7 @@ export const generateProvisionSheet = async (
     worksheet.getCell(`A${rowNumber}`).value = 957599; // number
     worksheet.getCell(`B${rowNumber}`).value = 'Mangesh Transport';
     worksheet.getCell(`C${rowNumber}`).value = lr['LR No'] || '';
-    worksheet.getCell(`D${rowNumber}`).value = lr['LR Date'] || '';
+    worksheet.getCell(`D${rowNumber}`).value = formatDateToDDMMYYYY(lr['LR Date'] || '');
     worksheet.getCell(`E${rowNumber}`).value = 71; // number
     worksheet.getCell(`F${rowNumber}`).value = 621601; // number
     worksheet.getCell(`G${rowNumber}`).value = 141000; // number
