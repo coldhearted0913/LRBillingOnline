@@ -980,6 +980,70 @@ export default function Dashboard() {
     queryClient.invalidateQueries({ queryKey: ['lrs'] });
     loadLRs();
   };
+
+  // Status change guard: prevent accidental downgrades
+  const STATUS_ORDER: Record<string, number> = {
+    'LR Done': 1,
+    'LR Collected': 2,
+    'Bill Done': 3,
+    'Bill Submitted': 4,
+  };
+
+  const isDowngrade = (currentStatus?: string, nextStatus?: string) => {
+    if (!currentStatus || !nextStatus) return false;
+    const currentRank = STATUS_ORDER[currentStatus] ?? 0;
+    const nextRank = STATUS_ORDER[nextStatus] ?? 0;
+    return nextRank < currentRank;
+  };
+
+  const showStatusDowngradeToast = (
+    lrNo: string,
+    currentStatus: string | undefined,
+    nextStatus: string,
+    onConfirm: () => void
+  ) => {
+    const id = toast.custom((t) => (
+      <div className={`max-w-sm w-full bg-white border border-amber-300 shadow-lg rounded-md p-3 md:p-4 ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+        <div className="flex items-start gap-3">
+          <div className="text-amber-600">⚠️</div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-amber-800">Potential status downgrade</p>
+            <p className="text-xs text-amber-700 mt-1 break-words">LR {lrNo}: {currentStatus || '-'} → {nextStatus}</p>
+            <p className="text-xs text-amber-700 mt-1">Proceed only if intentional.</p>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                className="px-3 py-1.5 text-xs rounded bg-amber-600 text-white hover:bg-amber-700"
+                onClick={() => {
+                  toast.dismiss(id);
+                  onConfirm();
+                  toast.success('Status updated');
+                }}
+              >
+                Proceed
+              </button>
+              <button
+                className="px-3 py-1.5 text-xs rounded border border-gray-300 hover:bg-gray-50"
+                onClick={() => {
+                  toast.dismiss(id);
+                  toast('Status change cancelled');
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    ), { duration: 60000, position: 'top-center' });
+  };
+
+  const confirmAndUpdateStatus = (lrNo: string, currentStatus: string | undefined, nextStatus: string) => {
+    if (isDowngrade(currentStatus, nextStatus)) {
+      showStatusDowngradeToast(lrNo, currentStatus, nextStatus, () => updateLRStatus(lrNo, nextStatus));
+      return;
+    }
+    updateLRStatus(lrNo, nextStatus);
+  };
   
   // Helper function to extract first word from consignee
   const extractFirstWord = (text: string): string => {
@@ -2482,9 +2546,9 @@ export default function Dashboard() {
                           {visibleColumns.has('status') && (
                             <td className="px-1 md:px-4 py-3">
                               <div className="relative group">
-                                <select
-                                  value={lr.status || 'LR Done'}
-                                  onChange={(e) => updateLRStatus(lr['LR No'], e.target.value)}
+                              <select
+                                value={lr.status || 'LR Done'}
+                                onChange={(e) => confirmAndUpdateStatus(lr['LR No'], lr.status, e.target.value)}
                                   className={`
                                     w-full px-1 md:px-2 py-2 md:py-2 rounded-lg text-[10px] md:text-xs lg:text-sm font-bold border-2 
                                     cursor-pointer transition-all min-h-[36px] touch-manipulation
