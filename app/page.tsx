@@ -121,6 +121,7 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState('All Months');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [tempStatuses, setTempStatuses] = useState<Set<string>>(new Set());
   const [activeStatusFilter, setActiveStatusFilter] = useState<string | null>(null);
@@ -1702,7 +1703,7 @@ export default function Dashboard() {
           <Card 
             className={`bg-gradient-to-br from-green-50 to-green-100 border-green-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === null ? 'ring-2 ring-green-500' : ''}`} 
             style={{ animation: 'slide-up 0.5s ease-out forwards, fade-in 0.3s ease-out forwards' }}
-            onClick={() => setActiveStatusFilter(null)}
+            onClick={() => { setActiveStatusFilter(null); setSelectedStatuses(new Set()); }}
           >
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
@@ -1720,7 +1721,7 @@ export default function Dashboard() {
           <Card 
             className={`bg-gradient-to-br from-amber-50 to-amber-100 border-amber-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === 'LR Done' ? 'ring-2 ring-amber-500' : ''}`} 
             style={{ animation: 'slide-up 0.5s ease-out 0.1s forwards, fade-in 0.3s ease-out 0.1s forwards' }}
-            onClick={() => setActiveStatusFilter('LR Done')}
+            onClick={() => { setActiveStatusFilter('LR Done'); setSelectedStatuses(new Set()); }}
           >
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
@@ -1739,7 +1740,7 @@ export default function Dashboard() {
           <Card 
             className={`bg-gradient-to-br from-orange-50 to-orange-100 border-orange-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === 'LR Collected' ? 'ring-2 ring-orange-500' : ''}`} 
             style={{ animation: 'slide-up 0.5s ease-out 0.2s forwards, fade-in 0.3s ease-out 0.2s forwards' }}
-            onClick={() => setActiveStatusFilter('LR Collected')}
+            onClick={() => { setActiveStatusFilter('LR Collected'); setSelectedStatuses(new Set()); }}
           >
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
@@ -1758,7 +1759,7 @@ export default function Dashboard() {
           <Card 
             className={`bg-gradient-to-br from-purple-50 to-purple-100 border-purple-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === 'Bill Done' ? 'ring-2 ring-purple-500' : ''}`} 
             style={{ animation: 'slide-up 0.5s ease-out 0.3s forwards, fade-in 0.3s ease-out 0.3s forwards' }}
-            onClick={() => setActiveStatusFilter('Bill Done')}
+            onClick={() => { setActiveStatusFilter('Bill Done'); setSelectedStatuses(new Set()); }}
           >
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center gap-2 md:gap-3">
@@ -1963,19 +1964,28 @@ export default function Dashboard() {
                         saveSearch(searchQuery);
                       }
                     }}
+                    onFocus={() => setSearchFocused(true)}
                     onBlur={() => {
                       if (searchQuery.trim()) {
                         saveSearch(searchQuery);
                       }
+                      // Hide recent searches when input loses focus
+                      setTimeout(() => setSearchFocused(false), 50);
                     }}
                     className="flex h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
-                  {recentSearches.length > 0 && searchQuery === '' && (
+                  {recentSearches.length > 0 && searchQuery === '' && searchFocused && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-input rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
                       <div className="p-2 text-xs text-muted-foreground font-medium border-b">Recent Searches</div>
                       {recentSearches.map((search, idx) => (
                         <button
                           key={idx}
+                          onMouseDown={(e) => {
+                            // Prevent input blur before we set the value
+                            e.preventDefault();
+                            setSearchQuery(search);
+                            saveSearch(search);
+                          }}
                           onClick={() => {
                             setSearchQuery(search);
                             saveSearch(search);
@@ -2027,6 +2037,8 @@ export default function Dashboard() {
                 <button 
                   className="flex h-10 rounded-md border border-input bg-background px-2 sm:px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-slate-50 w-full transition-all duration-200 hover:border-blue-500 hover:shadow-sm"
                   onClick={(e) => {
+                    // Using status dropdown clears any active card filter to avoid clashes
+                    setActiveStatusFilter(null);
                     setTempStatuses(new Set(selectedStatuses));
                     e.currentTarget.parentElement?.classList.toggle('open');
                   }}
