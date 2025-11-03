@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// Ensure API is always dynamic and not statically cached
+export const dynamic = 'force-dynamic';
 import { getAllLRs, addLR, deleteMultipleLRs, getLRsByMonth } from '@/lib/database';
 import { LRSchema } from '@/lib/validations/schemas';
 
@@ -16,7 +19,10 @@ export async function GET(request: NextRequest) {
       lrs = await getAllLRs();
     }
     
-    return NextResponse.json({ success: true, lrs });
+    return NextResponse.json(
+      { success: true, lrs },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'Failed to fetch LRs' },
@@ -83,7 +89,10 @@ export async function POST(request: NextRequest) {
     
     if (success) {
       console.log('[POST /api/lrs] LR created successfully');
-      return NextResponse.json({ success: true, message: 'LR created successfully' });
+      return NextResponse.json(
+        { success: true, message: 'LR created successfully' },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
     } else {
       console.error('[POST /api/lrs] Failed to create LR in database');
       return NextResponse.json(
@@ -116,7 +125,10 @@ export async function DELETE(request: NextRequest) {
     const success = await deleteMultipleLRs(lrNumbers);
     
     if (success) {
-      return NextResponse.json({ success: true, message: 'LRs deleted successfully' });
+      return NextResponse.json(
+        { success: true, message: 'LRs deleted successfully' },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
     } else {
       return NextResponse.json(
         { success: false, error: 'Failed to delete LRs' },

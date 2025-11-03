@@ -15,6 +15,20 @@ const nextConfig = {
     S3_REGION: process.env.S3_REGION || '',
     S3_BUCKET_NAME: process.env.S3_BUCKET_NAME || '',
   },
+  // Optimize webpack to reduce cache size
+  webpack: (config, { dev, isServer }) => {
+    if (dev) {
+      // In development, reduce cache size
+      config.cache = {
+        type: 'filesystem',
+        maxMemoryGenerations: 0, // Reduce memory usage
+      };
+    }
+    return config;
+  },
+  // Limit output size
+  outputFileTracing: true,
+  compress: true,
 }
 
 module.exports = nextConfig

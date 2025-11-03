@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getLRByNumber, updateLR } from '@/lib/database';
 import { generateAllFilesForLRNoFinal, resetFinalSubmissionSheet, appendFinalSubmissionSheetBatch } from '@/lib/excelGenerator';
 import { uploadMultipleFiles } from '@/lib/s3Upload';
+import path from 'path';
 
 async function withConcurrency<T, R>(items: T[], limit: number, worker: (item: T, idx: number) => Promise<R>): Promise<R[]> {
   const results: R[] = [] as any;
@@ -51,12 +52,37 @@ export async function POST(request: NextRequest) {
       console.log('[Generate Bills] Unable to reset final submission sheet:', (e as any)?.message);
     }
     const selectedLrsData: any[] = [];
+    // Helper to convert full path to relative path from invoices folder
+    const getRelativePath = (fullPath: string): string => {
+      const invoicesDir = path.join(process.cwd(), 'invoices');
+      if (fullPath.startsWith(invoicesDir)) {
+        // Extract relative path (e.g., "DD-MM-YYYY/filename.xlsx")
+        const relative = path.relative(invoicesDir, fullPath);
+        // Normalize path separators to forward slashes for consistency
+        return relative.replace(/\\/g, '/');
+      }
+      // If path doesn't start with invoices dir, try to extract from path string
+      const pathSep = fullPath.includes('\\invoices\\') ? '\\invoices\\' : '/invoices/';
+      const parts = fullPath.split(pathSep);
+      if (parts.length > 1) {
+        return parts[1].replace(/\\/g, '/');
+      }
+      // Fallback: assume it's already relative or extract filename
+      const fileName = path.basename(fullPath);
+      return `${submissionDate}/${fileName}`;
+    };
+
     const worker = async (lrNo: string) => {
       try {
         const lrData = await getLRByNumber(lrNo);
         if (!lrData) { errors.push({ lrNo, error: 'LR not found' }); return; }
         if (!lrData['Vehicle Type']) { errors.push({ lrNo, error: 'Missing Vehicle Type' }); return; }
         const files = await generateAllFilesForLRNoFinal(lrData, submissionDate, signatureImagePath);
+        
+        // Convert full paths to relative paths for download
+        const lrFileRel = getRelativePath(files.lrFile);
+        const invoiceFileRel = getRelativePath(files.invoiceFile);
+        
         let s3Results = null;
         try {
           const toUpload = [files.lrFile, files.invoiceFile].filter(Boolean) as string[];
@@ -66,7 +92,7 @@ export async function POST(request: NextRequest) {
           await updateLR(lrNo, { status: 'Bill Done', 'Bill Submission Date': submissionDate } as any);
         } catch (statusError) { console.log('Failed to update status, but files generated:', statusError); }
         selectedLrsData.push(lrData);
-        results.push({ lrNo, success: true, files: { lrFile: files.lrFile, invoiceFile: files.invoiceFile, finalSheet: 'Final Submission Sheet.xlsx' }, s3Upload: s3Results });
+        results.push({ lrNo, success: true, files: { lrFile: lrFileRel, invoiceFile: invoiceFileRel, finalSheet: 'Final Submission Sheet.xlsx' }, s3Upload: s3Results });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to generate files';
         errors.push({ lrNo, error: errorMessage });
@@ -78,13 +104,20 @@ export async function POST(request: NextRequest) {
     try {
       const fsPath = await appendFinalSubmissionSheetBatch(selectedLrsData, submissionDate);
       // Compute relative path from invoices folder for the frontend downloader
-      const pathSep = fsPath.includes('\\invoices\\') ? '\\invoices\\' : '/invoices/';
-      const rel = fsPath.split(pathSep)[1] || fsPath;
+      const finalSheetRel = getRelativePath(fsPath);
       // Back-fill the finalSheet path into each result so ZIP/download can include it
       for (const r of results) {
         if (r && r.files) {
-          r.files.finalSheet = rel;
+          r.files.finalSheet = finalSheetRel;
         }
+      }
+      
+      // Upload Final Submission Sheet to S3
+      try {
+        const finalSheetS3Result = await uploadMultipleFiles([fsPath], submissionDate);
+        console.log('[Generate Bills] Final Submission Sheet S3 upload:', finalSheetS3Result);
+      } catch (s3Error) {
+        console.log('[Generate Bills] Final Submission Sheet S3 upload skipped or failed:', s3Error);
       }
     } catch (e) {
       console.log('[Generate Bills] Failed to append final submission sheet batch:', (e as any)?.message);

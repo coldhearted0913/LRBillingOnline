@@ -63,6 +63,9 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const [newDescription, setNewDescription] = useState('');
   const [recentUploads, setRecentUploads] = useState<Array<{ url: string; name: string; type: string }>>([]);
   const [isDirty, setIsDirty] = useState(false);
+  const [duplicateCheck, setDuplicateCheck] = useState<{ exists: boolean; lr: LRData | null } | null>(null);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const duplicateCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Helper function to convert dd-mm-yyyy to yyyy-mm-dd
   const convertDateToInputFormat = (dateStr: string): string => {
@@ -392,6 +395,33 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       setFormData(prev => ({ ...prev, 'LR No': value }));
     }
     setIsDirty(true);
+    setDuplicateCheck(null);
+    
+    // Clear previous timeout
+    if (duplicateCheckTimeoutRef.current) {
+      clearTimeout(duplicateCheckTimeoutRef.current);
+    }
+    
+    // Check for duplicate after user stops typing (debounce)
+    if (value && value !== LR_PREFIX && value.length > LR_PREFIX.length) {
+      duplicateCheckTimeoutRef.current = setTimeout(async () => {
+        setCheckingDuplicate(true);
+        try {
+          const response = await fetch(`/api/lrs/check-duplicate?lrNo=${encodeURIComponent(value)}${editingLr ? `&excludeLrNo=${encodeURIComponent(editingLr['LR No'])}` : ''}`);
+          const data = await response.json();
+          if (data.success) {
+            setDuplicateCheck({ exists: data.exists, lr: data.lr });
+            if (data.exists) {
+              toast.error(`LR Number "${value}" already exists!`, { duration: 4000 });
+            }
+          }
+        } catch (error) {
+          console.error('Error checking duplicate:', error);
+        } finally {
+          setCheckingDuplicate(false);
+        }
+      }, 500);
+    }
   };
   
   // Submit form
@@ -453,6 +483,26 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       toast.error('Consignor and Consignee cannot be the same');
       document.getElementById('consignor')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
+    }
+    
+    // Check for duplicate LR number (only for new LRs, not edits)
+    if (!editingLr) {
+      const lrNo = formData['LR No'];
+      if (lrNo && lrNo !== LR_PREFIX) {
+        try {
+          const checkResponse = await fetch(`/api/lrs/check-duplicate?lrNo=${encodeURIComponent(lrNo)}`);
+          const checkData = await checkResponse.json();
+          if (checkData.success && checkData.exists) {
+            toast.error(`LR Number "${lrNo}" already exists! Cannot create duplicate.`, { duration: 5000 });
+            document.getElementById('lrNo')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('lrNo')?.focus();
+            return;
+          }
+        } catch (error) {
+          console.error('Error checking duplicate before save:', error);
+          // Continue with save if check fails
+        }
+      }
     }
     
     setLoading(true);
@@ -795,14 +845,34 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label htmlFor="lrNo">LR No *</Label>
+                  <Label htmlFor="lrNo" className="flex items-center gap-2">
+                    LR No *
+                    {checkingDuplicate && <span className="text-xs text-gray-500 animate-pulse">Checking...</span>}
+                    {duplicateCheck?.exists && (
+                      <span className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                        <X className="h-3 w-3" />
+                        Already exists!
+                      </span>
+                    )}
+                    {duplicateCheck && !duplicateCheck.exists && formData['LR No'] && formData['LR No'] !== LR_PREFIX && (
+                      <span className="text-xs text-green-600 flex items-center gap-1">
+                        <Check className="h-3 w-3" />
+                        Available
+                      </span>
+                    )}
+                  </Label>
                   <Input
                     id="lrNo"
                     value={formData['LR No'] || LR_PREFIX}
                     onChange={(e) => handleLRNoChange(e.target.value)}
                     required
-                    className="font-mono"
+                    className={`font-mono ${duplicateCheck?.exists ? 'border-red-500 focus:ring-red-500' : duplicateCheck && !duplicateCheck.exists ? 'border-green-500 focus:ring-green-500' : ''}`}
                   />
+                  {duplicateCheck?.exists && duplicateCheck.lr && (
+                    <p className="text-xs text-red-600 mt-1">
+                      Existing LR: Date {duplicateCheck.lr['LR Date']}, Vehicle {duplicateCheck.lr['Vehicle Number'] || 'N/A'}
+                    </p>
+                  )}
                 </div>
                 
                 <div>

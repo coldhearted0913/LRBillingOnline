@@ -72,6 +72,27 @@ A modern, production-ready web application for managing LR (Lorry Receipt) billi
 - **Notifications**: react-hot-toast
 - **Cloud Storage**: AWS S3
 
+## 🧹 Disk Space Management
+
+Your SSD usage may spike due to Next.js build caches. Run cleanup regularly:
+
+**Quick Cleanup:**
+```bash
+npm run clean
+```
+
+**Full Cleanup (includes temp files):**
+```bash
+npm run clean:all
+```
+
+**PowerShell Cleanup Script:**
+```powershell
+.\clean-cache.ps1
+```
+
+This removes `.next` cache (419MB+), Prisma temp files, and other build artifacts automatically.
+
 ## 🚀 Quick Start
 
 ### Prerequisites

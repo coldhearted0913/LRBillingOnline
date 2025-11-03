@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Plus, RefreshCw, Check, X, Trash2, FileText, Download, 
   Truck, Calendar, MapPin, Package, TrendingUp, BarChart3, Search, Folder, 
-  DollarSign, PieChart, ChevronLeft, ChevronRight, Eye, EyeOff
+  DollarSign, PieChart, ChevronLeft, ChevronRight, Eye, EyeOff, FileSpreadsheet, Printer, HelpCircle, Settings
 } from 'lucide-react';
 import JSZip from 'jszip';
 import toast from 'react-hot-toast';
@@ -69,6 +69,13 @@ export default function Dashboard() {
   const [showDetailFiles, setShowDetailFiles] = useState(false);
   const [consistencyLoading, setConsistencyLoading] = useState(false);
   const [deletingAttachments, setDeletingAttachments] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; lrNo: string } | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(['checkbox', 'lrNo', 'vehicleNo', 'lrDate', 'from', 'to', 'vehicleType', 'submitDate', 'status', 'remark', 'actions']));
+  const [showColumnCustomizer, setShowColumnCustomizer] = useState(false);
+  const [visibleWidgets, setVisibleWidgets] = useState<Set<string>>(new Set(['stats', 'charts', 'filters']));
+  const [enableVirtualScrolling, setEnableVirtualScrolling] = useState(false);
 
   const downloadAttachment = async (url: string, name?: string) => {
     try {
@@ -129,9 +136,81 @@ export default function Dashboard() {
   // Auth Session
   const { data: session, status } = useSession();
   const router = useRouter();
+  const isCEO = ((session?.user as any)?.role === 'CEO');
   
   // React Query Client
   const queryClient = useQueryClient();
+
+  // Load recent searches from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('lr-recent-searches');
+    if (saved) {
+      try {
+        setRecentSearches(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load recent searches:', e);
+      }
+    }
+  }, []);
+
+  // Load visible columns from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('lr-visible-columns');
+    if (saved) {
+      try {
+        const cols = JSON.parse(saved);
+        setVisibleColumns(new Set(cols));
+      } catch (e) {
+        console.error('Failed to load visible columns:', e);
+      }
+    }
+  }, []);
+
+  // Save visible columns to localStorage when changed
+  useEffect(() => {
+    if (visibleColumns.size > 0) {
+      localStorage.setItem('lr-visible-columns', JSON.stringify(Array.from(visibleColumns)));
+    }
+  }, [visibleColumns]);
+
+  // Column definitions
+  const columnDefinitions = [
+    { id: 'checkbox', label: 'Checkbox', required: true },
+    { id: 'lrNo', label: 'LR No', required: true },
+    { id: 'vehicleNo', label: 'Vehicle No', required: true },
+    { id: 'lrDate', label: 'LR Date', required: true },
+    { id: 'from', label: 'FROM' },
+    { id: 'to', label: 'TO' },
+    { id: 'vehicleType', label: 'Vehicle Type' },
+    { id: 'submitDate', label: 'Submit Date' },
+    { id: 'status', label: 'Status', required: true },
+    { id: 'remark', label: 'Remark' },
+    { id: 'actions', label: 'Actions', required: true },
+  ];
+
+  const toggleColumn = (columnId: string) => {
+    if (columnDefinitions.find(c => c.id === columnId)?.required) {
+      toast.error('This column cannot be hidden');
+      return;
+    }
+    setVisibleColumns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(columnId)) {
+        newSet.delete(columnId);
+      } else {
+        newSet.add(columnId);
+      }
+      return newSet;
+    });
+  };
+
+  // Save search to recent searches
+  const saveSearch = (query: string) => {
+    if (!query.trim()) return;
+    const updated = [query, ...recentSearches.filter(s => s !== query)].slice(0, 10);
+    setRecentSearches(updated);
+    localStorage.setItem('lr-recent-searches', JSON.stringify(updated));
+  };
   
   // Fetch LRs with React Query
   const { data: lrs = [], isLoading: isLoadingLRs, refetch: refetchLRs } = useQuery({
@@ -140,15 +219,78 @@ export default function Dashboard() {
       const response = await fetch('/api/lrs');
       const data = await response.json();
       if (!data.success) throw new Error(data.error || 'Failed to fetch LRs');
-      return data.lrs;
+      // Normalize records for consistent downstream logic
+      return (data.lrs || []).map((lr: any) => ({
+        ...lr,
+        // Ensure lowercase 'status' exists even if API returns 'Status'
+        status: lr.status ?? lr.Status ?? lr['status'] ?? lr['Status'] ?? undefined,
+      }));
     },
-    staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (formerly cacheTime)
+    // Always refetch on mount/focus/reconnect so counts stay fresh after adds/updates
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    gcTime: 10 * 60 * 1000,
   });
   
   // Load LRs function (for manual refresh)
   const loadLRs = () => {
     refetchLRs();
+  };
+
+  // Export filtered LRs to Excel
+  const exportToExcel = async () => {
+    setExporting(true);
+    try {
+      // If records are selected, export only those. Otherwise export filtered records
+      const exportData: any = {};
+      
+      if (selectedLrs.size > 0) {
+        // Export only selected records
+        exportData.selectedLrNos = Array.from(selectedLrs);
+        exportData.exportType = 'selected';
+      } else {
+        // Export filtered records based on current filters
+        exportData.filters = {
+          month: selectedMonth,
+          year: selectedYear,
+          statuses: Array.from(selectedStatuses),
+          search: searchQuery,
+          activeStatusFilter: activeStatusFilter,
+        };
+        exportData.exportType = 'filtered';
+      }
+
+      const response = await fetch('/api/lrs/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(exportData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const fileName = selectedLrs.size > 0 
+        ? `LR_Records_Selected_${selectedLrs.size}_${new Date().toISOString().split('T')[0]}.xlsx`
+        : `LR_Records_Filtered_${memoizedFilteredLrs.length}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success(`Exported ${selectedLrs.size > 0 ? selectedLrs.size : memoizedFilteredLrs.length} LR record(s) successfully`);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export records');
+    } finally {
+      setExporting(false);
+    }
   };
   
   // Bulk status update mutation
@@ -693,6 +835,76 @@ export default function Dashboard() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in inputs/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        // Allow / to focus search from anywhere
+        if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+          if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+          }
+        }
+        return;
+      }
+
+      // / - Focus search
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
+        return;
+      }
+
+      // Ctrl/Cmd + N - New LR
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        if (currentView === 'dashboard') {
+          // Create new LR - using state setters directly
+          setEditingLr(null);
+          setCurrentView('form');
+        }
+        return;
+      }
+
+      // Esc - Close modals
+      if (e.key === 'Escape') {
+        if (showLrDetails) {
+          setShowLrDetails(false);
+        }
+        if (showResultsModal) {
+          setShowResultsModal(false);
+        }
+        if (showDownloadModal) {
+          setShowDownloadModal(false);
+        }
+        if (showStatsPasswordModal) {
+          setShowStatsPasswordModal(false);
+          setStatsPassword('');
+        }
+        if (contextMenu) {
+          setContextMenu(null);
+        }
+        return;
+      }
+
+      // Ctrl/Cmd + F - Export (Note: exportToExcel defined later, use refetch to trigger)
+      // Skipping export shortcut to avoid dependency issues
+      // Users can click the export button directly
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentView, showLrDetails, showResultsModal, showDownloadModal, showStatsPasswordModal, contextMenu, memoizedFilteredLrs.length]);
   
   // NOW WE CAN DO EARLY RETURNS AFTER ALL HOOKS
   if (status === 'loading') {
@@ -703,6 +915,7 @@ export default function Dashboard() {
     return null;
   }
   
+  // Helper functions - must be defined before conditional returns
   // Go to page
   const goToPage = (page: number) => {
     if (page >= 1 && page <= totalPages) {
@@ -762,6 +975,8 @@ export default function Dashboard() {
   const backToDashboard = () => {
     setEditingLr(null);
     setCurrentView('dashboard');
+    // Ensure fresh data immediately when returning from form
+    queryClient.invalidateQueries({ queryKey: ['lrs'] });
     loadLRs();
   };
   
@@ -1042,10 +1257,10 @@ export default function Dashboard() {
       
       const data = await response.json();
       if (data.success) {
-            allResults.push({ type: 'rework', count: reworkLrs.length, data });
-          } else {
-            allErrors.push({ type: 'rework', count: reworkLrs.length, error: data.error });
-          }
+        allResults.push({ type: 'rework', count: reworkLrs.length, data });
+      } else {
+        allErrors.push({ type: 'rework', count: reworkLrs.length, error: data.error });
+      }
         } catch (error) {
           allErrors.push({ type: 'rework', count: reworkLrs.length, error: (error as Error).message });
         }
@@ -1108,7 +1323,7 @@ export default function Dashboard() {
           const data = await response.json();
           if (data.success) {
             allResults.push({ type: 'regular', count: regularLrs.length, results: data.results });
-      } else {
+          } else {
             allErrors.push({ type: 'regular', count: regularLrs.length, error: data.error });
           }
         } catch (error) {
@@ -1277,19 +1492,23 @@ export default function Dashboard() {
             // Add regular bill files
             for (const entry of result.results) {
               if (entry.files) {
-                // Add LR file
-                const lrResponse = await fetch(`/api/download-file?path=${encodeURIComponent(submissionDate + '/' + entry.files.lrFile.split('/').pop()?.split('\\').pop())}`);
+                // Add LR file - use relative path directly
+                const lrPath = entry.files.lrFile;
+                const lrFileName = lrPath.split('/').pop() || lrPath.split('\\').pop() || 'lr.xlsx';
+                const lrResponse = await fetch(`/api/download-file?path=${encodeURIComponent(lrPath)}`);
                 if (lrResponse.ok) {
                   const lrBlob = await lrResponse.blob();
-                  zip.file(entry.files.lrFile.split('/').pop()?.split('\\').pop() || 'lr.xlsx', lrBlob);
+                  zip.file(lrFileName, lrBlob);
                   fileCount++;
                 }
                 
-                // Add invoice file
-                const invoiceResponse = await fetch(`/api/download-file?path=${encodeURIComponent(submissionDate + '/' + entry.files.invoiceFile.split('/').pop()?.split('\\').pop())}`);
+                // Add invoice file - use relative path directly
+                const invoicePath = entry.files.invoiceFile;
+                const invoiceFileName = invoicePath.split('/').pop() || invoicePath.split('\\').pop() || 'invoice.xlsx';
+                const invoiceResponse = await fetch(`/api/download-file?path=${encodeURIComponent(invoicePath)}`);
                 if (invoiceResponse.ok) {
                   const invoiceBlob = await invoiceResponse.blob();
-                  zip.file(entry.files.invoiceFile.split('/').pop()?.split('\\').pop() || 'invoice.xlsx', invoiceBlob);
+                  zip.file(invoiceFileName, invoiceBlob);
                   fileCount++;
                 }
               }
@@ -1379,11 +1598,11 @@ export default function Dashboard() {
       setZipDownloading(false);
     }
   };
-  
+
   // Generate years for filter
   const currentYear = new Date().getFullYear();
-  const years = ['All Years', ...Array.from({ length: 5 }, (_, i) => (currentYear - 2 + i).toString())];
-  
+  const years = ['All Years', String(currentYear - 2), String(currentYear - 1), String(currentYear), String(currentYear + 1), String(currentYear + 2)];
+
   // SECURITY: Redirect to login if not authenticated
   if (!session) {
     // Use Next.js router to redirect to login
@@ -1392,20 +1611,22 @@ export default function Dashboard() {
     }
     return null; // Don't render anything while redirecting
   }
-  
+
   if (currentView === 'form') {
     return <LRForm editingLr={editingLr} onBack={backToDashboard} />;
   }
-  
+
   if (currentView === 'rework-bill') {
     return <ReworkBillForm onBack={backToDashboard} selectedLrs={Array.from(selectedLrs)} />;
   }
-  
+
   if (currentView === 'additional-bill') {
     return <AdditionalBillForm onBack={backToDashboard} selectedLrs={getCompatibleAdditionalBillLrs()} />;
   }
-  
+
+  // Main dashboard view
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
       <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-4 md:py-6 shadow-lg">
         <div className="container mx-auto px-3 md:px-4">
@@ -1457,7 +1678,26 @@ export default function Dashboard() {
           </p>
         </div>
 
+        {/* Dashboard Widget Toggle */}
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            <span className="text-sm font-medium">Dashboard Layout</span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEnableVirtualScrolling(!enableVirtualScrolling)}
+              className={`text-xs ${enableVirtualScrolling ? 'bg-blue-100' : ''}`}
+            >
+              {enableVirtualScrolling ? '✓ Virtual Scroll' : 'Virtual Scroll'}
+            </Button>
+          </div>
+        </div>
+
         {/* Stats Cards - Responsive Grid */}
+        {visibleWidgets.has('stats') && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
           <Card 
             className={`bg-gradient-to-br from-green-50 to-green-100 border-green-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === null ? 'ring-2 ring-green-500' : ''}`} 
@@ -1534,9 +1774,10 @@ export default function Dashboard() {
             </CardHeader>
           </Card>
         </div>
+        )}
         
-        {/* Analytics Section - Additional Insights (CEO Only) */}
-        {(session?.user as any)?.role === 'CEO' && (
+        {isCEO && (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
           {/* Statistics Card */}
           <Card className="bg-gradient-to-br from-teal-50 to-teal-100 border-teal-300 hover:shadow-lg transition-shadow">
@@ -1679,8 +1920,25 @@ export default function Dashboard() {
             </CardHeader>
           </Card>
         </div>
+        </>
         )}
         
+        {/* Charts Card - Removed */}
+        {false && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Charts & Analytics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DashboardCharts
+                vehicleData={chartsData.vehicleData}
+                monthlyData={chartsData.monthlyData}
+                billTypeData={chartsData.billTypeData}
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {/* Filters Card */}
         <Card className="mb-6">
           <CardHeader>
@@ -1700,8 +1958,35 @@ export default function Dashboard() {
                     placeholder="Search by LR No, Vehicle No, Location..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        saveSearch(searchQuery);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (searchQuery.trim()) {
+                        saveSearch(searchQuery);
+                      }
+                    }}
                     className="flex h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
+                  {recentSearches.length > 0 && searchQuery === '' && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-input rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                      <div className="p-2 text-xs text-muted-foreground font-medium border-b">Recent Searches</div>
+                      {recentSearches.map((search, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setSearchQuery(search);
+                            saveSearch(search);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-muted text-sm"
+                        >
+                          {search}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -1861,7 +2146,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-        
+
         {/* LR Table Card */}
         <Card className="mb-6">
           <CardHeader>
@@ -1880,24 +2165,110 @@ export default function Dashboard() {
                 <Badge className="text-xs sm:text-sm px-2 sm:px-3 py-1 bg-blue-100 text-blue-800">
                   Page {currentPage} of {totalPages || 1}
                 </Badge>
+                <Button
+                  onClick={() => setShowColumnCustomizer(!showColumnCustomizer)}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs sm:text-sm gap-1 sm:gap-2"
+                  title="Customize columns"
+                >
+                  <Settings className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Columns</span>
+                </Button>
+                <Button
+                  onClick={exportToExcel}
+                  disabled={exporting || (selectedLrs.size === 0 && memoizedFilteredLrs.length === 0)}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs sm:text-sm gap-1 sm:gap-2"
+                  title={selectedLrs.size > 0 
+                    ? `Export ${selectedLrs.size} selected record(s)`
+                    : `Export ${memoizedFilteredLrs.length} filtered record(s)`}
+                >
+                  <FileSpreadsheet className="h-3 w-3 sm:h-4 sm:w-4" />
+                  {exporting 
+                    ? 'Exporting...' 
+                    : selectedLrs.size > 0 
+                      ? `Export Selected (${selectedLrs.size})`
+                      : `Export Filtered (${memoizedFilteredLrs.length})`
+                  }
+                </Button>
+                <Button
+                  onClick={() => {
+                    // TODO: Implement print functionality once format is provided
+                    toast('Print functionality will be implemented with provided format');
+                  }}
+                  disabled={selectedLrs.size === 0}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs sm:text-sm gap-1 sm:gap-2"
+                  title={selectedLrs.size > 0 
+                    ? `Print ${selectedLrs.size} selected record(s)`
+                    : 'Please select LR records to print'}
+                >
+                  <Printer className="h-3 w-3 sm:h-4 sm:w-4" />
+                  Print LR {selectedLrs.size > 0 && `(${selectedLrs.size})`}
+                </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-muted/50 sticky top-0 z-10 shadow-sm">
-                    <tr className="border-b">
-                      <th className="px-1 md:px-4 py-3 text-left w-10">
+            {/* Column Customizer Dialog */}
+            {showColumnCustomizer && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowColumnCustomizer(false)}>
+                <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Customize Columns
+                  </h3>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {columnDefinitions
+                      .filter(col => col.id !== 'checkbox' && col.id !== 'actions')
+                      .map(col => (
+                      <label key={col.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={selectedLrs.size === memoizedFilteredLrs.length && memoizedFilteredLrs.length > 0}
-                          onChange={() => selectedLrs.size === memoizedFilteredLrs.length ? deselectAll() : selectAll()}
+                          checked={visibleColumns.has(col.id)}
+                          onChange={() => toggleColumn(col.id)}
+                          disabled={col.required}
                           className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
                         />
-                      </th>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                        <span className="text-sm">{col.label}</span>
+                        {col.required && <span className="text-xs text-gray-500">(Required)</span>}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <Button onClick={() => setShowColumnCustomizer(false)} variant="outline" className="flex-1">
+                      Done
+                    </Button>
+                    <Button onClick={() => {
+                      setVisibleColumns(new Set(columnDefinitions.map(c => c.id)));
+                      toast.success('All columns restored');
+                    }} variant="outline" className="flex-1">
+                      Show All
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="rounded-md border overflow-hidden">
+              <div className="overflow-x-auto -mx-1 sm:mx-0">
+                <table className="w-full min-w-[800px] sm:min-w-0">
+                  <thead className="bg-muted/50 sticky top-0 z-10 shadow-sm">
+                    <tr className="border-b">
+                      {visibleColumns.has('checkbox') && (
+                        <th className="px-1 md:px-4 py-3 text-left w-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedLrs.size === memoizedFilteredLrs.length && memoizedFilteredLrs.length > 0}
+                            onChange={() => selectedLrs.size === memoizedFilteredLrs.length ? deselectAll() : selectAll()}
+                            className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
+                          />
+                        </th>
+                      )}
+                      {visibleColumns.has('lrNo') && (
+                        <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
                         <button
                           onClick={() => {
                             if (sortBy === 'lrNo') {
@@ -1916,42 +2287,67 @@ export default function Dashboard() {
                           </span>
                         </button>
                       </th>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider hover:bg-muted/70 transition-colors">
-                        Vehicle No
-                      </th>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                        <button
-                          onClick={() => {
-                            if (sortBy === 'date') {
-                              setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                            } else {
-                              setSortBy('date');
-                              setSortOrder('asc');
-                            }
-                          }}
-                          className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
-                          title="Click to sort by Date"
-                        >
-                          LR Date
-                          <span className="text-xs">
-                            {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : '↕'}
-                          </span>
-                        </button>
-                      </th>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          FROM
-                        </div>
-                      </th>
-                      <th className="px-1 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider max-w-[100px]">TO</th>
-                      <th className="px-2 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Type</th>
-                      <th className="px-1 md:px-2 py-2 text-left text-[9px] md:text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
-                        Submit Date
-                      </th>
-                      <th className="px-1 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                      <th className="px-1 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider">Remark</th>
-                      <th className="px-1 md:px-4 py-2 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                      )}
+                      {visibleColumns.has('vehicleNo') && (
+                        <th className="px-1 md:px-4 py-3 text-left text-[9px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider hover:bg-muted/70 transition-colors">
+                          <span className="hidden sm:inline">Vehicle No</span>
+                          <span className="sm:hidden">Vehicle</span>
+                        </th>
+                      )}
+                      {visibleColumns.has('lrDate') && (
+                        <th className="px-1 md:px-4 py-3 text-left text-[9px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                          <button
+                            onClick={() => {
+                              if (sortBy === 'date') {
+                                setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortBy('date');
+                                setSortOrder('asc');
+                              }
+                            }}
+                            className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer"
+                            title="Click to sort by Date"
+                          >
+                            LR Date
+                            <span className="text-xs">
+                              {sortBy === 'date' ? (sortOrder === 'asc' ? '↑' : '↓') : '↕'}
+                            </span>
+                          </button>
+                        </th>
+                      )}
+                      {visibleColumns.has('from') && (
+                        <th className="px-1 md:px-4 py-3 text-left text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                          <div className="flex items-center gap-0.5 md:gap-1">
+                            <MapPin className="h-2.5 w-2.5 md:h-3 md:w-3" />
+                            <span className="whitespace-nowrap">FROM</span>
+                          </div>
+                        </th>
+                      )}
+                      {visibleColumns.has('to') && (
+                        <th className="px-1 md:px-4 py-3 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider min-w-[80px] md:min-w-[100px]">TO</th>
+                      )}
+                      {visibleColumns.has('vehicleType') && (
+                        <th className="px-2 md:px-4 py-3 text-left text-xs md:text-sm font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Type</th>
+                      )}
+                      {visibleColumns.has('submitDate') && (
+                        <th className="px-1 md:px-2 py-3 text-left text-[8px] md:text-xs font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                          <span className="hidden sm:inline">Submit Date</span>
+                          <span className="sm:hidden">Submit</span>
+                        </th>
+                      )}
+                      {visibleColumns.has('status') && (
+                        <th className="px-1 md:px-4 py-3 text-left text-[9px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                      )}
+                      {visibleColumns.has('remark') && (
+                        <th className="px-1 md:px-4 py-3 text-left text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                          Remark
+                        </th>
+                      )}
+                      {visibleColumns.has('actions') && (
+                        <th className="px-1 md:px-4 py-3 text-left text-[10px] md:text-sm font-medium text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                          Actions
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -1971,7 +2367,7 @@ export default function Dashboard() {
                             <td className="px-4 py-3">
                               <Skeleton className="h-4 w-20" />
                             </td>
-                            <td className="px-4 py-3 hidden md:table-cell">
+                            <td className="px-4 py-3">
                               <Skeleton className="h-4 w-16" />
                             </td>
                             <td className="px-4 py-3">
@@ -2016,103 +2412,129 @@ export default function Dashboard() {
                         <tr 
                           key={lr['LR No']} 
                           className={`group hover:bg-blue-50/50 hover:shadow-sm transition-all duration-200 cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setContextMenu({ x: e.clientX, y: e.clientY, lrNo: lr['LR No'] });
+                          }}
                         >
-                          <td className="px-1 md:px-4 py-3 w-10">
-                            <input
-                              type="checkbox"
-                              checked={selectedLrs.has(lr['LR No'])}
-                              onChange={() => toggleLRSelection(lr['LR No'])}
-                              className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
-                            />
-                          </td>
-                          <td className="px-1 md:px-4 py-3">
-                            <button
-                              type="button"
-                              onClick={() => { setDetailLr(lr); setShowLrDetails(true); }}
-                              className="font-semibold text-[10px] md:text-sm text-gray-900 hover:underline active:opacity-80"
-                              title="View LR details"
-                            >
-                              {lr['LR No']}
-                            </button>
-                          </td>
-                          <td className="px-1 md:px-4 py-3 text-[10px] md:text-sm text-muted-foreground">
-                            {lr['Vehicle Number'] || <span className="text-yellow-600 italic">Not set</span>}
-                          </td>
-                          <td className="px-1 md:px-4 py-3 text-[10px] md:text-sm text-muted-foreground">{lr['LR Date']}</td>
-                          <td className="px-2 md:px-4 py-3 text-xs md:text-sm hidden md:table-cell">
-                            <Badge variant="outline" className="text-xs md:text-sm">{lr['FROM'] || '-'}</Badge>
-                          </td>
-                          <td className="px-1 md:px-4 py-3 text-xs md:text-sm max-w-[100px]">
-                            <div className="font-medium text-gray-700 bg-gray-100 px-1.5 md:px-3 py-1 rounded border border-gray-300 whitespace-normal break-words text-[10px] md:text-xs truncate" title={getToValue(lr['Consignee'] || '')}>{getToValue(lr['Consignee'] || '')}</div>
-                          </td>
-                          <td className="px-2 md:px-4 py-3 hidden md:table-cell">
-                            <Badge variant="secondary" className="text-xs md:text-sm">{lr['Vehicle Type']}</Badge>
-                          </td>
-                          <td className="px-1 md:px-2 py-3 text-[8px] md:text-[10px] text-muted-foreground whitespace-nowrap">
-                            {lr['Bill Submission Date'] || <span className="text-gray-400 italic text-[8px]">-</span>}
-                          </td>
-                          <td className="px-1 md:px-4 py-3">
-                            <div className="relative group">
-                              <select
-                                value={lr.status || 'LR Done'}
-                                onChange={(e) => updateLRStatus(lr['LR No'], e.target.value)}
-                                className={`
-                                  w-full px-1 md:px-2 py-2 md:py-2 rounded-lg text-[10px] md:text-xs lg:text-sm font-bold border-2 
-                                  cursor-pointer transition-all min-h-[36px] touch-manipulation
-                                  ${getStatusColor(lr.status || 'LR Done').bg} 
-                                  ${getStatusColor(lr.status || 'LR Done').text} 
-                                  ${getStatusColor(lr.status || 'LR Done').border}
-                                  hover:shadow-md hover:scale-105 active:scale-95
-                                  focus:outline-none focus:ring-2 focus:ring-primary
-                                `}
+                          {visibleColumns.has('checkbox') && (
+                            <td className="px-1 md:px-4 py-3 w-10">
+                              <input
+                                type="checkbox"
+                                checked={selectedLrs.has(lr['LR No'])}
+                                onChange={() => toggleLRSelection(lr['LR No'])}
+                                className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
+                              />
+                            </td>
+                          )}
+                          {visibleColumns.has('lrNo') && (
+                            <td className="px-1 md:px-4 py-3">
+                              <button
+                                type="button"
+                                onClick={() => { setDetailLr(lr); setShowLrDetails(true); }}
+                                className="font-semibold text-[10px] md:text-sm text-gray-900 hover:underline active:opacity-80"
+                                title="View LR details"
                               >
-                                {LR_STATUS_OPTIONS.map(status => (
-                                  <option key={status} value={status}>
-                                    {status === 'LR Done' && '📄 '}
-                                    {status === 'LR Collected' && '📦 '}
-                                    {status === 'Bill Done' && '🧾 '}
-                                    {status === 'Bill Submitted' && '✅ '}
-                                    {status}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </td>
-                          <td className="px-1 md:px-4 py-2">
-                            <input
-                              type="text"
-                              placeholder="Add remark..."
-                              defaultValue={lr.remark || ''}
-                              onChange={(e) => {
-                                const newRemark = e.target.value;
-                                setTimeout(async () => {
-                                  try {
-                                    const response = await fetch(`/api/lrs/${encodeURIComponent(lr['LR No'])}/remark`, {
-                                      method: 'PATCH',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ remark: newRemark }),
-                                    });
-                                    if (!response.ok) {
-                                      console.error('Failed to update remark');
+                                {lr['LR No']}
+                              </button>
+                            </td>
+                          )}
+                          {visibleColumns.has('vehicleNo') && (
+                            <td className="px-1 md:px-4 py-3 text-[10px] md:text-sm text-muted-foreground">
+                              {lr['Vehicle Number'] || <span className="text-yellow-600 italic">Not set</span>}
+                            </td>
+                          )}
+                          {visibleColumns.has('lrDate') && (
+                            <td className="px-1 md:px-4 py-3 text-[10px] md:text-sm text-muted-foreground">{lr['LR Date']}</td>
+                          )}
+                          {visibleColumns.has('from') && (
+                            <td className="px-1 md:px-4 py-3 text-[9px] md:text-sm">
+                              <Badge variant="outline" className="text-[9px] md:text-sm whitespace-nowrap">{lr['FROM'] || '-'}</Badge>
+                            </td>
+                          )}
+                          {visibleColumns.has('to') && (
+                            <td className="px-1 md:px-4 py-3 text-xs md:text-sm min-w-[80px] md:min-w-[100px]">
+                              <div className="font-medium text-gray-700 bg-gray-100 px-1.5 md:px-3 py-1 rounded border border-gray-300 break-words text-[10px] md:text-xs leading-tight" title={getToValue(lr['Consignee'] || '')}>{getToValue(lr['Consignee'] || '')}</div>
+                            </td>
+                          )}
+                          {visibleColumns.has('vehicleType') && (
+                            <td className="px-2 md:px-4 py-3 hidden md:table-cell">
+                              <Badge variant="secondary" className="text-xs md:text-sm">{lr['Vehicle Type']}</Badge>
+                            </td>
+                          )}
+                          {visibleColumns.has('submitDate') && (
+                            <td className="px-1 md:px-2 py-3 text-[8px] md:text-[10px] text-muted-foreground whitespace-nowrap">
+                              {lr['Bill Submission Date'] || <span className="text-gray-400 italic text-[8px]">-</span>}
+                            </td>
+                          )}
+                          {visibleColumns.has('status') && (
+                            <td className="px-1 md:px-4 py-3">
+                              <div className="relative group">
+                                <select
+                                  value={lr.status || 'LR Done'}
+                                  onChange={(e) => updateLRStatus(lr['LR No'], e.target.value)}
+                                  className={`
+                                    w-full px-1 md:px-2 py-2 md:py-2 rounded-lg text-[10px] md:text-xs lg:text-sm font-bold border-2 
+                                    cursor-pointer transition-all min-h-[36px] touch-manipulation
+                                    ${getStatusColor(lr.status || 'LR Done').bg} 
+                                    ${getStatusColor(lr.status || 'LR Done').text} 
+                                    ${getStatusColor(lr.status || 'LR Done').border}
+                                    hover:shadow-md hover:scale-105 active:scale-95
+                                    focus:outline-none focus:ring-2 focus:ring-primary
+                                  `}
+                                >
+                                  {LR_STATUS_OPTIONS.map(status => (
+                                    <option key={status} value={status}>
+                                      {status === 'LR Done' && '📄 '}
+                                      {status === 'LR Collected' && '📦 '}
+                                      {status === 'Bill Done' && '🧾 '}
+                                      {status === 'Bill Submitted' && '✅ '}
+                                      {status}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </td>
+                          )}
+                          {visibleColumns.has('remark') && (
+                            <td className="px-1 md:px-4 py-3">
+                              <input
+                                type="text"
+                                placeholder="Add remark..."
+                                defaultValue={lr.remark || ''}
+                                onChange={(e) => {
+                                  const newRemark = e.target.value;
+                                  setTimeout(async () => {
+                                    try {
+                                      const response = await fetch(`/api/lrs/${encodeURIComponent(lr['LR No'])}/remark`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ remark: newRemark }),
+                                      });
+                                      if (!response.ok) {
+                                        console.error('Failed to update remark');
+                                      }
+                                    } catch (error) {
+                                      console.error('Error updating remark:', error);
                                     }
-                                  } catch (error) {
-                                    console.error('Error updating remark:', error);
-                                  }
-                                }, 500);
-                              }}
-                              className="w-full px-2 md:px-2 py-2 md:py-2 text-[10px] md:text-xs lg:text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[36px] touch-manipulation"
-                            />
-                          </td>
-                          <td className="px-1 md:px-4 py-3">
-                            <Button
-                              onClick={() => editLR(lr)}
-                              variant="ghost"
-                              size="sm"
-                              className="text-[10px] md:text-sm h-8 md:h-8 px-2 md:px-3 hover:bg-blue-100 active:scale-95 min-w-[44px] touch-manipulation"
-                            >
-                              Edit
-                            </Button>
-                          </td>
+                                  }, 500);
+                                }}
+                                className="w-full px-2 md:px-2 py-2 md:py-2 text-[10px] md:text-xs lg:text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[36px] touch-manipulation"
+                              />
+                            </td>
+                          )}
+                          {visibleColumns.has('actions') && (
+                            <td className="px-1 md:px-4 py-3">
+                              <Button
+                                onClick={() => editLR(lr)}
+                                variant="ghost"
+                                size="sm"
+                                className="text-[10px] md:text-sm h-8 md:h-8 px-2 md:px-3 hover:bg-blue-100 active:scale-95 min-w-[44px] touch-manipulation"
+                              >
+                                Edit
+                              </Button>
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}
@@ -3211,10 +3633,25 @@ export default function Dashboard() {
       <Dialog open={showLrDetails} onOpenChange={setShowLrDetails}>
         <DialogContent className="w-[95vw] sm:w-full max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-base sm:text-lg">LR Details</DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">Quick view of selected LR record</DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-base sm:text-lg">LR Details</DialogTitle>
+                <DialogDescription className="text-xs sm:text-sm">Quick view of selected LR record</DialogDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.print();
+                }}
+                className="gap-1 sm:gap-2 no-print"
+              >
+                <Printer className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Print</span>
+              </Button>
+            </div>
           </DialogHeader>
-          <div className="grid grid-cols-1 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:gap-4 print-view">
             <div className="flex items-center justify-between text-xs sm:text-sm">
               <span className="text-gray-600">LR No</span>
               <span className="font-semibold text-gray-900">{detailLr?.['LR No'] || '-'}</span>
@@ -3266,7 +3703,7 @@ export default function Dashboard() {
                 {detailLr?.remark || '-'}
               </span>
             </div>
-            <div className="pt-2">
+            <div className="pt-2 no-print">
               <button
                 type="button"
                 onClick={() => setShowDetailFiles(v => !v)}
@@ -3326,13 +3763,82 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="no-print">
             <Button variant="outline" onClick={() => setShowLrDetails(false)} className="w-full sm:w-auto">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      
-    </div>
+      {/* Context Menu */}
+      {contextMenu && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu(null);
+            }}
+          />
+          <div
+            className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[180px]"
+            style={{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}
+          >
+            <button
+              onClick={() => {
+                const lr = memoizedFilteredLrs.find((l: any) => l['LR No'] === contextMenu.lrNo);
+                if (lr) {
+                  setDetailLr(lr);
+                  setShowLrDetails(true);
+                }
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              View Details
+            </button>
+            <button
+              onClick={() => {
+                const lr = memoizedFilteredLrs.find((l: any) => l['LR No'] === contextMenu.lrNo);
+                if (lr) {
+                  editLR(lr);
+                }
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Edit
+            </button>
+            <button
+              onClick={() => {
+                window.print();
+                setContextMenu(null);
+              }}
+              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </button>
+            {(session?.user as any)?.role === 'CEO' || (session?.user as any)?.role === 'MANAGER' ? (
+              <button
+                onClick={() => {
+                  if (confirm(`Delete LR ${contextMenu.lrNo}?`)) {
+                    deleteLRsMutation.mutate([contextMenu.lrNo]);
+                  }
+                  setContextMenu(null);
+                }}
+                className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
+            ) : null}
+          </div>
+        </>
+      )}
+      </div>
+</>
   );
 }
