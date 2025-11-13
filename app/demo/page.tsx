@@ -74,7 +74,7 @@ export default function DemoPage() {
           <h3 className="text-lg font-semibold mb-4">🔑 Demo Login Credentials</h3>
           <div className="grid md:grid-cols-3 gap-4 text-sm">
             <div>
-              <p className="text-gray-400 mb-2">Admin (CEO Role)</p>
+              <p className="text-gray-400 mb-2">Admin Role</p>
               <p className="font-mono">demo@test.com</p>
               <p className="font-mono">demo123</p>
             </div>
@@ -84,7 +84,7 @@ export default function DemoPage() {
               <p className="font-mono">demo123</p>
             </div>
             <div>
-              <p className="text-gray-400 mb-2">Worker Role</p>
+              <p className="text-gray-400 mb-2">Employee Role</p>
               <p className="font-mono">worker@test.com</p>
               <p className="font-mono">demo123</p>
             </div>

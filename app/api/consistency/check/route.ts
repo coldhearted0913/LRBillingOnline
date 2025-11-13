@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions as any);
     const s: any = session;
-    if (!s || s?.user?.role !== 'CEO') {
+    if (!s || s?.user?.role !== 'Admin') {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -9,10 +9,10 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    // Only CEOs can create users
-    if (!session || (session.user as any)?.role !== "CEO") {
+    // Only Admins can create users
+    if (!session || (session.user as any)?.role !== "Admin") {
       return NextResponse.json(
-        { error: "Unauthorized. Only CEO can create users." },
+        { error: "Unauthorized. Only Admin can create users." },
         { status: 403 }
       );
     }
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         email: normalizedEmail,
         password: hashedPassword,
         name: name || normalizedEmail.split("@")[0],
-        role: role || "WORKER",
+        role: role || "Employee",
         phone: phone || null,
         isActive: true,
       },

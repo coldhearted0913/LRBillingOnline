@@ -33,7 +33,7 @@ export default function ProfileSettingsModal({
   const [users, setUsers] = useState<User[]>([]);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserRole, setNewUserRole] = useState('WORKER');
+  const [newUserRole, setNewUserRole] = useState('Employee');
   const [newUserPhone, setNewUserPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -48,8 +48,8 @@ export default function ProfileSettingsModal({
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState('');
 
-  // Only CEO can manage users
-  const isAdmin = userRole === 'CEO';
+  // Only Admin can manage users
+  const isAdmin = userRole === 'Admin';
 
   // Fetch all users
   useEffect(() => {
@@ -179,7 +179,7 @@ export default function ProfileSettingsModal({
         setMessage('User created successfully');
         setNewUserEmail('');
         setNewUserPassword('');
-        setNewUserRole('WORKER');
+        setNewUserRole('Employee');
         setNewUserPhone('');
         fetchUsers();
         setTimeout(() => setMessage(''), 3000);
@@ -524,7 +524,7 @@ export default function ProfileSettingsModal({
                       onChange={(e) => setNewUserRole(e.target.value)}
                       className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg text-gray-900 font-medium bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="WORKER">Worker</option>
+                      <option value="Employee">Employee</option>
                       <option value="MANAGER">Manager</option>
                     </select>
                   </div>
@@ -579,19 +579,19 @@ export default function ProfileSettingsModal({
                             <select
                               value={user.role}
                               onChange={(e) => handleUpdateRole(user.id, e.target.value)}
-                              disabled={user.email === userEmail || user.role === 'CEO'}
+                              disabled={user.email === userEmail || user.role === 'Admin'}
                               className="px-2 sm:px-3 py-1 border border-gray-300 rounded text-xs sm:text-sm text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none min-w-[100px] sm:min-w-0"
-                              title={user.email === userEmail ? "Cannot change your own role" : user.role === 'CEO' ? "Cannot change CEO role" : ""}
+                              title={user.email === userEmail ? "Cannot change your own role" : user.role === 'Admin' ? "Cannot change Admin role" : ""}
                             >
-                              <option value="CEO" disabled>CEO</option>
+                              <option value="Admin" disabled>Admin</option>
                               <option value="MANAGER">Manager</option>
-                              <option value="WORKER">Worker</option>
+                              <option value="Employee">Employee</option>
                             </select>
                             <button
                               onClick={() => handleDeleteUser(user.id)}
-                              disabled={user.email === userEmail || user.role === 'CEO'}
+                              disabled={user.email === userEmail || user.role === 'Admin'}
                               className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                              title={user.email === userEmail ? "Cannot delete your own account" : user.role === 'CEO' ? "Cannot delete CEO account" : "Delete user"}
+                              title={user.email === userEmail ? "Cannot delete your own account" : user.role === 'Admin' ? "Cannot delete Admin account" : "Delete user"}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>

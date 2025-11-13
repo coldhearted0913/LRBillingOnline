@@ -7,7 +7,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Plus, RefreshCw, Check, X, Trash2, FileText, Download, 
   Truck, Calendar, MapPin, Package, TrendingUp, BarChart3, Search, Folder, 
-  DollarSign, PieChart, ChevronLeft, ChevronRight, Eye, EyeOff, FileSpreadsheet, Printer, HelpCircle, Settings
+  DollarSign, PieChart, ChevronLeft, ChevronRight, Eye, EyeOff, FileSpreadsheet, Printer, HelpCircle, Settings,
+  Smartphone, MessageCircle, Send
 } from 'lucide-react';
 import JSZip from 'jszip';
 import toast from 'react-hot-toast';
@@ -34,6 +35,117 @@ import LoadingSkeleton from '@/components/LoadingSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import EmptyState from '@/components/EmptyState';
 import DashboardCharts from '@/components/DashboardCharts';
+
+type NormalizedVehicleType = 'PICKUP' | 'TRUCK' | 'TOROUS';
+
+type LrFinancials = {
+  vehicleType: NormalizedVehicleType;
+  revenue: number;
+  driverPayment: number;
+  billType: 'regular' | 'rework' | 'additional';
+  regularBaseRevenue: number;
+  additionalRevenuePortion: number;
+  isRework: boolean;
+  isAdditionalRecord: boolean;
+};
+
+type PreparedFinancialEntry = {
+  lr: LRData;
+  dateParts: string[];
+  financials: LrFinancials;
+};
+
+const KNOWN_VEHICLE_TYPES: NormalizedVehicleType[] = ['PICKUP', 'TRUCK', 'TOROUS'];
+
+const normalizeVehicleType = (value: unknown): NormalizedVehicleType => {
+  const fallback: NormalizedVehicleType = 'PICKUP';
+  if (typeof value !== 'string') return fallback;
+  const upper = value.trim().toUpperCase();
+  return KNOWN_VEHICLE_TYPES.includes(upper as NormalizedVehicleType) ? (upper as NormalizedVehicleType) : fallback;
+};
+
+const parseLocations = (value: unknown): string[] => {
+  if (typeof value !== 'string') return [];
+  return value
+    .split('/')
+    .map((loc) => loc.trim())
+    .filter((loc) => loc.length > 0);
+};
+
+const parseNumericField = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const computeLrFinancials = (lr: LRData): LrFinancials => {
+  const vehicleType = normalizeVehicleType(lr['Vehicle Type']);
+  const lrNo = (lr['LR No'] ?? '').toString();
+  const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
+
+  const consigneeLocations = parseLocations(lr['Consignee']);
+  const toColumnRaw = (lr['TO'] ?? '').toString().trim();
+  const toLocations = parseLocations(toColumnRaw);
+
+  const hasAdditionalDelivery = consigneeLocations.length > 1;
+  const hasAdditionalDeliveryInTO = toLocations.length > 1;
+  const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
+  const finalLocationCount = hasAdditionalDelivery
+    ? consigneeLocations.length
+    : hasAdditionalDeliveryInTO
+    ? toLocations.length
+    : 1;
+
+  const from = (lr['FROM'] ?? '').toString().toLowerCase().trim();
+  const to = toColumnRaw.toLowerCase();
+  const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
+
+  const baseRevenue = VEHICLE_AMOUNTS[vehicleType] || 0;
+  const regularDriverPayment = DRIVER_PAYMENTS[vehicleType] || 0;
+  const reworkDriverPayment = REWORK_DRIVER_PAYMENTS[vehicleType] || 0;
+  const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType] || 0;
+
+  let revenue = 0;
+  let driverPayment = 0;
+  let billType: 'regular' | 'rework' | 'additional' = 'regular';
+  let regularBaseRevenue = 0;
+  let additionalRevenuePortion = 0;
+
+  if (isAdditionalRecord) {
+    revenue = parseNumericField(lr['Amount']);
+    driverPayment = 0;
+    billType = 'additional';
+    additionalRevenuePortion = revenue;
+  } else if (finalHasAdditionalDelivery && !isRework) {
+    const additionalMultiplier = Math.max(0, finalLocationCount - 1);
+    const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
+    revenue = baseRevenue + calculatedAdditionalAmount;
+    driverPayment = regularDriverPayment;
+    billType = 'regular';
+    regularBaseRevenue = baseRevenue;
+    additionalRevenuePortion = calculatedAdditionalAmount;
+  } else if (isRework) {
+    revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
+    driverPayment = reworkDriverPayment;
+    billType = 'rework';
+    regularBaseRevenue = 0;
+  } else {
+    revenue = baseRevenue;
+    driverPayment = regularDriverPayment;
+    billType = 'regular';
+    regularBaseRevenue = revenue;
+  }
+
+  return {
+    vehicleType,
+    revenue,
+    driverPayment,
+    billType,
+    regularBaseRevenue,
+    additionalRevenuePortion,
+    isRework,
+    isAdditionalRecord,
+  };
+};
 
 export default function Dashboard() {
   // Removed filteredLrs state - using memoizedFilteredLrs directly
@@ -118,8 +230,8 @@ export default function Dashboard() {
   };
   
   // Filters & Search
-  const [selectedMonth, setSelectedMonth] = useState('All Months');
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState(() => MONTHS[new Date().getMonth()]);
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear().toString());
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
@@ -137,7 +249,8 @@ export default function Dashboard() {
   // Auth Session
   const { data: session, status } = useSession();
   const router = useRouter();
-  const isCEO = ((session?.user as any)?.role === 'CEO');
+  const isAdmin = ((session?.user as any)?.role === 'Admin');
+  const [sendingLRDone, setSendingLRDone] = useState(false);
   
   // React Query Client
   const queryClient = useQueryClient();
@@ -212,7 +325,58 @@ export default function Dashboard() {
     setRecentSearches(updated);
     localStorage.setItem('lr-recent-searches', JSON.stringify(updated));
   };
-  
+
+  const handleSendLRDoneNotifications = async () => {
+    try {
+      setSendingLRDone(true);
+      const response = await fetch('/api/whatsapp/send-lr-done', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        const text = await response.text();
+        throw new Error(`Server error (${response.status}): ${text || 'Failed to parse response'}`);
+      }
+      
+      if (!response.ok || !data.success) {
+        const errorMsg = data?.error || `HTTP ${response.status}: Failed to send LR Done notifications`;
+        console.error('LR Done notification error:', { status: response.status, data });
+        throw new Error(errorMsg);
+      }
+      
+      console.log('LR Done notifications sent:', data);
+      
+      if (data.totalLRs === 0) {
+        toast.success('No LRs with "LR Done" status found');
+      } else if (data.totalUsers === 0) {
+        toast.success('No users with phone numbers found');
+      } else {
+        if (data.rateLimitErrors > 0) {
+          toast.error(
+            `Sent to ${data.sent} user(s), but ${data.rateLimitErrors} user(s) hit Twilio daily limit (50 messages/day for sandbox). Upgrade to paid account or wait until tomorrow.`,
+            { duration: 8000 }
+          );
+        } else {
+          toast.success(
+            `Sent LR Done notifications to ${data.sent} user(s) for ${data.totalLRs} LR(s)${data.failed > 0 ? ` (${data.failed} failed)` : ''}`,
+            { duration: 6000 }
+          );
+        }
+      }
+    } catch (error: any) {
+      console.error('LR Done notification error:', error);
+      const errorMessage = error?.message || 'Failed to send LR Done notifications';
+      toast.error(errorMessage, { duration: 5000 });
+    } finally {
+      setSendingLRDone(false);
+    }
+  };
+
+
   // Fetch LRs with React Query
   const { data: lrs = [], isLoading: isLoadingLRs, refetch: refetchLRs } = useQuery({
     queryKey: ['lrs'],
@@ -234,6 +398,7 @@ export default function Dashboard() {
     refetchOnReconnect: true,
     gcTime: 10 * 60 * 1000,
   });
+
   
   // Load LRs function (for manual refresh)
   const loadLRs = () => {
@@ -359,7 +524,7 @@ export default function Dashboard() {
   
   // Memoized filtered LRs - Calculate filtered LRs with useMemo to prevent infinite loop
   const memoizedFilteredLrs = useMemo(() => {
-    let filtered = lrs;
+    let filtered = [...lrs];
     
     // Filter by year (dates are in DD-MM-YYYY format)
     if (selectedYear !== 'All Years') {
@@ -410,13 +575,13 @@ export default function Dashboard() {
     
     // Apply sorting
     if (sortBy === 'lrNo') {
-      filtered.sort((a: LRData, b: LRData) => {
+      filtered = [...filtered].sort((a: LRData, b: LRData) => {
         const aNo = a['LR No'] || '';
         const bNo = b['LR No'] || '';
         return sortOrder === 'asc' ? aNo.localeCompare(bNo) : bNo.localeCompare(aNo);
       });
     } else if (sortBy === 'date') {
-      filtered.sort((a: LRData, b: LRData) => {
+      filtered = [...filtered].sort((a: LRData, b: LRData) => {
         // Parse DD-MM-YYYY to YYYYMMDD for numeric comparison
         const parseDate = (dateStr: string) => {
           if (!dateStr) return 0;
@@ -466,18 +631,14 @@ export default function Dashboard() {
 
   // Memoized stats calculations
   const stats = useMemo(() => {
-    // Calculate vehicle type breakdown
-    const vehicleTypeBreakdown = {
-      PICKUP: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'PICKUP').length,
-      TRUCK: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'TRUCK').length,
-      TOROUS: statsData.filter((lr: LRData) => lr['Vehicle Type'] === 'TOROUS').length,
+    const vehicleTypeBreakdown: Record<NormalizedVehicleType, number> = {
+      PICKUP: 0,
+      TRUCK: 0,
+      TOROUS: 0,
     };
     
-    // Calculate revenue and expenses based on ALL LRs in the selected month
     let totalRevenue = 0;
     let totalExpenses = 0;
-    
-    // Track separate revenue/expenses for rework, additional, and regular bills
     let reworkRevenue = 0;
     let reworkExpenses = 0;
     let additionalRevenue = 0;
@@ -486,91 +647,31 @@ export default function Dashboard() {
     let regularExpenses = 0;
     
     statsData.forEach((lr: LRData) => {
-      const vehicleType = lr['Vehicle Type'] || 'PICKUP';
+      const vehicleType = normalizeVehicleType(lr['Vehicle Type']);
+      vehicleTypeBreakdown[vehicleType] = (vehicleTypeBreakdown[vehicleType] ?? 0) + 1;
       
-      // Check if it's an additional bill (LR No starts with "ADDITIONAL-")
-      const lrNo = (lr['LR No'] || '').toString();
-      const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
+      const financials = computeLrFinancials(lr);
+      totalRevenue += financials.revenue;
+      totalExpenses += financials.driverPayment;
       
-      // Check if Consignee column has multiple locations separated by '/'
-      const consigneeColumn = (lr['Consignee'] || '').toString().trim();
-      const consigneeLocations = consigneeColumn.split('/').filter(loc => loc.trim().length > 0);
-      const hasAdditionalDelivery = consigneeLocations.length > 1;
-      
-      // For backwards compatibility, also check TO column
-      const toColumn = (lr['TO'] || '').toString().trim();
-      const toLocations = toColumn.split('/').filter(loc => loc.trim().length > 0);
-      const hasAdditionalDeliveryInTO = toLocations.length > 1;
-      
-      // Use either Consignee or TO for multiple locations
-      const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
-      const finalLocationCount = hasAdditionalDelivery ? consigneeLocations.length : (hasAdditionalDeliveryInTO ? toLocations.length : 1);
-      
-      // Check if it's a rework (Kolhapur → Solapur) - only for non-additional records
-      const from = (lr['FROM'] || '').toString().toLowerCase().trim();
-      const to = toColumn.toLowerCase().trim();
-      const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
-      
-      // Calculate revenue
-      const baseRevenue = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
-      let revenue = 0;
-      let isAdditional = false;
-      
-      if (isAdditionalRecord) {
-        // Additional bill records: Revenue is already in the Amount field
-        revenue = lr['Amount'] || 0;
-        additionalRevenue += revenue;
-        isAdditional = true;
-      } else if (finalHasAdditionalDelivery && !isRework) {
-        // Regular LR with multiple delivery locations: Calculate additional amount
-        // If 2 locations (1 '/'): charge 1x additional amount
-        // If 3 locations (2 '/'): charge 2x additional amount
-        // If 4 locations (3 '/'): charge 3x additional amount
-        const additionalMultiplier = finalLocationCount - 1;
-        const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
-        const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
-        
-        // Base revenue goes to regular bills, additional amount goes to additional bills
-        revenue = baseRevenue + calculatedAdditionalAmount;
-        regularRevenue += baseRevenue; // Base revenue in regular bills
-        additionalRevenue += calculatedAdditionalAmount; // Only additional amount in additional bills
-        isAdditional = true;
-      } else if (isRework) {
-        // Rework bills: 80% of regular revenue
-        revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
-        reworkRevenue += revenue;
-      } else {
-        // Regular bills: Full revenue
-        revenue = baseRevenue;
-        regularRevenue += revenue;
+      switch (financials.billType) {
+        case 'rework':
+          reworkRevenue += financials.revenue;
+          reworkExpenses += financials.driverPayment;
+          break;
+        case 'additional':
+          additionalRevenue += financials.revenue;
+          additionalExpenses += financials.driverPayment;
+          break;
+        case 'regular':
+        default:
+          regularRevenue += financials.regularBaseRevenue;
+          regularExpenses += financials.driverPayment;
+          if (financials.additionalRevenuePortion > 0) {
+            additionalRevenue += financials.additionalRevenuePortion;
+          }
+          break;
       }
-      
-      totalRevenue += revenue;
-      
-      // Calculate expenses (driver payments)
-      let driverPayment = 0;
-      
-      if (isAdditionalRecord) {
-        // Additional bill records: No driver payment (already included in main LR)
-        driverPayment = 0;
-        additionalExpenses += driverPayment;
-      } else if (finalHasAdditionalDelivery && !isRework) {
-        // Regular LR with additional deliveries: Still pay regular driver payment
-        // (Additional revenue doesn't affect driver payment - driver is paid as regular)
-        driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
-        // Add to regular expenses since it's a regular LR with additional deliveries
-        regularExpenses += driverPayment;
-      } else if (isRework) {
-        // Rework bills: Rework driver payment
-        driverPayment = REWORK_DRIVER_PAYMENTS[vehicleType as keyof typeof REWORK_DRIVER_PAYMENTS] || 0;
-        reworkExpenses += driverPayment;
-      } else {
-        // Regular bills: Regular driver payment
-        driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
-        regularExpenses += driverPayment;
-      }
-      
-      totalExpenses += driverPayment;
     });
     
     const totalProfit = totalRevenue - totalExpenses;
@@ -578,20 +679,24 @@ export default function Dashboard() {
     const additionalProfit = additionalRevenue - additionalExpenses;
     const regularProfit = regularRevenue - regularExpenses;
     
+    const lrDoneCount = statsData.filter((lr: LRData) => lr.status === 'LR Done').length;
+    const lrCollectedCount = statsData.filter((lr: LRData) => lr.status === 'LR Collected').length;
+    const billDoneCount = statsData.filter((lr: LRData) => lr.status === 'Bill Done').length;
+    const billSubmittedCount = statsData.filter((lr: LRData) => lr.status === 'Bill Submitted').length;
+    
     return {
       total: statsData.length,
-      lrDone: statsData.filter((lr: LRData) => lr.status === 'LR Done').length,
-      lrCollected: statsData.filter((lr: LRData) => lr.status === 'LR Collected').length,
-      billDone: statsData.filter((lr: LRData) => lr.status === 'Bill Done').length,
-      billSubmitted: statsData.filter((lr: LRData) => lr.status === 'Bill Submitted').length,
-      pendingBills: statsData.filter((lr: LRData) => lr.status === 'LR Collected').length, // LRs collected but bills not generated
-      pendingSubmission: statsData.filter((lr: LRData) => lr.status === 'Bill Done').length, // Bills ready to submit
-      thisMonth: statsData.length, // Already filtered by month/year, so just show the count
-      vehicleTypeBreakdown, // Vehicle type breakdown
-      estimatedRevenue: totalRevenue, // Total revenue
-      totalExpenses, // Total expenses
-      totalProfit, // Total profit
-      // Bill type breakdown
+      lrDone: lrDoneCount,
+      lrCollected: lrCollectedCount,
+      billDone: billDoneCount,
+      billSubmitted: billSubmittedCount,
+      pendingBills: lrCollectedCount,
+      pendingSubmission: billDoneCount,
+      thisMonth: statsData.length,
+      vehicleTypeBreakdown,
+      estimatedRevenue: totalRevenue,
+      totalExpenses,
+      totalProfit,
       reworkRevenue,
       reworkExpenses,
       reworkProfit,
@@ -601,124 +706,66 @@ export default function Dashboard() {
       regularRevenue,
       regularExpenses,
       regularProfit,
-      billCompletionRate: statsData.length > 0 ? Math.round((statsData.filter((lr: LRData) => lr.status === 'Bill Done' || lr.status === 'Bill Submitted').length / statsData.length) * 100) : 0, // Percentage of LRs with bills
+      billCompletionRate:
+        statsData.length > 0
+          ? Math.round(
+              ((billDoneCount + billSubmittedCount) / statsData.length) * 100
+            )
+          : 0,
     };
   }, [statsData]);
 
   // Calculate charts data from real LR data
   const chartsData = useMemo(() => {
-    // Vehicle Type Breakdown with real calculations
-    const vehicleBreakdown = {
+    const prepared: PreparedFinancialEntry[] = statsData.map((lr: LRData) => {
+      const lrDate = (lr['LR Date'] ?? '').toString();
+      const dateParts = lrDate ? lrDate.split('-') : [];
+      const financials = computeLrFinancials(lr);
+      return { lr, dateParts, financials };
+    });
+
+    const vehicleBreakdown: Record<NormalizedVehicleType, { revenue: number; expenses: number; profit: number; count: number }> = {
       PICKUP: { revenue: 0, expenses: 0, profit: 0, count: 0 },
       TRUCK: { revenue: 0, expenses: 0, profit: 0, count: 0 },
       TOROUS: { revenue: 0, expenses: 0, profit: 0, count: 0 },
     };
 
-    statsData.forEach((lr: LRData) => {
-      const vehicleType = lr['Vehicle Type'] || 'PICKUP';
-      const lrNo = (lr['LR No'] || '').toString();
-      const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
-      
-      const consigneeColumn = (lr['Consignee'] || '').toString().trim();
-      const consigneeLocations = consigneeColumn.split('/').filter(loc => loc.trim().length > 0);
-      const hasAdditionalDelivery = consigneeLocations.length > 1;
-      
-      const toColumn = (lr['TO'] || '').toString().trim();
-      const toLocations = toColumn.split('/').filter(loc => loc.trim().length > 0);
-      const hasAdditionalDeliveryInTO = toLocations.length > 1;
-      
-      const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
-      const finalLocationCount = hasAdditionalDelivery ? consigneeLocations.length : (hasAdditionalDeliveryInTO ? toLocations.length : 1);
-      
-      const from = (lr['FROM'] || '').toString().toLowerCase().trim();
-      const to = toColumn.toLowerCase().trim();
-      const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
-      
-      const baseRevenue = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
-      let revenue = 0;
-      
-      if (isAdditionalRecord) {
-        revenue = lr['Amount'] || 0;
-      } else if (finalHasAdditionalDelivery && !isRework) {
-        const additionalMultiplier = finalLocationCount - 1;
-        const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
-        const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
-        revenue = baseRevenue + calculatedAdditionalAmount;
-      } else if (isRework) {
-        revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
-      } else {
-        revenue = baseRevenue;
-      }
-      
-      let driverPayment = 0;
-      if (isAdditionalRecord) {
-        driverPayment = 0;
-      } else if (finalHasAdditionalDelivery && !isRework) {
-        driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
-      } else if (isRework) {
-        driverPayment = REWORK_DRIVER_PAYMENTS[vehicleType as keyof typeof REWORK_DRIVER_PAYMENTS] || 0;
-      } else {
-        driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
-      }
-      
-      vehicleBreakdown[vehicleType as keyof typeof vehicleBreakdown].revenue += revenue;
-      vehicleBreakdown[vehicleType as keyof typeof vehicleBreakdown].expenses += driverPayment;
-      vehicleBreakdown[vehicleType as keyof typeof vehicleBreakdown].profit += (revenue - driverPayment);
-      vehicleBreakdown[vehicleType as keyof typeof vehicleBreakdown].count += 1;
-    });
-
-    const vehicleData = [
-      { name: 'PICKUP', count: vehicleBreakdown.PICKUP.count, revenue: vehicleBreakdown.PICKUP.revenue, expenses: vehicleBreakdown.PICKUP.expenses, profit: vehicleBreakdown.PICKUP.profit },
-      { name: 'TRUCK', count: vehicleBreakdown.TRUCK.count, revenue: vehicleBreakdown.TRUCK.revenue, expenses: vehicleBreakdown.TRUCK.expenses, profit: vehicleBreakdown.TRUCK.profit },
-      { name: 'TOROUS', count: vehicleBreakdown.TOROUS.count, revenue: vehicleBreakdown.TOROUS.revenue, expenses: vehicleBreakdown.TOROUS.expenses, profit: vehicleBreakdown.TOROUS.profit },
-    ];
-
-    // Bill Type Distribution - Calculate from statsData instead of using stats
     let regularRevenue = 0;
     let reworkRevenue = 0;
     let additionalRevenue = 0;
 
-    statsData.forEach((lr: LRData) => {
-      const vehicleType = lr['Vehicle Type'] || 'PICKUP';
-      const lrNo = (lr['LR No'] || '').toString();
-      const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
-      
-      const consigneeColumn = (lr['Consignee'] || '').toString().trim();
-      const consigneeLocations = consigneeColumn.split('/').filter(loc => loc.trim().length > 0);
-      const hasAdditionalDelivery = consigneeLocations.length > 1;
-      
-      const toColumn = (lr['TO'] || '').toString().trim();
-      const toLocations = toColumn.split('/').filter(loc => loc.trim().length > 0);
-      const hasAdditionalDeliveryInTO = toLocations.length > 1;
-      
-      const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
-      const finalLocationCount = hasAdditionalDelivery ? consigneeLocations.length : (hasAdditionalDeliveryInTO ? toLocations.length : 1);
-      
-      const from = (lr['FROM'] || '').toString().toLowerCase().trim();
-      const to = toColumn.toLowerCase().trim();
-      const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
-      
-      const baseRevenue = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
-      let revenue = 0;
-      
-      if (isAdditionalRecord) {
-        revenue = lr['Amount'] || 0;
-        additionalRevenue += revenue;
-      } else if (finalHasAdditionalDelivery && !isRework) {
-        const additionalMultiplier = finalLocationCount - 1;
-        const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
-        const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
-        regularRevenue += baseRevenue;
-        additionalRevenue += calculatedAdditionalAmount;
-        revenue = baseRevenue + calculatedAdditionalAmount;
-      } else if (isRework) {
-        revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
-        reworkRevenue += revenue;
-      } else {
-        revenue = baseRevenue;
-        regularRevenue += revenue;
+    prepared.forEach(({ financials }) => {
+      const { vehicleType, revenue, driverPayment, billType, regularBaseRevenue, additionalRevenuePortion } = financials;
+      const bucket = vehicleBreakdown[vehicleType];
+      bucket.revenue += revenue;
+      bucket.expenses += driverPayment;
+      bucket.profit += revenue - driverPayment;
+      bucket.count += 1;
+
+      switch (billType) {
+        case 'rework':
+          reworkRevenue += revenue;
+          break;
+        case 'additional':
+          additionalRevenue += revenue;
+          break;
+        case 'regular':
+        default:
+          regularRevenue += regularBaseRevenue;
+          if (additionalRevenuePortion > 0) {
+            additionalRevenue += additionalRevenuePortion;
+          }
+          break;
       }
     });
+
+    const vehicleData = KNOWN_VEHICLE_TYPES.map((type) => ({
+      name: type,
+      count: vehicleBreakdown[type].count,
+      revenue: vehicleBreakdown[type].revenue,
+      expenses: vehicleBreakdown[type].expenses,
+      profit: vehicleBreakdown[type].profit,
+    }));
 
     const billTypeTotal = regularRevenue + reworkRevenue + additionalRevenue;
     const billTypeData = [
@@ -727,74 +774,23 @@ export default function Dashboard() {
       { name: 'Additional', value: billTypeTotal > 0 ? Math.round((additionalRevenue / billTypeTotal) * 100) : 0, color: '#FFBB28' },
     ];
 
-    // Monthly Trends (last 6 months from current month)
     const monthlyData = [];
     const currentDate = new Date();
     for (let i = 5; i >= 0; i--) {
       const targetDate = new Date(currentDate);
       targetDate.setMonth(currentDate.getMonth() - i);
       const monthName = targetDate.toLocaleDateString('en-US', { month: 'short' });
-      const targetMonth = targetDate.getMonth() + 1;
+      const targetMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
       const targetYear = targetDate.getFullYear().toString();
 
       let monthRevenue = 0;
       let monthExpenses = 0;
 
-      statsData.forEach((lr: LRData) => {
-        const lrDate = lr['LR Date'];
-        if (!lrDate) return;
-        const parts = lrDate.split('-');
-        if (parts.length !== 3) return;
-        if (parts[1] !== targetMonth.toString() || parts[2] !== targetYear) return;
-
-        const vehicleType = lr['Vehicle Type'] || 'PICKUP';
-        const lrNo = (lr['LR No'] || '').toString();
-        const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
-        
-        const consigneeColumn = (lr['Consignee'] || '').toString().trim();
-        const consigneeLocations = consigneeColumn.split('/').filter(loc => loc.trim().length > 0);
-        const hasAdditionalDelivery = consigneeLocations.length > 1;
-        
-        const toColumn = (lr['TO'] || '').toString().trim();
-        const toLocations = toColumn.split('/').filter(loc => loc.trim().length > 0);
-        const hasAdditionalDeliveryInTO = toLocations.length > 1;
-        
-        const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
-        const finalLocationCount = hasAdditionalDelivery ? consigneeLocations.length : (hasAdditionalDeliveryInTO ? toLocations.length : 1);
-        
-        const from = (lr['FROM'] || '').toString().toLowerCase().trim();
-        const to = toColumn.toLowerCase().trim();
-        const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
-        
-        const baseRevenue = VEHICLE_AMOUNTS[vehicleType as keyof typeof VEHICLE_AMOUNTS] || 0;
-        let revenue = 0;
-        
-        if (isAdditionalRecord) {
-          revenue = lr['Amount'] || 0;
-        } else if (finalHasAdditionalDelivery && !isRework) {
-          const additionalMultiplier = finalLocationCount - 1;
-          const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
-          const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
-          revenue = baseRevenue + calculatedAdditionalAmount;
-        } else if (isRework) {
-          revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
-        } else {
-          revenue = baseRevenue;
-        }
-        
-        let driverPayment = 0;
-        if (isAdditionalRecord) {
-          driverPayment = 0;
-        } else if (finalHasAdditionalDelivery && !isRework) {
-          driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
-        } else if (isRework) {
-          driverPayment = REWORK_DRIVER_PAYMENTS[vehicleType as keyof typeof REWORK_DRIVER_PAYMENTS] || 0;
-        } else {
-          driverPayment = DRIVER_PAYMENTS[vehicleType as keyof typeof DRIVER_PAYMENTS] || 0;
-        }
-        
-        monthRevenue += revenue;
-        monthExpenses += driverPayment;
+      prepared.forEach(({ dateParts, financials }) => {
+        if (dateParts.length !== 3) return;
+        if (dateParts[1] !== targetMonth || dateParts[2] !== targetYear) return;
+        monthRevenue += financials.revenue;
+        monthExpenses += financials.driverPayment;
       });
 
       monthlyData.push({
@@ -1761,6 +1757,48 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* WhatsApp Notifications - Admin Only */}
+        {isAdmin && (
+          <div className="mb-4 space-y-3">
+            <Card className="border-slate-200 bg-white shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm md:text-base flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 md:h-5 md:w-5 text-green-600" />
+                  WhatsApp Notifications
+                </CardTitle>
+                <CardDescription className="text-xs md:text-sm text-gray-600">
+                  Send automated WhatsApp notifications for LR and Bill status updates.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-700">LR Done Notifications</p>
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700 text-sm"
+                    onClick={handleSendLRDoneNotifications}
+                    disabled={sendingLRDone}
+                  >
+                    {sendingLRDone ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        Send LR Done Notifications
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-[11px] text-slate-500">
+                    Send LR Done notifications to all users with phone numbers. Format: LRno-LrDate-VehicleNo-Pending from X days. ⚠️ for more than 1 week, 🔴 for more than 2 weeks.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Stats Cards - Responsive Grid */}
         {visibleWidgets.has('stats') && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
@@ -1841,7 +1879,7 @@ export default function Dashboard() {
         </div>
         )}
         
-        {isCEO && (
+        {isAdmin && (
         <>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
           {/* Statistics Card */}
@@ -1854,14 +1892,14 @@ export default function Dashboard() {
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Require authentication and CEO role to view statistics
+                    // Require authentication and Admin role to view statistics
                     if (status !== 'authenticated' || !session) {
                       router.push('/login');
                       return;
                     }
                     const role = (session.user as any)?.role;
-                    if (role !== 'CEO') {
-                      toast.error('Unauthorized: Only CEO can view statistics');
+                    if (role !== 'Admin') {
+                      toast.error('Unauthorized: Only Admin can view statistics');
                       return;
                     }
                     // If currently visible, hide without asking password; otherwise prompt for password
@@ -2485,8 +2523,8 @@ export default function Dashboard() {
                       </tr>
                     ) : (
                       paginatedLrs.map((lr: LRData, index: number) => (
-                        <tr 
-                          key={lr['LR No']} 
+                        <tr
+                          key={lr['LR No']}
                           className={`group hover:bg-blue-50/50 hover:shadow-sm transition-all duration-200 cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
                           onContextMenu={(e) => {
                             e.preventDefault();
@@ -2704,7 +2742,7 @@ export default function Dashboard() {
                   <span className="hidden sm:inline">Change Status </span>
                   <span>({selectedLrs.size})</span>
               </Button>
-                {(session?.user as any)?.role === 'CEO' || (session?.user as any)?.role === 'MANAGER' ? (
+                {(session?.user as any)?.role === 'Admin' || (session?.user as any)?.role === 'MANAGER' ? (
                   <Button onClick={deleteSelected} variant="destructive" disabled={selectedLrs.size === 0} className="text-xs md:text-sm min-h-[44px] touch-manipulation active:scale-95">
                     <Trash2 className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                     <span className="hidden sm:inline">Delete Selected </span>
@@ -2723,7 +2761,7 @@ export default function Dashboard() {
                 <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                 {loading ? 'Generating...' : `Generate All Bills (${selectedLrs.size})`}
               </Button>
-              {(session?.user as any)?.role === 'CEO' && (
+              {(session?.user as any)?.role === 'Admin' && (
                 <Button
                   onClick={async () => {
                     setConsistencyLoading(true);
@@ -3440,9 +3478,9 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {['PICKUP', 'TRUCK', 'TOROUS'].map((type) => {
+                  {KNOWN_VEHICLE_TYPES.map((type) => {
                     const vehicleLrs = statsData.filter((lr: LRData) => 
-                      lr['Vehicle Type'] === type
+                      normalizeVehicleType(lr['Vehicle Type']) === type
                     );
                     
                     if (vehicleLrs.length === 0) return null;
@@ -3451,53 +3489,7 @@ export default function Dashboard() {
                     let vehicleExpenses = 0;
 
                     vehicleLrs.forEach((lr: LRData) => {
-                      const lrNo = (lr['LR No'] || '').toString();
-                      const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
-                      
-                      // Check if Consignee column has multiple locations separated by '/'
-                      const consigneeColumn = (lr['Consignee'] || '').toString().trim();
-                      const consigneeLocations = consigneeColumn.split('/').filter(loc => loc.trim().length > 0);
-                      const hasAdditionalDelivery = consigneeLocations.length > 1;
-                      
-                      // For backwards compatibility, also check TO column
-                      const toColumn = (lr['TO'] || '').toString().trim();
-                      const toLocations = toColumn.split('/').filter(loc => loc.trim().length > 0);
-                      const hasAdditionalDeliveryInTO = toLocations.length > 1;
-                      
-                      // Use either Consignee or TO for multiple locations
-                      const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
-                      const finalLocationCount = hasAdditionalDelivery ? consigneeLocations.length : (hasAdditionalDeliveryInTO ? toLocations.length : 1);
-                      
-                      const from = (lr['FROM'] || '').toString().toLowerCase().trim();
-                      const to = toColumn.toLowerCase().trim();
-                      const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
-
-                      let revenue = 0;
-                      let driverPayment = 0;
-                      
-                      const baseRevenue = VEHICLE_AMOUNTS[type as keyof typeof VEHICLE_AMOUNTS] || 0;
-                      
-                      if (isAdditionalRecord) {
-                        // Additional bill records: Revenue is already in the Amount field
-                        revenue = lr['Amount'] || 0;
-                        driverPayment = 0; // No driver payment for additional records
-                      } else if (finalHasAdditionalDelivery && !isRework) {
-                        // Regular LR with multiple delivery locations
-                        const additionalMultiplier = finalLocationCount - 1;
-                        const additionalAmount = ADDITIONAL_BILL_AMOUNTS[type as keyof typeof ADDITIONAL_BILL_AMOUNTS] || 0;
-                        const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
-                        revenue = baseRevenue + calculatedAdditionalAmount;
-                        driverPayment = DRIVER_PAYMENTS[type as keyof typeof DRIVER_PAYMENTS] || 0;
-                      } else if (isRework) {
-                        // Rework bills: 80% of regular revenue
-                        revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
-                        driverPayment = REWORK_DRIVER_PAYMENTS[type as keyof typeof DRIVER_PAYMENTS] || 0;
-                      } else {
-                        // Regular bills
-                        revenue = baseRevenue;
-                        driverPayment = DRIVER_PAYMENTS[type as keyof typeof DRIVER_PAYMENTS] || 0;
-                      }
-                      
+                      const { revenue, driverPayment } = computeLrFinancials(lr);
                       vehicleRevenue += revenue;
                       vehicleExpenses += driverPayment;
                     });
@@ -3897,7 +3889,7 @@ export default function Dashboard() {
               <Printer className="h-4 w-4" />
               Print
             </button>
-            {(session?.user as any)?.role === 'CEO' || (session?.user as any)?.role === 'MANAGER' ? (
+            {(session?.user as any)?.role === 'Admin' || (session?.user as any)?.role === 'MANAGER' ? (
               <button
                 onClick={() => {
                   if (confirm(`Delete LR ${contextMenu.lrNo}?`)) {

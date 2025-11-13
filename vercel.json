@@ -1,0 +1,13 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/weekly-lr-notifications",
+      "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/cron/weekly-bill-done",
+      "schedule": "0 10 * * 1"
+    }
+  ]
+}
+

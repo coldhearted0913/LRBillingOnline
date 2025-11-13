@@ -32,7 +32,7 @@ export default function UserProfileDropdown({ email, name, role }: UserProfileDr
 
   const displayName = name || email?.split('@')[0] || 'User';
   const initial = (name || email || 'U').charAt(0).toUpperCase();
-  const isAdmin = role === 'CEO' || role === 'MANAGER';
+  const isAdmin = role === 'Admin' || role === 'MANAGER';
 
   return (
     <>
