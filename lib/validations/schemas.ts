@@ -93,7 +93,7 @@ export const CreateUserSchema = z.object({
     .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
     .regex(/[0-9]/, 'Password must contain at least one number'),
   
-  role: z.enum(['Admin', 'MANAGER', 'Employee']),
+  role: z.enum(['CEO', 'MANAGER', 'WORKER']),
   
   phone: z.string()
     .regex(/^\+?[1-9]\d{1,14}$/, 'Please enter a valid phone number')
@@ -121,7 +121,7 @@ export const ChangePasswordSchema = z.object({
 // Update User Role Schema
 export const UpdateRoleSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
-  role: z.enum(['Admin', 'MANAGER', 'Employee']),
+  role: z.enum(['CEO', 'MANAGER', 'WORKER']),
 });
 
 // Filter Validation Schema

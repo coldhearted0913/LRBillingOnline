@@ -249,7 +249,7 @@ export default function Dashboard() {
   // Auth Session
   const { data: session, status } = useSession();
   const router = useRouter();
-  const isAdmin = ((session?.user as any)?.role === 'Admin');
+  const isCEO = ((session?.user as any)?.role === 'CEO');
   const [sendingLRDone, setSendingLRDone] = useState(false);
   
   // React Query Client
@@ -1757,8 +1757,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* WhatsApp Notifications - Admin Only */}
-        {isAdmin && (
+        {/* WhatsApp Notifications - CEO Only */}
+        {isCEO && (
           <div className="mb-4 space-y-3">
             <Card className="border-slate-200 bg-white shadow-sm">
               <CardHeader className="pb-2">
@@ -1879,7 +1879,7 @@ export default function Dashboard() {
         </div>
         )}
         
-        {isAdmin && (
+        {isCEO && (
         <>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8">
           {/* Statistics Card */}
@@ -1892,14 +1892,14 @@ export default function Dashboard() {
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Require authentication and Admin role to view statistics
+                    // Require authentication and CEO role to view statistics
                     if (status !== 'authenticated' || !session) {
                       router.push('/login');
                       return;
                     }
                     const role = (session.user as any)?.role;
-                    if (role !== 'Admin') {
-                      toast.error('Unauthorized: Only Admin can view statistics');
+                    if (role !== 'CEO') {
+                      toast.error('Unauthorized: Only CEO can view statistics');
                       return;
                     }
                     // If currently visible, hide without asking password; otherwise prompt for password
@@ -2742,7 +2742,7 @@ export default function Dashboard() {
                   <span className="hidden sm:inline">Change Status </span>
                   <span>({selectedLrs.size})</span>
               </Button>
-                {(session?.user as any)?.role === 'Admin' || (session?.user as any)?.role === 'MANAGER' ? (
+                {(session?.user as any)?.role === 'CEO' || (session?.user as any)?.role === 'MANAGER' ? (
                   <Button onClick={deleteSelected} variant="destructive" disabled={selectedLrs.size === 0} className="text-xs md:text-sm min-h-[44px] touch-manipulation active:scale-95">
                     <Trash2 className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                     <span className="hidden sm:inline">Delete Selected </span>
@@ -2761,7 +2761,7 @@ export default function Dashboard() {
                 <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
                 {loading ? 'Generating...' : `Generate All Bills (${selectedLrs.size})`}
               </Button>
-              {(session?.user as any)?.role === 'Admin' && (
+              {(session?.user as any)?.role === 'CEO' && (
                 <Button
                   onClick={async () => {
                     setConsistencyLoading(true);
@@ -3889,7 +3889,7 @@ export default function Dashboard() {
               <Printer className="h-4 w-4" />
               Print
             </button>
-            {(session?.user as any)?.role === 'Admin' || (session?.user as any)?.role === 'MANAGER' ? (
+            {(session?.user as any)?.role === 'CEO' || (session?.user as any)?.role === 'MANAGER' ? (
               <button
                 onClick={() => {
                   if (confirm(`Delete LR ${contextMenu.lrNo}?`)) {

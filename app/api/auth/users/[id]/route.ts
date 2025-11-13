@@ -21,10 +21,10 @@ export async function DELETE(
     const userRole = (session.user as any)?.role;
     const userId = (session.user as any)?.id;
 
-    // Only Admin can delete users
-    if (userRole !== "Admin") {
+    // Only CEO can delete users
+    if (userRole !== "CEO") {
       return NextResponse.json(
-        { error: "Forbidden. Only Admin can delete users." },
+        { error: "Forbidden. Only CEO can delete users." },
         { status: 403 }
       );
     }
@@ -84,17 +84,17 @@ export async function PATCH(
     const userRole = (session.user as any)?.role;
     const userId = (session.user as any)?.id;
 
-    // Only Admin can update user roles
-    if (userRole !== "Admin") {
+    // Only CEO can update user roles
+    if (userRole !== "CEO") {
       return NextResponse.json(
-        { error: "Forbidden. Only Admin can update user roles." },
+        { error: "Forbidden. Only CEO can update user roles." },
         { status: 403 }
       );
     }
 
     const { role } = await request.json();
 
-    if (!["Employee", "MANAGER", "Admin"].includes(role)) {
+    if (!["WORKER", "MANAGER", "CEO"].includes(role)) {
       return NextResponse.json(
         { error: "Invalid role" },
         { status: 400 }
@@ -104,12 +104,12 @@ export async function PATCH(
     // Check if trying to change their own role
     if (params.id === userId) {
       return NextResponse.json(
-        { error: "Cannot change your own role. At least one Admin must remain admin." },
+        { error: "Cannot change your own role. At least one CEO must remain admin." },
         { status: 400 }
       );
     }
 
-    // Fetch target user to check if they are Admin
+    // Fetch target user to check if they are CEO
     const targetUser = await prisma.user.findUnique({
       where: { id: params.id },
     });
@@ -121,18 +121,18 @@ export async function PATCH(
       );
     }
 
-    // Admin cannot change other Admin's roles
-    if (targetUser.role === "Admin") {
+    // CEO cannot change other CEO's roles
+    if (targetUser.role === "CEO") {
       return NextResponse.json(
-        { error: "Cannot change role of another Admin. Admin roles can only be managed by system administrator." },
+        { error: "Cannot change role of another CEO. CEO roles can only be managed by system administrator." },
         { status: 403 }
       );
     }
 
-    // Admin cannot promote anyone to Admin role
-    if (role === "Admin") {
+    // CEO cannot promote anyone to CEO role
+    if (role === "CEO") {
       return NextResponse.json(
-        { error: "Cannot promote users to Admin role. Admin roles can only be managed by system administrator." },
+        { error: "Cannot promote users to CEO role. CEO roles can only be managed by system administrator." },
         { status: 403 }
       );
     }

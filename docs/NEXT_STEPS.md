@@ -117,9 +117,9 @@ Run this in your demo database:
 -- Insert demo users
 INSERT INTO users (email, password, name, role, "isActive", "createdAt", "updatedAt")
 VALUES 
-  ('demo@test.com', '$2a$10$hashedpassword', 'Demo Admin', 'Admin', true, NOW(), NOW()),
+  ('demo@test.com', '$2a$10$hashedpassword', 'Demo Admin', 'CEO', true, NOW(), NOW()),
   ('manager@test.com', '$2a$10$hashedpassword', 'Demo Manager', 'MANAGER', true, NOW(), NOW()),
-  ('worker@test.com', '$2a$10$hashedpassword', 'Demo Worker', 'Employee', true, NOW(), NOW());
+  ('worker@test.com', '$2a$10$hashedpassword', 'Demo Worker', 'WORKER', true, NOW(), NOW());
 
 -- Password for all: demo123
 ```

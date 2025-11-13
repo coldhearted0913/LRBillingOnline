@@ -20,10 +20,10 @@ export async function GET(request: NextRequest) {
     // Use role from session instead of DB query (already cached)
     const userRole = (session.user as any)?.role;
 
-    // Only Admin can view all users
-    if (userRole !== "Admin") {
+    // Only CEO can view all users
+    if (userRole !== "CEO") {
       return NextResponse.json(
-        { error: "Forbidden. Only Admin can view users." },
+        { error: "Forbidden. Only CEO can view users." },
         { status: 403 }
       );
     }

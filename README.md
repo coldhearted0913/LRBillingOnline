@@ -9,7 +9,7 @@ A modern, production-ready web application for managing LR (Lorry Receipt) billi
 **Demo Login Credentials:**
 - Admin: `demo@test.com` / `demo123`
 - Manager: `manager@test.com` / `demo123`
-- Employee: `worker@test.com` / `demo123`
+- Worker: `worker@test.com` / `demo123`
 
 ---
 
@@ -17,7 +17,7 @@ A modern, production-ready web application for managing LR (Lorry Receipt) billi
 
 ### 🔐 Authentication & Security
 - **NextAuth.js** - Secure JWT-based authentication
-- **Role-Based Access Control (RBAC)** - Admin, MANAGER, and Employee roles
+- **Role-Based Access Control (RBAC)** - CEO, MANAGER, and WORKER roles
 - **Password Protection** - bcrypt hashing with secure sessions
 - **Phone Number Login** - Login with email or phone number
 - **Session Management** - Auto-logout on inactivity
@@ -25,7 +25,7 @@ A modern, production-ready web application for managing LR (Lorry Receipt) billi
 ### 📊 Dashboard
 - **Live Dashboard** - Real-time LR tracking and statistics
 - **Stats Cards** - LR count, pending bills, revenue tracking
-- **Analytics Dashboard** - Admin-only advanced metrics
+- **Analytics Dashboard** - CEO-only advanced metrics
 - **Responsive Design** - Mobile, tablet, and desktop support
 - **Toast Notifications** - Professional user feedback
 
@@ -56,7 +56,7 @@ A modern, production-ready web application for managing LR (Lorry Receipt) billi
 ### 👥 User Management
 - **User Profiles** - Update name, email, phone, and role
 - **Password Changes** - Secure password updates
-- **User Management** (Admin only) - Add/delete users and manage roles
+- **User Management** (CEO only) - Add/delete users and manage roles
 - **Activity Tracking** - Audit logs for all actions
 
 ## 🛠️ Tech Stack
@@ -152,13 +152,13 @@ This removes `.next` cache (419MB+), Prisma temp files, and other build artifact
 After running `npx prisma db push`, you'll need to:
 1. Create your first user via the registration endpoint or directly in the database
 2. Use email and password to login
-3. Users with 'Admin' role can manage other users
+3. Users with 'CEO' role can manage other users
 
 ## 🎯 Features in Detail
 
 ### Dashboard Features
 - **Stats Cards**: Total LRs, pending collections, bills ready, estimated revenue
-- **Analytics** (Admin only): Revenue trends, completion rates, vehicle breakdown
+- **Analytics** (CEO only): Revenue trends, completion rates, vehicle breakdown
 - **Advanced Filters**: Month, year, status multi-select, search
 - **Smart Sorting**: Click column headers to sort by LR No or Date
 - **Batch Selection**: Select all, deselect, or choose specific LRs
@@ -175,9 +175,9 @@ After running `npx prisma db push`, you'll need to:
 - **Submission Date**: Automatic folder organization
 
 ### User Roles
-- **Admin**: Full access, user management, analytics dashboard
+- **CEO**: Full access, user management, analytics dashboard
 - **MANAGER**: Full LR management, no user management
-- **Employee**: Create/edit LRs, view dashboard, no delete
+- **WORKER**: Create/edit LRs, view dashboard, no delete
 
 ## 📁 Project Structure
 

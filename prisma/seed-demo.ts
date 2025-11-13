@@ -17,7 +17,7 @@ async function main() {
       email: 'demo@test.com',
       password: hashedPassword,
       name: 'Demo Admin',
-      role: 'Admin',
+      role: 'CEO',
       phone: '+919876543210',
       isActive: true,
     },
@@ -43,7 +43,7 @@ async function main() {
       email: 'worker@test.com',
       password: hashedPassword,
       name: 'Demo Worker',
-      role: 'Employee',
+      role: 'WORKER',
       phone: '+919876543212',
       isActive: true,
     },
@@ -139,7 +139,7 @@ async function main() {
   console.log('\n📋 Demo Credentials:');
   console.log('Admin: demo@test.com / demo123');
   console.log('Manager: manager@test.com / demo123');
-  console.log('Employee: worker@test.com / demo123');
+  console.log('Worker: worker@test.com / demo123');
 }
 
 main()
