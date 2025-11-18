@@ -84,7 +84,11 @@ const formatDateToDDMMYYYY = (date: string | Date): string => {
 const templateBufferCache: Record<string, Buffer> = Object.create(null);
 const getTemplate = async (templateName: string): Promise<ExcelJS.Workbook> => {
   const templatePath = path.join(TEMPLATES_DIR, templateName);
-  if (!fs.existsSync(templatePath)) throw new Error(`Template not found: ${templateName}`);
+  if (!fs.existsSync(templatePath)) {
+    const errorMsg = `Template not found: ${templateName} at ${templatePath}. Current working directory: ${process.cwd()}`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
   let buf = templateBufferCache[templateName];
   if (!buf) {
     buf = fs.readFileSync(templatePath);

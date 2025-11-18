@@ -100,6 +100,8 @@ export async function POST(request: NextRequest) {
         }
       } catch (error) {
         console.error(`Error generating LR for ${lrData['LR No']}:`, error);
+        console.error('Error details:', error instanceof Error ? error.message : String(error));
+        console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
         // Continue with other LRs even if one fails
       }
     }
@@ -144,8 +146,15 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in print LR API:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : 'No stack trace';
+    console.error('Error details:', errorMessage);
+    console.error('Stack trace:', errorStack);
     return NextResponse.json(
-      { error: 'Failed to generate LR files' },
+      { 
+        error: 'Failed to generate LR files',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      },
       { status: 500 }
     );
   }
