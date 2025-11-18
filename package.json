@@ -9,7 +9,7 @@
     "start": "next start -p ${PORT:-3000}",
     "start:network": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
-    "postinstall": "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 prisma generate || PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 prisma generate",
+    "postinstall": "bash scripts/prisma-generate.sh",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
