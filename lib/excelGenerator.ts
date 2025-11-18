@@ -1116,16 +1116,16 @@ export const generateLRFromMasterCopy = async (
     }
   }
   
-  // Map Invoice No to B23
+  // Map Invoice No to B22
   if (lrData['Invoice No']) {
-    const cell = worksheet.getCell('B23');
+    const cell = worksheet.getCell('B22');
     cell.value = lrData['Invoice No'].toUpperCase();
     // Preserve existing font color - don't override
   }
 
-  // Map GRR No to B24
+  // Map GRR No to B23
   if (lrData['GRR No']) {
-    const cell = worksheet.getCell('B24');
+    const cell = worksheet.getCell('B23');
     cell.value = lrData['GRR No'].toUpperCase();
     // Preserve existing font color - don't override
   }
@@ -1222,16 +1222,16 @@ export const generateLRFromMasterCopy = async (
     }
   }
   
-  // Map Invoice No to B52
+  // Map Invoice No to B50
   if (lrData['Invoice No']) {
-    const cell = worksheet.getCell('B52');
+    const cell = worksheet.getCell('B50');
     cell.value = lrData['Invoice No'].toUpperCase();
     // Preserve existing font color - don't override
   }
 
-  // Map GRR No to B53
+  // Map GRR No to B51
   if (lrData['GRR No']) {
-    const cell = worksheet.getCell('B53');
+    const cell = worksheet.getCell('B51');
     cell.value = lrData['GRR No'].toUpperCase();
     // Preserve existing font color - don't override
   }

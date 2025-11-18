@@ -956,19 +956,11 @@ export default function Dashboard() {
       // Don't trigger shortcuts when typing in inputs/textarea
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        // Allow / to focus search from anywhere
-        if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-          e.preventDefault();
-          const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
-          if (searchInput) {
-            searchInput.focus();
-            searchInput.select();
-          }
-        }
+        // Allow users to type "/" normally in input fields - don't intercept it
         return;
       }
 
-      // / - Focus search
+      // / - Focus search (only when NOT typing in an input field)
       if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;

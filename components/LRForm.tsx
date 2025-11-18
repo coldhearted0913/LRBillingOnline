@@ -1303,12 +1303,20 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                 
                 <div>
                   <Label htmlFor="invoiceNo">Invoice No</Label>
-                  <input
+                  <Input
                     id="invoiceNo"
                     type="text"
                     value={formData['Invoice No'] || ''}
                     onChange={(e) => handleChange('Invoice No', e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    onKeyDown={(e) => {
+                      // Explicitly allow forward slash - prevent browser search shortcut when typing in this field
+                      if (e.key === '/' && e.target === e.currentTarget) {
+                        // Allow the forward slash to be typed normally
+                        // Don't prevent default - let it go through
+                        return;
+                      }
+                    }}
+                    placeholder="e.g., INV/2024/123"
                   />
                 </div>
                 
