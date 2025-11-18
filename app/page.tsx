@@ -77,6 +77,23 @@ const parseNumericField = (value: unknown): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+  // Format date strings to dd-mm-yyyy for display, accepting yyyy-mm-dd or dd-mm-yyyy/dd/mm/yyyy
+  const formatDisplayDateEq = (input?: unknown): string => {
+    if (!input) return '';
+    const s = String(input).trim();
+    // Normalize slashes to dashes to avoid regex delimiter escapes
+    const normalized = s.replace(/\//g, '-');
+    const iso = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;      // yyyy-mm-dd
+    const dmy = /^([0-9]{2})-([0-9]{2})-([0-9]{4})$/;      // dd-mm-yyyy
+    let m = normalized.match(iso);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    m = normalized.match(dmy);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    return normalized;
+  };
+
+  // (moved submission date state into component)
+
 const computeLrFinancials = (lr: LRData): LrFinancials => {
   const vehicleType = normalizeVehicleType(lr['Vehicle Type']);
   const lrNo = (lr['LR No'] ?? '').toString();
@@ -148,6 +165,7 @@ const computeLrFinancials = (lr: LRData): LrFinancials => {
 };
 
 export default function Dashboard() {
+  // (Reverted) No filters drawer / saved views state
   // Removed filteredLrs state - using memoizedFilteredLrs directly
   const [selectedLrs, setSelectedLrs] = useState<Set<string>>(new Set());
   const [currentView, setCurrentView] = useState<'dashboard' | 'form' | 'rework-bill' | 'additional-bill'>('dashboard');
@@ -188,6 +206,10 @@ export default function Dashboard() {
   const [showColumnCustomizer, setShowColumnCustomizer] = useState(false);
   const [visibleWidgets, setVisibleWidgets] = useState<Set<string>>(new Set(['stats', 'charts', 'filters']));
   const [enableVirtualScrolling, setEnableVirtualScrolling] = useState(false);
+  // (Removed) table density toggle
+
+  // Submission Date filter state (options computed after lrs is fetched)
+  const [selectedSubmissionDate, setSelectedSubmissionDate] = useState<'All Submission Dates' | string>('All Submission Dates');
 
   const downloadAttachment = async (url: string, name?: string) => {
     try {
@@ -399,6 +421,23 @@ export default function Dashboard() {
     gcTime: 10 * 60 * 1000,
   });
 
+  // Compute available submission dates after lrs is available
+  const availableSubmissionDates = useMemo<string[]>(() => {
+    const set = new Set<string>();
+    for (const lr of lrs) {
+      const raw = (lr as any)['Bill Submission Date'];
+      if (raw) {
+        const d = formatDisplayDateEq(raw);
+        if (d) set.add(d);
+      }
+    }
+    const toKey = (d: string) => {
+      const [dd, mm, yyyy] = d.split('-');
+      return `${yyyy}${mm.padStart(2, '0')}${dd.padStart(2, '0')}`;
+    };
+    return Array.from(set).sort((a, b) => toKey(b).localeCompare(toKey(a)));
+  }, [lrs]);
+
   
   // Load LRs function (for manual refresh)
   const loadLRs = () => {
@@ -454,6 +493,70 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Export error:', error);
       toast.error('Failed to export records');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Print LR using LR MASTER COPY template
+  const printLR = async () => {
+    if (selectedLrs.size === 0) {
+      toast.error('Please select at least one LR record to print');
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const response = await fetch('/api/lrs/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lrNos: Array.from(selectedLrs) }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Print failed' }));
+        throw new Error(errorData.error || 'Print failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      
+      // Determine file name based on content type
+      const contentType = response.headers.get('content-type');
+      const isZip = contentType?.includes('zip');
+      
+      // Helper function to format LR number for filename (MT/25-26/1741 -> MT_25-26_1741)
+      const formatLrNoForFileName = (lrNo: string): string => {
+        return lrNo.replace(/\//g, '_');
+      };
+      
+      const fileName = isZip
+        ? `LR_Print_${selectedLrs.size}_${new Date().toISOString().split('T')[0]}.zip`
+        : `${formatLrNoForFileName(Array.from(selectedLrs)[0])}.xlsx`;
+      
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      // Refresh LR data to show updated attachments
+      queryClient.invalidateQueries({ queryKey: ['lrs'] });
+      
+      // If detail view is open for one of the printed LRs, refresh it
+      if (detailLr && selectedLrs.has(detailLr['LR No'])) {
+        const updatedLr = await fetch(`/api/lrs/${encodeURIComponent(detailLr['LR No'])}`).then(r => r.json());
+        if (updatedLr?.success && updatedLr?.lr) {
+          setDetailLr(updatedLr.lr);
+        }
+      }
+      
+      toast.success(`Generated ${selectedLrs.size} LR file(s) successfully. Files saved to attachments.`);
+    } catch (error: any) {
+      console.error('Print LR error:', error);
+      toast.error(error.message || 'Failed to generate LR files');
     } finally {
       setExporting(false);
     }
@@ -526,6 +629,15 @@ export default function Dashboard() {
   const memoizedFilteredLrs = useMemo(() => {
     let filtered = [...lrs];
     
+    // Filter by submission date (Bill Submission Date)
+    if (selectedSubmissionDate !== 'All Submission Dates') {
+      filtered = filtered.filter((lr: LRData) => {
+        const raw = lr['Bill Submission Date'];
+        if (!raw) return false;
+        return formatDisplayDateEq(raw) === selectedSubmissionDate;
+      });
+    }
+    
     // Filter by year (dates are in DD-MM-YYYY format)
     if (selectedYear !== 'All Years') {
       filtered = filtered.filter((lr: LRData) => {
@@ -596,7 +708,7 @@ export default function Dashboard() {
     }
     
     return filtered;
-  }, [lrs, selectedMonth, selectedYear, selectedStatuses, activeStatusFilter, searchQuery, sortBy, sortOrder]);
+  }, [lrs, selectedSubmissionDate, selectedMonth, selectedYear, selectedStatuses, activeStatusFilter, searchQuery, sortBy, sortOrder]);
 
   // Using memoizedFilteredLrs directly instead of separate state
   
@@ -806,6 +918,11 @@ export default function Dashboard() {
 
   // Removed the old useEffect that called filterLRs - now using memoized filtered LRs
   
+  // Reset to page 1 when search query or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedStatuses, activeStatusFilter, selectedMonth, selectedYear]);
+
   // Memoized pagination calculations
   const totalPages = Math.ceil(memoizedFilteredLrs.length / itemsPerPage);
   const { paginatedLrs, startIndex, endIndex } = useMemo(() => {
@@ -1440,11 +1557,89 @@ export default function Dashboard() {
   const confirmBulkStatusChange = async () => {
     if (!bulkStatus) return;
     
+    // Check if any selected LR would be downgraded
+    const selectedArray = Array.from(selectedLrs);
+    const downgradingLrs: Array<{ lrNo: string; currentStatus: string; nextStatus: string }> = [];
+    
+    selectedArray.forEach((lrNo: string) => {
+      const lr = lrs.find((l: LRData) => l['LR No'] === lrNo);
+      if (lr && isDowngrade(lr.status, bulkStatus)) {
+        downgradingLrs.push({
+          lrNo: lr['LR No'],
+          currentStatus: lr.status || 'Unknown',
+          nextStatus: bulkStatus,
+        });
+      }
+    });
+    
+    // If there are downgrades, show confirmation alert
+    if (downgradingLrs.length > 0) {
+      setShowBulkStatusModal(false);
+      
+      const downgradeCount = downgradingLrs.length;
+      const id = toast.custom((t) => (
+        <div className={`max-w-sm w-full bg-white border border-amber-300 shadow-lg rounded-md p-3 md:p-4 ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="flex items-start gap-3">
+            <div className="text-amber-600">⚠️</div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-800">Potential Status Downgrade</p>
+              <p className="text-xs text-amber-700 mt-1 break-words">
+                {downgradeCount} of {selectedArray.length} selected LR(s) will be downgraded:
+              </p>
+              <div className="mt-2 max-h-32 overflow-y-auto space-y-1">
+                {downgradingLrs.slice(0, 5).map((item) => (
+                  <p key={item.lrNo} className="text-xs text-amber-700">
+                    LR {item.lrNo}: {item.currentStatus} → {item.nextStatus}
+                  </p>
+                ))}
+                {downgradeCount > 5 && (
+                  <p className="text-xs text-amber-600 italic">... and {downgradeCount - 5} more</p>
+                )}
+              </div>
+              <p className="text-xs text-amber-700 mt-2">Proceed only if intentional.</p>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  className="px-3 py-1.5 text-xs rounded bg-amber-600 text-white hover:bg-amber-700"
+                  onClick={() => {
+                    toast.dismiss(id);
+                    // Proceed with bulk status update
+                    bulkStatusUpdateMutation.mutate(
+                      { lrNumbers: selectedArray, status: bulkStatus },
+                      {
+                        onSuccess: () => {
+                          setSelectedLrs(new Set());
+                          setBulkStatus('LR Done');
+                          toast.success(`Status updated for ${selectedArray.length} LR(s)`);
+                        },
+                      }
+                    );
+                  }}
+                >
+                  Proceed
+                </button>
+                <button
+                  className="px-3 py-1.5 text-xs rounded border border-gray-300 hover:bg-gray-50"
+                  onClick={() => {
+                    toast.dismiss(id);
+                    toast('Bulk status change cancelled');
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), { duration: 60000, position: 'top-center' });
+      return;
+    }
+    
+    // No downgrades, proceed directly
     setShowBulkStatusModal(false);
     
     // Use React Query mutation for bulk status update
     bulkStatusUpdateMutation.mutate(
-      { lrNumbers: Array.from(selectedLrs), status: bulkStatus },
+      { lrNumbers: selectedArray, status: bulkStatus },
       {
         onSuccess: () => {
           setSelectedLrs(new Set());
@@ -1803,7 +1998,7 @@ export default function Dashboard() {
         {visibleWidgets.has('stats') && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
           <Card 
-            className={`bg-gradient-to-br from-green-50 to-green-100 border-green-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === null ? 'ring-2 ring-green-500' : ''}`} 
+            className={`rounded-xl border shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer bg-gradient-to-br from-green-50 to-green-100 ${activeStatusFilter === null ? 'ring-2 ring-green-500' : ''}`} 
             style={{ animation: 'slide-up 0.5s ease-out forwards, fade-in 0.3s ease-out forwards' }}
             onClick={() => { setActiveStatusFilter(null); setSelectedStatuses(new Set()); }}
           >
@@ -1821,7 +2016,7 @@ export default function Dashboard() {
           </Card>
           
           <Card 
-            className={`bg-gradient-to-br from-amber-50 to-amber-100 border-amber-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === 'LR Done' ? 'ring-2 ring-amber-500' : ''}`} 
+            className={`rounded-xl border shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer bg-gradient-to-br from-amber-50 to-amber-100 ${activeStatusFilter === 'LR Done' ? 'ring-2 ring-amber-500' : ''}`} 
             style={{ animation: 'slide-up 0.5s ease-out 0.1s forwards, fade-in 0.3s ease-out 0.1s forwards' }}
             onClick={() => { setActiveStatusFilter('LR Done'); setSelectedStatuses(new Set()); }}
           >
@@ -1840,7 +2035,7 @@ export default function Dashboard() {
           </Card>
           
           <Card 
-            className={`bg-gradient-to-br from-orange-50 to-orange-100 border-orange-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === 'LR Collected' ? 'ring-2 ring-orange-500' : ''}`} 
+            className={`rounded-xl border shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer bg-gradient-to-br from-orange-50 to-orange-100 ${activeStatusFilter === 'LR Collected' ? 'ring-2 ring-orange-500' : ''}`} 
             style={{ animation: 'slide-up 0.5s ease-out 0.2s forwards, fade-in 0.3s ease-out 0.2s forwards' }}
             onClick={() => { setActiveStatusFilter('LR Collected'); setSelectedStatuses(new Set()); }}
           >
@@ -1859,7 +2054,7 @@ export default function Dashboard() {
           </Card>
           
           <Card 
-            className={`bg-gradient-to-br from-purple-50 to-purple-100 border-purple-300 hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slide-up opacity-0 cursor-pointer ${activeStatusFilter === 'Bill Done' ? 'ring-2 ring-purple-500' : ''}`} 
+            className={`rounded-xl border shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer bg-gradient-to-br from-purple-50 to-purple-100 ${activeStatusFilter === 'Bill Done' ? 'ring-2 ring-purple-500' : ''}`} 
             style={{ animation: 'slide-up 0.5s ease-out 0.3s forwards, fade-in 0.3s ease-out 0.3s forwards' }}
             onClick={() => { setActiveStatusFilter('Bill Done'); setSelectedStatuses(new Set()); }}
           >
@@ -2042,7 +2237,7 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* Filters Card */}
+        {/* Filters Card (reverted to original) */}
         <Card className="mb-6">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -2101,6 +2296,32 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
+              
+              {/* Submission Date Filter */}
+              {availableSubmissionDates.length > 0 && (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Calendar className="h-4 w-4 text-muted-foreground hidden sm:inline" />
+                  <select
+                    value={selectedSubmissionDate}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setSelectedSubmissionDate(val);
+                      if (val !== 'All Submission Dates') {
+                        // Clear month/year filters to avoid empty intersections
+                        setSelectedMonth('All Months');
+                        setSelectedYear('All Years');
+                        setActiveStatusFilter(null);
+                      }
+                    }}
+                    className="flex h-10 w-full sm:w-auto rounded-md border border-input bg-background px-2 sm:px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="All Submission Dates">All Submission Dates</option>
+                    {availableSubmissionDates.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               
               {/* Month Filter */}
               <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -2252,12 +2473,14 @@ export default function Dashboard() {
                 <option value={100}>100 / page</option>
               </select>
               
+              {/* (Removed) Density toggle */}
+              
               {/* Refresh Button */}
               <Button onClick={loadLRs} variant="outline" className="w-full sm:w-auto">
                 <RefreshCw className="mr-2 h-4 w-4" />
                 <span className="hidden sm:inline">Refresh</span>
               </Button>
-            </div>
+                </div>
           </CardContent>
         </Card>
 
@@ -2308,11 +2531,8 @@ export default function Dashboard() {
                   }
                 </Button>
                 <Button
-                  onClick={() => {
-                    // TODO: Implement print functionality once format is provided
-                    toast('Print functionality will be implemented with provided format');
-                  }}
-                  disabled={selectedLrs.size === 0}
+                  onClick={printLR}
+                  disabled={selectedLrs.size === 0 || exporting}
                   variant="outline"
                   size="sm"
                   className="text-xs sm:text-sm gap-1 sm:gap-2"
@@ -2321,7 +2541,7 @@ export default function Dashboard() {
                     : 'Please select LR records to print'}
                 >
                   <Printer className="h-3 w-3 sm:h-4 sm:w-4" />
-                  Print LR {selectedLrs.size > 0 && `(${selectedLrs.size})`}
+                  {exporting ? 'Generating...' : `Print LR ${selectedLrs.size > 0 ? `(${selectedLrs.size})` : ''}`}
                 </Button>
               </div>
             </div>
@@ -2578,7 +2798,11 @@ export default function Dashboard() {
                           )}
                           {visibleColumns.has('submitDate') && (
                             <td className="px-1 md:px-2 py-3 text-[8px] md:text-[10px] text-muted-foreground whitespace-nowrap">
-                              {lr['Bill Submission Date'] || <span className="text-gray-400 italic text-[8px]">-</span>}
+                              {lr['Bill Submission Date'] ? (
+                                <span>{formatDisplayDateEq(lr['Bill Submission Date'])}</span>
+                              ) : (
+                                <span className="text-gray-400 italic text-[8px]">-</span>
+                              )}
                             </td>
                           )}
                           {visibleColumns.has('status') && (
@@ -2799,9 +3023,11 @@ export default function Dashboard() {
         </Card>
       </div>
       
+      {/* Sticky bulk action bar removed per request */}
+      
       {/* Bill Generation Modal */}
       <Dialog open={showDatePicker} onOpenChange={setShowDatePicker}>
-        <DialogContent className="max-w-lg w-[95vw] sm:w-full mx-4">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full mx-auto">
           <DialogHeader>
             <DialogTitle>Generate All Bills - Preview</DialogTitle>
             <DialogDescription>
@@ -3782,50 +4008,65 @@ export default function Dashboard() {
               {showDetailFiles && (
                 <div className="space-y-2 mt-2 max-h-[40vh] overflow-auto">
                   {(((detailLr as any)?.attachments) || []).length === 0 ? (
-                    <p className="text-xs text-gray-600">No files uploaded.</p>
+                    <p className="text-xs sm:text-sm text-gray-600 py-2">No files uploaded.</p>
                   ) : (
-                    (((detailLr as any).attachments) as Array<{url:string; name:string; type:string; thumbUrl?: string; scanned?: boolean; infected?: boolean}>).map((f, idx) => (
-                      <div key={idx} className="flex items-center justify-between gap-3 text-xs sm:text-sm border rounded p-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          {f.thumbUrl ? (
-                            <img src={f.thumbUrl} alt={f.name} className="w-10 h-10 rounded object-cover border" />
-                          ) : (
-                            <div className="w-10 h-10 rounded bg-gray-100 border flex items-center justify-center text-gray-500">{f.type?.startsWith('image/') ? 'IMG' : 'PDF'}</div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-medium text-gray-900 truncate max-w-[200px]" title={f.name}>{f.name}</div>
-                            <div className="text-gray-500 flex items-center gap-2">
-                              <span>{f.type}</span>
-                              <span className="text-green-600">Ready</span>
+                    (((detailLr as any).attachments) as Array<{url:string; name:string; type:string; thumbUrl?: string; scanned?: boolean; infected?: boolean}>).map((f, idx) => {
+                      // Determine file type icon
+                      const getFileIcon = () => {
+                        if (f.thumbUrl) return null; // Will show image
+                        if (f.type?.includes('spreadsheet') || f.name?.endsWith('.xlsx') || f.name?.endsWith('.xls')) return 'XLS';
+                        if (f.type?.startsWith('image/')) return 'IMG';
+                        if (f.type?.includes('pdf')) return 'PDF';
+                        return 'FILE';
+                      };
+                      
+                      return (
+                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 text-xs sm:text-sm border rounded p-3 bg-white">
+                          <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1 sm:max-w-[calc(100%-180px)]">
+                            {f.thumbUrl ? (
+                              <img src={f.thumbUrl} alt={f.name} className="w-10 h-10 sm:w-12 sm:h-12 rounded object-cover border flex-shrink-0" />
+                            ) : (
+                              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded bg-gray-100 border flex items-center justify-center text-gray-500 text-[10px] sm:text-xs font-medium flex-shrink-0">
+                                {getFileIcon()}
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1 overflow-hidden">
+                              <div className="font-semibold text-gray-900 break-words sm:truncate mb-1" title={f.name}>
+                                {f.name}
+                              </div>
+                              <div className="text-gray-500 text-[10px] sm:text-xs flex flex-col sm:flex-row sm:items-center sm:gap-2">
+                                <span className="break-all sm:break-normal truncate">{f.type}</span>
+                                <span className="text-green-600 font-medium mt-0.5 sm:mt-0 flex-shrink-0">Ready</span>
+                              </div>
                             </div>
                           </div>
+                          <div className="flex items-center gap-2 flex-shrink-0 w-full sm:w-auto justify-end sm:justify-start sm:ml-4">
+                            <button
+                              type="button"
+                              onClick={() => downloadAttachment(f.url, f.name)}
+                              className="px-3 py-1.5 sm:px-3 sm:py-1 text-xs sm:text-sm border rounded hover:bg-gray-50 active:bg-gray-100 transition-colors whitespace-nowrap min-h-[36px] sm:min-h-[32px] flex items-center justify-center"
+                              title="Download"
+                            >
+                              Download
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteAttachment(detailLr?.['LR No'] as string, f.url)}
+                              className={`px-3 py-1.5 sm:px-3 sm:py-1 text-xs sm:text-sm border rounded text-red-600 hover:bg-red-50 active:bg-red-100 flex items-center gap-1.5 sm:gap-1 whitespace-nowrap min-h-[36px] sm:min-h-[32px] justify-center transition-colors ${deletingAttachments.has(f.url) ? 'opacity-70 cursor-not-allowed' : ''}`}
+                              disabled={deletingAttachments.has(f.url)}
+                              title="Delete"
+                            >
+                              {deletingAttachments.has(f.url) ? (
+                                <>
+                                  <svg className="animate-spin h-3 w-3 sm:h-3 sm:w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                  <span>Deleting</span>
+                                </>
+                              ) : 'Delete'}
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => downloadAttachment(f.url, f.name)}
-                            className="px-2 py-1 border rounded hover:bg-gray-50"
-                            title="Download"
-                          >
-                            Download
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteAttachment(detailLr?.['LR No'] as string, f.url)}
-                            className={`px-2 py-1 border rounded text-red-600 hover:bg-red-50 flex items-center gap-1 ${deletingAttachments.has(f.url) ? 'opacity-70 cursor-not-allowed' : ''}`}
-                            disabled={deletingAttachments.has(f.url)}
-                            title="Delete"
-                          >
-                            {deletingAttachments.has(f.url) ? (
-                              <>
-                                <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-                                <span>Deleting</span>
-                              </>
-                            ) : 'Delete'}
-                          </button>
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               )}

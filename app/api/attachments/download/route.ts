@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getLRByNumber } from '@/lib/database';
 
 function getS3() {
@@ -24,13 +24,27 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const key = searchParams.get('key');
     const name = searchParams.get('name') || 'attachment';
-    if (!key || !key.startsWith('attachments/')) {
+    if (!key || (!key.startsWith('attachments/') && !key.startsWith('lr-files/'))) {
       return new Response(JSON.stringify({ success: false, error: 'Invalid or missing key' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
     }
 
-    // Scanning disabled: skip AV gating and serve directly
-
+    // SECURITY: Check file size before downloading to prevent DoS attacks
+    const MAX_DOWNLOAD_SIZE = 50 * 1024 * 1024; // 50MB
     const { client, bucket } = getS3();
+    
+    // Get file metadata first
+    const headCmd = new HeadObjectCommand({ Bucket: bucket, Key: key });
+    const headResult = await client.send(headCmd);
+    const fileSize = headResult.ContentLength || 0;
+    
+    if (fileSize > MAX_DOWNLOAD_SIZE) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'File too large to download' }), 
+        { status: 413, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Scanning disabled: skip AV gating and serve directly
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: key });
     const obj = await client.send(cmd);
     const body: any = obj.Body;

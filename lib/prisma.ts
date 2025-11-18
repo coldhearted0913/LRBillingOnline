@@ -106,8 +106,9 @@ prisma.$use(async (params, next) => {
 // CRITICAL: Disable heartbeat in production to prevent connection pool exhaustion
 // The heartbeat was causing the connection pool to exhaust its 5-connection limit
 // Neon's connection pooler handles connection lifecycle automatically
+let heartbeatInterval: NodeJS.Timeout | null = null;
 if (typeof window === 'undefined' && process.env.NODE_ENV === 'development') {
-  setInterval(async () => {
+  heartbeatInterval = setInterval(async () => {
     try {
       // Simple query to keep connection alive (only in development)
       await prisma.$queryRaw`SELECT 1`;
@@ -123,23 +124,47 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
-// Graceful shutdown
+// Graceful shutdown - only add listeners once to prevent MaxListenersExceededWarning
 if (typeof window === 'undefined') {
-  process.on('beforeExit', async () => {
-    console.log('🛑 Closing Prisma connection...');
-    await prisma.$disconnect();
-  });
+  // Use a global flag to ensure listeners are only added once
+  const globalForShutdown = globalThis as unknown as {
+    prismaShutdownListenersAdded?: boolean;
+  };
   
-  process.on('SIGINT', async () => {
-    console.log('🛑 SIGINT received, closing Prisma connection...');
-    await prisma.$disconnect();
-    process.exit(0);
-  });
+  if (!globalForShutdown.prismaShutdownListenersAdded) {
+    globalForShutdown.prismaShutdownListenersAdded = true;
+    
+    const cleanup = async () => {
+      // Clear heartbeat interval if it exists
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
+      // Disconnect Prisma
+      await prisma.$disconnect();
+    };
+
+    process.on('beforeExit', async () => {
+      console.log('🛑 Closing Prisma connection...');
+      await cleanup();
+    });
+    
+    process.on('SIGINT', async () => {
+      console.log('🛑 SIGINT received, closing Prisma connection...');
+      await cleanup();
+      process.exit(0);
+    });
+    
+    process.on('SIGTERM', async () => {
+      console.log('🛑 SIGTERM received, closing Prisma connection...');
+      await cleanup();
+      process.exit(0);
+    });
+  }
   
-  process.on('SIGTERM', async () => {
-    console.log('🛑 SIGTERM received, closing Prisma connection...');
-    await prisma.$disconnect();
-    process.exit(0);
-  });
+  // Increase max listeners to prevent warnings (Next.js dev mode with HMR can trigger this)
+  if (process.listenerCount('SIGINT') < 15) {
+    process.setMaxListeners(Math.max(20, process.listenerCount('SIGINT') + 5));
+  }
 }
 

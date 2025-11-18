@@ -92,9 +92,10 @@ export async function PATCH(
       );
     }
 
-    const { role } = await request.json();
+    const { role, phone } = await request.json();
 
-    if (!["WORKER", "MANAGER", "CEO"].includes(role)) {
+    // Validate role if provided
+    if (role && !["WORKER", "MANAGER", "CEO"].includes(role)) {
       return NextResponse.json(
         { error: "Invalid role" },
         { status: 400 }
@@ -137,15 +138,21 @@ export async function PATCH(
       );
     }
 
-    // Update user role
+    // Prepare update data
+    const updateData: any = {};
+    if (role) updateData.role = role;
+    if (phone !== undefined) updateData.phone = phone; // Allow null/empty to clear phone
+
+    // Update user
     const updatedUser = await prisma.user.update({
       where: { id: params.id },
-      data: { role },
+      data: updateData,
       select: {
         id: true,
         email: true,
         name: true,
         role: true,
+        phone: true,
       },
     });
 

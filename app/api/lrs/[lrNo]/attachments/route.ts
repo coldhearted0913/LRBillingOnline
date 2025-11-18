@@ -5,6 +5,9 @@ import sharp from 'sharp';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { logAudit } from '@/lib/audit';
+import { sanitizeFilename, sanitizeLRNumber } from '@/lib/utils/sanitize';
+import { applyApiMiddleware } from '@/lib/middleware/apiMiddleware';
+import { validateFileContent, validateLRNumber } from '@/lib/utils/fileValidation';
 
 // Simple per-IP rate limit (attachments upload): 20 requests / 5 minutes
 const rateMap = new Map<string, { count: number; resetAt: number }>();
@@ -21,6 +24,10 @@ function ratelimit(ip: string, limit: number, windowMs: number) {
 }
 
 export async function POST(request: NextRequest, { params }: { params: { lrNo: string } }) {
+  // Apply rate limiting and CSRF protection
+  const middlewareResponse = await applyApiMiddleware(request);
+  if (middlewareResponse) return middlewareResponse;
+
   try {
     const session = await getServerSession(authOptions as any);
     if (!session) {
@@ -33,13 +40,25 @@ export async function POST(request: NextRequest, { params }: { params: { lrNo: s
     }
 
     const lrNo = decodeURIComponent(params.lrNo);
+    
+    // SECURITY: Validate LR number to prevent path traversal attacks
+    if (!validateLRNumber(lrNo)) {
+      return NextResponse.json({ success: false, error: 'Invalid LR number format' }, { status: 400 });
+    }
+    
+    // Additional sanitization
+    const sanitizedLrNo = sanitizeLRNumber(lrNo);
+    if (sanitizedLrNo !== lrNo) {
+      return NextResponse.json({ success: false, error: 'Invalid characters in LR number' }, { status: 400 });
+    }
+    
     const form = await request.formData();
     const files = form.getAll('files');
     if (!files || files.length === 0) {
       return NextResponse.json({ success: false, error: 'No files provided' }, { status: 400 });
     }
 
-    const existing = await getLRByNumber(lrNo);
+    const existing = await getLRByNumber(sanitizedLrNo);
     if (!existing) return NextResponse.json({ success: false, error: 'LR not found' }, { status: 404 });
 
     // Validation rules
@@ -55,24 +74,38 @@ export async function POST(request: NextRequest, { params }: { params: { lrNo: s
     for (const f of files as any[]) {
       const file = f as File;
       const contentType = (file.type || 'application/octet-stream').toLowerCase();
+      
+      // SECURITY: Validate Content-Type header
       if (!ALLOWED.has(contentType)) {
         return NextResponse.json({ success: false, error: `Unsupported file type: ${contentType}` }, { status: 400 });
       }
+      
+      // SECURITY: Validate file size
       if (file.size > MAX_SIZE) {
         return NextResponse.json({ success: false, error: `File too large (max 10MB): ${file.name}` }, { status: 400 });
       }
 
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const key = `attachments/${encodeURIComponent(lrNo)}/${Date.now()}_${safeName}`;
+      
+      // SECURITY: Validate actual file content using magic bytes (prevents Content-Type spoofing)
+      if (!validateFileContent(buffer, contentType)) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `File content does not match declared type. Detected file type mismatch.` 
+        }, { status: 400 });
+      }
+      
+      // Sanitize filename to prevent path traversal attacks
+      const safeName = sanitizeFilename(file.name);
+      const key = `attachments/${encodeURIComponent(sanitizedLrNo)}/${Date.now()}_${safeName}`;
       const res = await uploadBufferToS3(buffer, key, contentType);
       if (res.success && res.url) {
         let thumbUrl: string | undefined;
         if (contentType.startsWith('image/')) {
           try {
             const thumb = await sharp(buffer).resize({ width: 512, height: 512, fit: 'inside' }).webp({ quality: 80 }).toBuffer();
-            const thumbKey = `attachments/${encodeURIComponent(lrNo)}/thumbnails/${Date.now()}_${safeName}.webp`;
+            const thumbKey = `attachments/${encodeURIComponent(sanitizedLrNo)}/thumbnails/${Date.now()}_${safeName}.webp`;
             const t = await uploadBufferToS3(thumb, thumbKey, 'image/webp');
             if (t.success && t.url) thumbUrl = t.url;
           } catch (e) {
@@ -85,7 +118,7 @@ export async function POST(request: NextRequest, { params }: { params: { lrNo: s
     }
 
     const combined = [...(existing.attachments || []), ...uploaded];
-    const ok = await updateLR(lrNo, { attachments: combined } as any);
+    const ok = await updateLR(sanitizedLrNo, { attachments: combined } as any);
     if (!ok) {
       return NextResponse.json({ success: false, error: 'Failed to save attachments (check DB migration)' }, { status: 500 });
     }
@@ -96,7 +129,7 @@ export async function POST(request: NextRequest, { params }: { params: { lrNo: s
         userId: s?.user?.id || s?.user?.email || 'unknown',
         action: 'UPLOAD',
         resource: 'LR_ATTACHMENT',
-        resourceId: lrNo,
+        resourceId: sanitizedLrNo,
         newValue: uploaded,
         ipAddress: ip
       });

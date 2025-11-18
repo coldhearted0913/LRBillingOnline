@@ -4,9 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 import { getAllLRs, addLR, deleteMultipleLRs, getLRsByMonth } from '@/lib/database';
 import { LRSchema } from '@/lib/validations/schemas';
+import { applyApiMiddleware } from '@/lib/middleware/apiMiddleware';
+import { sanitizeLRData } from '@/lib/utils/sanitize';
 
 // GET /api/lrs - Get all LRs or filter by month
 export async function GET(request: NextRequest) {
+  // Apply rate limiting and CSRF protection
+  const middlewareResponse = await applyApiMiddleware(request);
+  if (middlewareResponse) return middlewareResponse;
   try {
     const searchParams = request.nextUrl.searchParams;
     const year = searchParams.get('year');
@@ -33,10 +38,17 @@ export async function GET(request: NextRequest) {
 
 // POST /api/lrs - Create new LR
 export async function POST(request: NextRequest) {
+  // Apply rate limiting and CSRF protection
+  const middlewareResponse = await applyApiMiddleware(request);
+  if (middlewareResponse) return middlewareResponse;
+
   try {
-    const lrData = await request.json();
+    let lrData = await request.json();
     
     console.log('[POST /api/lrs] Received data:', JSON.stringify(lrData, null, 2));
+    
+    // Sanitize user input to prevent XSS and injection attacks
+    lrData = sanitizeLRData(lrData);
     
     // Map API field names to schema field names
     const mappedData = {
@@ -112,12 +124,24 @@ export async function POST(request: NextRequest) {
 
 // DELETE /api/lrs - Delete multiple LRs
 export async function DELETE(request: NextRequest) {
+  // Apply rate limiting and CSRF protection
+  const middlewareResponse = await applyApiMiddleware(request);
+  if (middlewareResponse) return middlewareResponse;
+
   try {
     const { lrNumbers } = await request.json();
     
     if (!Array.isArray(lrNumbers) || lrNumbers.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Invalid LR numbers' },
+        { status: 400 }
+      );
+    }
+
+    // Prevent DoS attacks by limiting batch size
+    if (lrNumbers.length > 100) {
+      return NextResponse.json(
+        { success: false, error: 'Too many LR numbers. Maximum 100 at a time.' },
         { status: 400 }
       );
     }

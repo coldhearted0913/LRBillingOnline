@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import { ArrowLeft, FileText, Truck, Calendar, MapPin, Hash, Save, Check, Download } from 'lucide-react';
@@ -47,6 +47,17 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [generatedFile, setGeneratedFile] = useState<any>(null);
   const [autoGenerateMode, setAutoGenerateMode] = useState(false);
+  const savedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (savedTimeoutRef.current) {
+        clearTimeout(savedTimeoutRef.current);
+        savedTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Load saved entries when billNo changes
   useEffect(() => {
@@ -268,7 +279,10 @@ export default function ReworkBillForm({ onBack, selectedLrs = [] }: ReworkBillF
         }
         
         setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
+        if (savedTimeoutRef.current) {
+          clearTimeout(savedTimeoutRef.current);
+        }
+        savedTimeoutRef.current = setTimeout(() => setSaved(false), 2000);
       } else {
         const errorText = await response.text();
         console.error('Save failed:', errorText);

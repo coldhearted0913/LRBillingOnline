@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { sanitizeVehicleNumber } from '@/lib/utils/sanitize';
+import { applyApiMiddleware } from '@/lib/middleware/apiMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,9 +44,12 @@ export async function GET(request: NextRequest) {
 
 // POST: Add new vehicle
 export async function POST(request: NextRequest) {
+  // Apply rate limiting and CSRF protection
+  const middlewareResponse = await applyApiMiddleware(request);
+  if (middlewareResponse) return middlewareResponse;
+
   try {
     const session = await getServerSession(authOptions);
-
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -52,7 +57,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { vehicleNumber, vehicleType } = await request.json();
+    let { vehicleNumber, vehicleType } = await request.json();
 
     if (!vehicleNumber || !vehicleType) {
       return NextResponse.json(
@@ -60,6 +65,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Sanitize vehicle input
+    vehicleNumber = sanitizeVehicleNumber(vehicleNumber);
+    vehicleType = sanitizeVehicleNumber(vehicleType); // Vehicle type uses same sanitization
 
     // Check if vehicle already exists
     const existingVehicle = await prisma.vehicle.findUnique({
@@ -102,7 +111,6 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: "Unauthorized" },

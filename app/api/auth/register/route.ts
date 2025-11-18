@@ -4,8 +4,14 @@ import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { CreateUserSchema } from '@/lib/validations/schemas';
+import { sanitizeText, sanitizeEmail, sanitizePhone } from '@/lib/utils/sanitize';
+import { applyApiMiddleware } from '@/lib/middleware/apiMiddleware';
 
 export async function POST(request: NextRequest) {
+  // Apply rate limiting and CSRF protection
+  const middlewareResponse = await applyApiMiddleware(request);
+  if (middlewareResponse) return middlewareResponse;
+
   try {
     const session = await getServerSession(authOptions);
 
@@ -37,7 +43,12 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const { email, password, name, role, phone } = validation.data;
+    let { email, password, name, role, phone } = validation.data;
+
+    // Sanitize user input to prevent XSS attacks
+    email = sanitizeEmail(email);
+    name = sanitizeText(name);
+    phone = phone ? sanitizePhone(phone) : undefined;
 
     // Normalize email to lowercase for consistency
     const normalizedEmail = email.toLowerCase().trim();
@@ -64,7 +75,7 @@ export async function POST(request: NextRequest) {
         password: hashedPassword,
         name: name || normalizedEmail.split("@")[0],
         role: role || "WORKER",
-        phone: phone || null,
+        phone: phone ?? null,
         isActive: true,
       },
     });

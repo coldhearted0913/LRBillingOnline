@@ -934,3 +934,281 @@ export const generateProvisionSheet = async (
   return filePath;
 };
 
+// Generate LR from LR MASTER COPY.xlsx template
+export const generateLRFromMasterCopy = async (
+  lrData: LRData,
+  submissionDate: string
+): Promise<string> => {
+  const folder = ensureInvoiceDir(submissionDate);
+  
+  // Load template
+  const workbook = await getTemplate('LR MASTER COPY.xlsx');
+  const worksheet = workbook.getWorksheet(1);
+  
+  if (!worksheet) throw new Error('LR MASTER COPY template worksheet not found');
+  
+  // Helper function to split text into lines (max 3 lines for Consignor, max 3 lines for Consignee)
+  const splitTextIntoLines = (text: string, maxLines: number): string[] => {
+    if (!text) return [];
+    const upperText = text.toUpperCase().trim();
+    // Try to split by common delimiters first
+    const parts = upperText.split(/[\/,]/).map(p => p.trim()).filter(p => p);
+    if (parts.length > 0 && parts.length <= maxLines) {
+      return parts.slice(0, maxLines);
+    }
+    // If single long text, try to split by length (approximately)
+    if (parts.length === 0 || parts.length === 1) {
+      const words = upperText.split(/\s+/);
+      const lines: string[] = [];
+      let currentLine = '';
+      for (const word of words) {
+        if ((currentLine + ' ' + word).length > 40 && currentLine) {
+          lines.push(currentLine.trim());
+          currentLine = word;
+        } else {
+          currentLine = currentLine ? currentLine + ' ' + word : word;
+        }
+        if (lines.length >= maxLines - 1) {
+          break;
+        }
+      }
+      if (currentLine) lines.push(currentLine.trim());
+      return lines.slice(0, maxLines);
+    }
+    return parts.slice(0, maxLines);
+  };
+  
+  // Parse Description of Goods and Quantity (comma-separated) - reusable function
+  const parseGoodsAndQuantity = (): Array<{ description: string; quantity: string }> => {
+    const descriptions = lrData['Description of Goods'] || '';
+    const quantities = lrData['Quantity'] || '';
+    
+    if (!descriptions && !quantities) return [];
+    
+    // Split by comma
+    const descParts = descriptions.split(',').map(d => d.trim()).filter(d => d);
+    const qtyParts = quantities.split(',').map(q => q.trim()).filter(q => q);
+    
+    const goods: Array<{ description: string; quantity: string }> = [];
+    
+    // Match descriptions with quantities
+    for (let i = 0; i < Math.max(descParts.length, qtyParts.length); i++) {
+      const desc = descParts[i] || '';
+      const qty = qtyParts[i] || '';
+      
+      // Check if description contains quantity (format: "Description: Quantity")
+      const colonIndex = desc.indexOf(':');
+      if (colonIndex !== -1) {
+        const descPart = desc.substring(0, colonIndex).trim();
+        const qtyPart = desc.substring(colonIndex + 1).trim();
+        goods.push({
+          description: descPart.toUpperCase(),
+          quantity: qtyPart.toUpperCase()
+        });
+      } else if (desc || qty) {
+        goods.push({
+          description: desc.toUpperCase(),
+          quantity: qty.toUpperCase()
+        });
+      }
+    }
+    
+    return goods;
+  };
+
+  // ========== ORIGINAL MAPPINGS (First Section) ==========
+  
+  // Map FROM to L5
+  if (lrData['FROM']) {
+    const cell = worksheet.getCell('L5');
+    cell.value = lrData['FROM'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map TO to L6
+  if (lrData['TO']) {
+    const cell = worksheet.getCell('L6');
+    cell.value = lrData['TO'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map Consignor to B4 (single line - full name)
+  if (lrData['Consignor']) {
+    const cell = worksheet.getCell('B4');
+    cell.value = lrData['Consignor'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map Consignee to B8 (single line - full name)
+  if (lrData['Consignee']) {
+    const cell = worksheet.getCell('B8');
+    cell.value = lrData['Consignee'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map LR No to L4 (plain text, no formatting)
+  if (lrData['LR No']) {
+    const cell = worksheet.getCell('L4');
+    cell.value = lrData['LR No'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map LR Date to L8
+  if (lrData['LR Date']) {
+    const cell = worksheet.getCell('L8');
+    cell.value = formatDateToDDMMYYYY(lrData['LR Date']).toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map Vehicle Type to L10
+  if (lrData['Vehicle Type']) {
+    const cell = worksheet.getCell('L10');
+    cell.value = lrData['Vehicle Type'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map Vehicle Number to L9
+  if (lrData['Vehicle Number']) {
+    const cell = worksheet.getCell('L9');
+    cell.value = lrData['Vehicle Number'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map Description of Goods and Quantity starting from B13 (up to B22)
+  const goodsList1 = parseGoodsAndQuantity();
+  const maxGoodsRows1 = 10; // B13 to B22 = 10 rows
+  const startRow1 = 13;
+  
+  for (let i = 0; i < Math.min(goodsList1.length, maxGoodsRows1); i++) {
+    const row = startRow1 + i;
+    const goods = goodsList1[i];
+    
+    // Quantity in column A (A13, A14, etc.)
+    if (goods.quantity) {
+      const cell = worksheet.getCell(`A${row}`);
+      cell.value = goods.quantity;
+      // Preserve existing font color - don't override
+    }
+    
+    // Description in column B (B13, B14, etc.)
+    if (goods.description) {
+      const cell = worksheet.getCell(`B${row}`);
+      cell.value = goods.description;
+      // Preserve existing font color - don't override
+    }
+  }
+  
+  // Map Invoice No to B23
+  if (lrData['Invoice No']) {
+    const cell = worksheet.getCell('B23');
+    cell.value = lrData['Invoice No'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+
+  // Map GRR No to B24
+  if (lrData['GRR No']) {
+    const cell = worksheet.getCell('B24');
+    cell.value = lrData['GRR No'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+
+  // ========== NEW MAPPINGS (Second Section) ==========
+  
+  // Map FROM to L34
+  if (lrData['FROM']) {
+    const cell = worksheet.getCell('L34');
+    cell.value = lrData['FROM'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map TO to L35
+  if (lrData['TO']) {
+    const cell = worksheet.getCell('L35');
+    cell.value = lrData['TO'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map LR Date to L37
+  if (lrData['LR Date']) {
+    const cell = worksheet.getCell('L37');
+    cell.value = formatDateToDDMMYYYY(lrData['LR Date']).toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map Consignor to B33 (single line - full name)
+  if (lrData['Consignor']) {
+    const cell = worksheet.getCell('B33');
+    cell.value = lrData['Consignor'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map Consignee to B37 (single line - full name)
+  if (lrData['Consignee']) {
+    const cell = worksheet.getCell('B37');
+    cell.value = lrData['Consignee'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map LR No to L33
+  if (lrData['LR No']) {
+    const cell = worksheet.getCell('L33');
+    cell.value = lrData['LR No'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Map Vehicle Type to L39
+  if (lrData['Vehicle Type']) {
+    worksheet.getCell('L39').value = lrData['Vehicle Type'].toUpperCase();
+  }
+  
+  // Map Vehicle Number to L38
+  if (lrData['Vehicle Number']) {
+    worksheet.getCell('L38').value = lrData['Vehicle Number'].toUpperCase();
+  }
+  
+  // Map Description of Goods and Quantity starting from B42 (up to B51)
+  const goodsList2 = parseGoodsAndQuantity();
+  const maxGoodsRows2 = 10; // B42 to B51 = 10 rows
+  const startRow2 = 42;
+  
+  for (let i = 0; i < Math.min(goodsList2.length, maxGoodsRows2); i++) {
+    const row = startRow2 + i;
+    const goods = goodsList2[i];
+    
+    // Quantity in column A (A42, A43, etc.)
+    if (goods.quantity) {
+      const cell = worksheet.getCell(`A${row}`);
+      cell.value = goods.quantity;
+      // Preserve existing font color - don't override
+    }
+    
+    // Description in column B (B42, B43, etc.)
+    if (goods.description) {
+      const cell = worksheet.getCell(`B${row}`);
+      cell.value = goods.description;
+      // Preserve existing font color - don't override
+    }
+  }
+  
+  // Map Invoice No to B52
+  if (lrData['Invoice No']) {
+    const cell = worksheet.getCell('B52');
+    cell.value = lrData['Invoice No'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+
+  // Map GRR No to B53
+  if (lrData['GRR No']) {
+    const cell = worksheet.getCell('B53');
+    cell.value = lrData['GRR No'].toUpperCase();
+    // Preserve existing font color - don't override
+  }
+  
+  // Save file with format: LR-[LRNo].xlsx
+  const safeFileName = `LR-${lrData['LR No'].replace(/[\/\\:*?"<>|]/g, '-')}.xlsx`;
+  const filePath = path.join(folder, safeFileName);
+  await workbook.xlsx.writeFile(filePath);
+  
+  return filePath;
+};
+

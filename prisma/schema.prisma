@@ -43,6 +43,8 @@ model LR {
   @@index([createdAt])
   @@index([status, lrDate])
   @@index([vehicleType])
+  @@index([vehicleNumber])
+  @@index([billNumber])
   @@index([fromLocation, toLocation])
   @@map("lrs")
 }
@@ -62,6 +64,7 @@ model User {
   @@index([email])
   @@index([role])
   @@index([isActive])
+  @@index([phone])
   @@map("users")
 }
 

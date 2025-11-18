@@ -39,7 +39,10 @@ export const LRSchema = z.object({
   koelGateEntryDate: z.string().optional().or(z.literal('')),
   weightslipNo: z.string().optional().or(z.literal('')),
   totalNoOfInvoices: z.string().optional().or(z.literal('')),
-  invoiceNo: z.string().optional().or(z.literal('')),
+  invoiceNo: z.union([
+    z.literal(''),
+    z.string().regex(/^[A-Za-z0-9\/\-\s_]+$/, 'Invoice No can only contain letters, numbers, slashes, hyphens, spaces, and underscores'),
+  ]).optional(),
   grrNo: z.string().optional().or(z.literal('')),
   grrDate: z.string().optional().or(z.literal('')),
   remark: z.string().optional().or(z.literal('')),
@@ -155,6 +158,100 @@ export const BillGenerationSchema = z.object({
     .min(1, 'Please select at least one LR'),
 });
 
+// Additional Bill Save Validation Schema
+export const AdditionalBillSaveSchema = z.object({
+  'LR Date': z.string()
+    .regex(/^\d{2}-\d{2}-\d{4}$/, 'Date must be in DD-MM-YYYY format')
+    .min(1, 'LR Date is required'),
+  
+  'LR No': z.string()
+    .min(3, 'LR Number must be at least 3 characters')
+    .max(50, 'LR Number must be less than 50 characters')
+    .regex(/^[A-Z0-9/_-]+$/, 'LR Number can only contain letters, numbers, slashes, hyphens, and underscores'),
+  
+  'Vehicle No': z.string()
+    .min(1, 'Vehicle Number is required')
+    .max(50, 'Vehicle Number must be less than 50 characters'),
+  
+  'Vehicle Type': z.enum(['PICKUP', 'TRUCK', 'TOROUS'], {
+    message: 'Vehicle Type must be PICKUP, TRUCK, or TOROUS',
+  }),
+  
+  'FROM': z.string()
+    .min(2, 'FROM location must be at least 2 characters')
+    .max(100, 'FROM location must be less than 100 characters'),
+  
+  'TO': z.string()
+    .min(2, 'TO location must be at least 2 characters')
+    .max(100, 'TO location must be less than 100 characters')
+    .optional(),
+  
+  'Submission Date': z.string()
+    .regex(/^\d{2}-\d{2}-\d{4}$/, 'Submission date must be in DD-MM-YYYY format')
+    .min(1, 'Submission Date is required'),
+  
+  'Bill No': z.string()
+    .min(1, 'Bill Number is required')
+    .max(100, 'Bill Number must be less than 100 characters'),
+  
+  'Amount': z.union([
+    z.number().positive('Amount must be a positive number'),
+    z.string().regex(/^\d+(\.\d{1,2})?$/, 'Amount must be a valid number').transform(Number),
+  ]).refine((val) => val > 0, {
+    message: 'Amount must be greater than 0',
+  }),
+  
+  'Delivery Count': z.union([
+    z.number().int().positive('Delivery Count must be a positive integer'),
+    z.string().regex(/^\d+$/, 'Delivery Count must be a valid integer').transform(Number),
+  ]).refine((val) => val > 0, {
+    message: 'Delivery Count must be greater than 0',
+  }),
+  
+  'Delivery Locations': z.array(z.string()).optional().default([]),
+});
+
+// Rework Bill Save Validation Schema
+export const ReworkBillSaveSchema = z.object({
+  'LR Date': z.string()
+    .regex(/^\d{2}-\d{2}-\d{4}$/, 'Date must be in DD-MM-YYYY format')
+    .min(1, 'LR Date is required'),
+  
+  'LR No': z.string()
+    .min(3, 'LR Number must be at least 3 characters')
+    .max(50, 'LR Number must be less than 50 characters')
+    .regex(/^[A-Z0-9/_-]+$/, 'LR Number can only contain letters, numbers, slashes, hyphens, and underscores'),
+  
+  'Vehicle No': z.string()
+    .min(1, 'Vehicle Number is required')
+    .max(50, 'Vehicle Number must be less than 50 characters'),
+  
+  'Vehicle Type': z.enum(['PICKUP', 'TRUCK', 'TOROUS'], {
+    message: 'Vehicle Type must be PICKUP, TRUCK, or TOROUS',
+  }),
+  
+  'FROM': z.string()
+    .min(2, 'FROM location must be at least 2 characters')
+    .max(100, 'FROM location must be less than 100 characters'),
+  
+  'TO': z.string()
+    .min(2, 'TO location must be at least 2 characters')
+    .max(100, 'TO location must be less than 100 characters'),
+  
+  'Submission Date': z.string()
+    .regex(/^\d{2}-\d{2}-\d{4}$/, 'Submission date must be in DD-MM-YYYY format')
+    .min(1, 'Submission Date is required'),
+  
+  'Bill No': z.string()
+    .min(1, 'Bill Number is required')
+    .max(100, 'Bill Number must be less than 100 characters'),
+  
+  'Amount': z.union([
+    z.number().nonnegative('Amount must be a non-negative number'),
+    z.string().regex(/^\d+(\.\d{1,2})?$/, 'Amount must be a valid number').transform(Number),
+  ]).optional(),
+});
+
 // Type exports for use in components
 export type LRFormData = z.infer<typeof LRSchema>;
 export type LoginFormData = z.infer<typeof LoginSchema>;
@@ -163,3 +260,5 @@ export type ChangePasswordData = z.infer<typeof ChangePasswordSchema>;
 export type UpdateRoleData = z.infer<typeof UpdateRoleSchema>;
 export type FilterData = z.infer<typeof FilterSchema>;
 export type BillGenerationData = z.infer<typeof BillGenerationSchema>;
+export type AdditionalBillSaveData = z.infer<typeof AdditionalBillSaveSchema>;
+export type ReworkBillSaveData = z.infer<typeof ReworkBillSaveSchema>;

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLRByNumber, updateLR, deleteLR } from '@/lib/database';
+import { sanitizeLRData } from '@/lib/utils/sanitize';
+import { applyApiMiddleware } from '@/lib/middleware/apiMiddleware';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 // GET /api/lrs/[lrNo] - Get specific LR
 export async function GET(
@@ -31,9 +35,16 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { lrNo: string } }
 ) {
+  // Apply rate limiting and CSRF protection
+  const middlewareResponse = await applyApiMiddleware(request);
+  if (middlewareResponse) return middlewareResponse;
+
   try {
     const lrNo = decodeURIComponent(params.lrNo);
-    const lrData = await request.json();
+    let lrData = await request.json();
+    
+    // Sanitize user input to prevent XSS and injection attacks
+    lrData = sanitizeLRData(lrData);
     
     const success = await updateLR(lrNo, lrData);
     
@@ -58,9 +69,31 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { lrNo: string } }
 ) {
+  // Apply rate limiting and CSRF protection
+  const middlewareResponse = await applyApiMiddleware(request);
+  if (middlewareResponse) return middlewareResponse;
+
   try {
+    // Check authorization - only CEO and MANAGER can delete LRs
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const userRole = (session.user as any)?.role;
+    if (userRole !== 'CEO' && userRole !== 'MANAGER') {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden. Only CEO and MANAGER can delete LRs.' },
+        { status: 403 }
+      );
+    }
+
     const lrNo = decodeURIComponent(params.lrNo);
-    const success = await deleteLR(lrNo);
+    const deletedBy = (session.user as any)?.email || (session.user as any)?.id;
+    const success = await deleteLR(lrNo, deletedBy);
     
     if (success) {
       return NextResponse.json({ success: true, message: 'LR deleted successfully' });

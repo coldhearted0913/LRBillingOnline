@@ -69,6 +69,14 @@ export default function AdminDashboard() {
     link.href = url;
     link.download = `lr_database_backup_${new Date().toISOString().split('T')[0]}.json`;
     link.click();
+    // Clean up: revoke the object URL after a short delay to ensure download starts
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      // Remove the link element from DOM if it was added
+      if (link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
+    }, 100);
   };
 
   const viewLRDetails = (lr: any) => {

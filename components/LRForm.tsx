@@ -66,6 +66,16 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const [duplicateCheck, setDuplicateCheck] = useState<{ exists: boolean; lr: LRData | null } | null>(null);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const duplicateCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (duplicateCheckTimeoutRef.current) {
+        clearTimeout(duplicateCheckTimeoutRef.current);
+        duplicateCheckTimeoutRef.current = null;
+      }
+    };
+  }, []);
   
   // Helper function to convert dd-mm-yyyy to yyyy-mm-dd
   const convertDateToInputFormat = (dateStr: string): string => {
@@ -1262,7 +1272,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                   <Label htmlFor="koelGateEntry">Koel Gate Entry No</Label>
                   <Input
                     id="koelGateEntry"
-                    value={formData['Koel Gate Entry No'] || '99'}
+                    value={hasKOEL ? (formData['Koel Gate Entry No'] || '') : (formData['Koel Gate Entry No'] || '99')}
                     onChange={(e) => handleChange('Koel Gate Entry No', e.target.value)}
                     disabled={!hasKOEL}
                     className={!hasKOEL ? 'bg-gray-100 cursor-not-allowed' : ''}
@@ -1293,10 +1303,12 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                 
                 <div>
                   <Label htmlFor="invoiceNo">Invoice No</Label>
-                  <Input
+                  <input
                     id="invoiceNo"
+                    type="text"
                     value={formData['Invoice No'] || ''}
                     onChange={(e) => handleChange('Invoice No', e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
                 

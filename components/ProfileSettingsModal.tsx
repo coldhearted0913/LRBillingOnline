@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Users, Lock, Plus, Trash2, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,8 +48,20 @@ export default function ProfileSettingsModal({
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState('');
 
+
+  // Track timeouts for cleanup to prevent memory leaks
+  const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
+
   // Only CEO can manage users
   const isAdmin = userRole === 'CEO';
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach(clearTimeout);
+      timeoutRefs.current = [];
+    };
+  }, []);
 
   // Fetch all users
   useEffect(() => {
@@ -142,7 +154,8 @@ export default function ProfileSettingsModal({
         setMessage('Phone number updated successfully');
         // Update the displayed phone number to show the formatted version
         setUserPhone(formattedPhone);
-        setTimeout(() => setMessage(''), 3000);
+        const timeoutId = setTimeout(() => setMessage(''), 3000);
+        timeoutRefs.current.push(timeoutId);
       } else {
         setMessage(data.error || 'Failed to update phone number');
       }
@@ -182,7 +195,8 @@ export default function ProfileSettingsModal({
         setNewUserRole('WORKER');
         setNewUserPhone('');
         fetchUsers();
-        setTimeout(() => setMessage(''), 3000);
+        const timeoutId = setTimeout(() => setMessage(''), 3000);
+        timeoutRefs.current.push(timeoutId);
       } else {
         const error = await response.json();
         setMessage(error.error || 'Failed to create user');
@@ -205,7 +219,8 @@ export default function ProfileSettingsModal({
       if (response.ok) {
         setMessage('User deleted successfully');
         fetchUsers();
-        setTimeout(() => setMessage(''), 3000);
+        const timeoutId = setTimeout(() => setMessage(''), 3000);
+        timeoutRefs.current.push(timeoutId);
       } else {
         setMessage('Failed to delete user');
       }
@@ -225,7 +240,8 @@ export default function ProfileSettingsModal({
       if (response.ok) {
         setMessage('Role updated successfully');
         fetchUsers();
-        setTimeout(() => setMessage(''), 3000);
+        const timeoutId = setTimeout(() => setMessage(''), 3000);
+        timeoutRefs.current.push(timeoutId);
       } else {
         const error = await response.json();
         setMessage(error.error || 'Failed to update role');
@@ -234,6 +250,7 @@ export default function ProfileSettingsModal({
       setMessage('Error updating role');
     }
   };
+
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -274,7 +291,8 @@ export default function ProfileSettingsModal({
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
-        setTimeout(() => setPasswordMessage(''), 3000);
+        const timeoutId = setTimeout(() => setPasswordMessage(''), 3000);
+        timeoutRefs.current.push(timeoutId);
       } else {
         const error = await response.json();
         setPasswordMessage(error.error || 'Failed to change password');
@@ -331,19 +349,21 @@ export default function ProfileSettingsModal({
             </div>
           </button>
           {isAdmin && (
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`px-3 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
-                activeTab === 'users'
-                  ? 'border-b-2 border-blue-600 text-blue-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <Users className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span>User Management</span>
-              </div>
-            </button>
+            <>
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`px-3 sm:px-6 py-3 sm:py-4 font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
+                  activeTab === 'users'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span>User Management</span>
+                </div>
+              </button>
+            </>
           )}
         </div>
 
