@@ -1036,18 +1036,32 @@ export const generateLRFromMasterCopy = async (
     // Preserve existing font color - don't override
   }
   
-  // Map Consignor to B4 (single line - full name)
+  // Map Consignor to B4-B6 (split by '/' and write each in cell below)
   if (lrData['Consignor']) {
-    const cell = worksheet.getCell('B4');
-    cell.value = lrData['Consignor'].toUpperCase();
-    // Preserve existing font color - don't override
+    const consignors = lrData['Consignor'].split('/').map(c => c.trim()).filter(c => c.length > 0);
+    const maxConsignors = 3; // B4, B5, B6 = 3 rows max
+    const startRow = 4;
+    
+    for (let i = 0; i < Math.min(consignors.length, maxConsignors); i++) {
+      const row = startRow + i;
+      const cell = worksheet.getCell(`B${row}`);
+      cell.value = consignors[i].toUpperCase();
+      // Preserve existing font color - don't override
+    }
   }
   
-  // Map Consignee to B8 (single line - full name)
+  // Map Consignee to B8-B10 (split by '/' and write each in cell below)
   if (lrData['Consignee']) {
-    const cell = worksheet.getCell('B8');
-    cell.value = lrData['Consignee'].toUpperCase();
-    // Preserve existing font color - don't override
+    const consignees = lrData['Consignee'].split('/').map(c => c.trim()).filter(c => c.length > 0);
+    const maxConsignees = 3; // B8, B9, B10 = 3 rows max
+    const startRow = 8;
+    
+    for (let i = 0; i < Math.min(consignees.length, maxConsignees); i++) {
+      const row = startRow + i;
+      const cell = worksheet.getCell(`B${row}`);
+      cell.value = consignees[i].toUpperCase();
+      // Preserve existing font color - don't override
+    }
   }
   
   // Map LR No to L4 (plain text, no formatting)
@@ -1139,18 +1153,32 @@ export const generateLRFromMasterCopy = async (
     // Preserve existing font color - don't override
   }
   
-  // Map Consignor to B33 (single line - full name)
+  // Map Consignor to B33-B35 (split by '/' and write each in cell below)
   if (lrData['Consignor']) {
-    const cell = worksheet.getCell('B33');
-    cell.value = lrData['Consignor'].toUpperCase();
-    // Preserve existing font color - don't override
+    const consignors = lrData['Consignor'].split('/').map(c => c.trim()).filter(c => c.length > 0);
+    const maxConsignors = 3; // B33, B34, B35 = 3 rows max
+    const startRow = 33;
+    
+    for (let i = 0; i < Math.min(consignors.length, maxConsignors); i++) {
+      const row = startRow + i;
+      const cell = worksheet.getCell(`B${row}`);
+      cell.value = consignors[i].toUpperCase();
+      // Preserve existing font color - don't override
+    }
   }
   
-  // Map Consignee to B37 (single line - full name)
+  // Map Consignee to B37-B39 (split by '/' and write each in cell below)
   if (lrData['Consignee']) {
-    const cell = worksheet.getCell('B37');
-    cell.value = lrData['Consignee'].toUpperCase();
-    // Preserve existing font color - don't override
+    const consignees = lrData['Consignee'].split('/').map(c => c.trim()).filter(c => c.length > 0);
+    const maxConsignees = 3; // B37, B38, B39 = 3 rows max
+    const startRow = 37;
+    
+    for (let i = 0; i < Math.min(consignees.length, maxConsignees); i++) {
+      const row = startRow + i;
+      const cell = worksheet.getCell(`B${row}`);
+      cell.value = consignees[i].toUpperCase();
+      // Preserve existing font color - don't override
+    }
   }
   
   // Map LR No to L33
