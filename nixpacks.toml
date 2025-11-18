@@ -1,0 +1,17 @@
+[phases.setup]
+nixPkgs = ["nodejs_18", "npm-9_x", "openssl"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = [
+  "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npm install",
+  "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npx prisma generate",
+  "PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1 npx prisma db push",
+  "npm run build"
+]
+
+[start]
+cmd = "npm start"
+
