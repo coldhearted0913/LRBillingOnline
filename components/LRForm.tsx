@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Save, Trash2, Truck, MapPin, Package, FileText, TrendingUp, Check, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LRData } from '@/lib/database';
+import { fetchWithCSRF } from '@/lib/utils/fetchWithCSRF';
 import { 
   LR_PREFIX, 
   FROM_LOCATIONS, 
@@ -544,9 +545,8 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
           .join(', ');
       }
       
-      const response = await fetch(url, {
+      const response = await fetchWithCSRF(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(submissionData),
       });
       
@@ -666,7 +666,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
                     }
                     const form = new FormData();
                     Array.from(files).forEach(f => form.append('files', f));
-                    const res = await fetch(`/api/lrs/${encodeURIComponent(formData['LR No'])}/attachments`, { method: 'POST', body: form });
+                    const res = await fetchWithCSRF(`/api/lrs/${encodeURIComponent(formData['LR No'])}/attachments`, { method: 'POST', body: form });
                     if (res.ok) {
                       const data = await res.json();
                       setRecentUploads(data.attachments || []);

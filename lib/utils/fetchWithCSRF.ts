@@ -30,7 +30,10 @@ export async function fetchWithCSRF(
 
   // Merge headers
   const headers = new Headers(options.headers);
-  if (!headers.has('Content-Type')) {
+  
+  // Don't set Content-Type for FormData - browser will set it with boundary
+  const isFormData = options.body instanceof FormData;
+  if (!isFormData && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
   
