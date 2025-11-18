@@ -47,15 +47,18 @@ export const LRSchema = z.object({
   grrDate: z.string().optional().or(z.literal('')),
   remark: z.string().optional().or(z.literal('')),
 }).refine(data => {
-  // Custom validation: Consignor and Consignee cannot be the same
+  // Custom validation: Consignor and Consignee cannot be exactly the same
   if (data.consignor && data.consignee) {
-    const consignorWords = data.consignor.toLowerCase().trim().split(/\s+/);
-    const consigneeWords = data.consignee.toLowerCase().trim().split('/').map((c: string) => c.trim());
+    const consignorNormalized = data.consignor.toLowerCase().trim();
+    const consigneeNormalized = data.consignee.toLowerCase().trim();
     
-    // Check if any consignee matches consignor
-    return !consigneeWords.some((ce: string) => 
-      consignorWords.some((co: string) => ce.includes(co) || co.includes(ce))
-    );
+    // Split consignee by '/' to handle multiple consignees
+    const consigneeList = consigneeNormalized.split('/').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+    
+    // Check if consignor exactly matches any consignee (exact match, not substring)
+    const isSame = consigneeList.some((ce: string) => ce === consignorNormalized);
+    
+    return !isSame;
   }
   return true;
 }, {
