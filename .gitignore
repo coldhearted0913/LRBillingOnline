@@ -48,6 +48,9 @@ scripts/backups/*
 *.tmp
 *.temp
 
+# Generated PDF files
+MT_25-26_*.pdf
+
 # IDE
 .vscode/
 .idea/
