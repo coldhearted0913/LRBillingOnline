@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Save, Trash2, Truck, MapPin, Package, FileText, TrendingUp, Check, Plus, X } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Truck, MapPin, Package, FileText, TrendingUp, Check, Plus, X, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { LRData } from '@/lib/database';
 import { fetchWithCSRF } from '@/lib/utils/fetchWithCSRF';
@@ -35,6 +35,8 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     'LR Date': new Date().toISOString().split('T')[0],
     'Vehicle Type': '',
     'Vehicle Number': '',
+    'Driver Name': '',
+    'Driver Number': '',
     'LR No': LR_PREFIX,
     'Koel Gate Entry No': '99',
     'Koel Gate Entry Date': '',
@@ -58,6 +60,11 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
   const [availableVehicles, setAvailableVehicles] = useState<string[]>([]);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [newVehicleNumber, setNewVehicleNumber] = useState('');
+  const [availableDrivers, setAvailableDrivers] = useState<Array<{ id: string; name: string; phoneNumber: string }>>([]);
+  const [showAddDriver, setShowAddDriver] = useState(false);
+  const [newDriverName, setNewDriverName] = useState('');
+  const [newDriverNumber, setNewDriverNumber] = useState('');
+  const [isDriverDropdownOpen, setIsDriverDropdownOpen] = useState(false);
   const [availableDescriptions, setAvailableDescriptions] = useState<string[]>([]);
   const [selectedDescriptions, setSelectedDescriptions] = useState<Array<{ description: string; quantity: string }>>([]);
   const [showAddDescription, setShowAddDescription] = useState(false);
@@ -77,6 +84,23 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       }
     };
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isDriverDropdownOpen && !target.closest('#driverSelect') && !target.closest('.driver-dropdown-menu')) {
+        setIsDriverDropdownOpen(false);
+      }
+    };
+
+    if (isDriverDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isDriverDropdownOpen]);
   
   // Helper function to convert dd-mm-yyyy to yyyy-mm-dd
   const convertDateToInputFormat = (dateStr: string): string => {
@@ -264,6 +288,23 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     }
   };
   
+  // Fetch drivers on component mount
+  useEffect(() => {
+    const fetchDrivers = async () => {
+      try {
+        const response = await fetch('/api/drivers');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableDrivers(data.drivers || []);
+        }
+      } catch (error) {
+        console.error('Error fetching drivers:', error);
+      }
+    };
+    
+    fetchDrivers();
+  }, []);
+
   // Fetch descriptions on component mount
   useEffect(() => {
     const fetchDescriptions = async () => {
@@ -334,6 +375,111 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     } catch (error) {
       console.error('Error deleting description:', error);
       toast.error('Failed to delete description');
+    }
+  };
+
+  // Add new driver
+  const handleAddDriver = async () => {
+    if (!newDriverName.trim() || !newDriverNumber.trim()) {
+      toast.error('Please enter both driver name and number');
+      return;
+    }
+    
+    try {
+      const response = await fetchWithCSRF('/api/drivers', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: newDriverName.trim(),
+          phoneNumber: newDriverNumber.trim(),
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success('Driver added successfully');
+        setAvailableDrivers([...availableDrivers, { id: data.driver.id, name: data.driver.name, phoneNumber: data.driver.phoneNumber }]);
+        setFormData(prev => ({ 
+          ...prev, 
+          'Driver Name': data.driver.name,
+          'Driver Number': data.driver.phoneNumber
+        }));
+        setNewDriverName('');
+        setNewDriverNumber('');
+        setShowAddDriver(false);
+        setIsDriverDropdownOpen(false);
+      } else {
+        toast.error(data.error || 'Failed to add driver');
+      }
+    } catch (error) {
+      console.error('Error adding driver:', error);
+      toast.error('Failed to add driver');
+    }
+  };
+
+  // Handle driver selection from dropdown
+  const handleDriverSelect = (driverId: string) => {
+    if (driverId === 'add-new') {
+      setShowAddDriver(true);
+      return;
+    }
+    const selectedDriver = availableDrivers.find(d => d.id === driverId);
+    if (selectedDriver) {
+      setFormData(prev => ({
+        ...prev,
+        'Driver Name': selectedDriver.name,
+        'Driver Number': selectedDriver.phoneNumber,
+      }));
+      setIsDirty(true);
+    } else {
+      // Clear driver fields if "Select driver..." is chosen
+      setFormData(prev => ({
+        ...prev,
+        'Driver Name': '',
+        'Driver Number': '',
+      }));
+    }
+  };
+
+  // Handle driver deletion
+  const handleDeleteDriver = async (driverId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent dropdown from closing
+    
+    if (!confirm('Are you sure you want to delete this driver?')) {
+      return;
+    }
+
+    try {
+      // Check if the driver being deleted is currently selected
+      const driverToDelete = availableDrivers.find(d => d.id === driverId);
+      const isSelected = driverToDelete && 
+        formData['Driver Name'] === driverToDelete.name && 
+        formData['Driver Number'] === driverToDelete.phoneNumber;
+
+      const response = await fetchWithCSRF(`/api/drivers?driverId=${driverId}`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success('Driver deleted successfully');
+        // Remove from available drivers
+        setAvailableDrivers(availableDrivers.filter(d => d.id !== driverId));
+        // Clear form data if the deleted driver was selected
+        if (isSelected) {
+          setFormData(prev => ({
+            ...prev,
+            'Driver Name': '',
+            'Driver Number': '',
+          }));
+        }
+      } else {
+        toast.error(data.error || 'Failed to delete driver');
+      }
+    } catch (error) {
+      console.error('Error deleting driver:', error);
+      toast.error('Failed to delete driver');
     }
   };
   
@@ -584,6 +730,8 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
         'LR Date': new Date().toISOString().split('T')[0],
         'Vehicle Type': '',
         'Vehicle Number': '',
+        'Driver Name': '',
+        'Driver Number': '',
         'LR No': LR_PREFIX,
         'Koel Gate Entry No': '99',
         'Koel Gate Entry Date': '',
@@ -716,6 +864,171 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
       {/* Form */}
       <div className="container mx-auto px-3 md:px-4 py-4 md:py-8">
         <form onSubmit={handleSubmit}>
+          {/* Driver Information - At the very top */}
+          <Card className="mb-6 border-0 shadow-md hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm relative z-50">
+            <CardHeader className="bg-gradient-to-r from-green-50 to-transparent pb-3 md:pb-4 px-4 md:px-6 pt-4 md:pt-6">
+              <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                <div className="bg-green-600 text-white p-1.5 md:p-2 rounded-lg flex-shrink-0">
+                  <User className="h-3 w-3 md:h-4 md:w-4" />
+                </div>
+                Driver Information
+              </CardTitle>
+              <CardDescription className="text-gray-600 text-xs md:text-sm mt-1">Select a driver from the list or add a new one</CardDescription>
+            </CardHeader>
+            <CardContent className="px-4 md:px-6 pt-4 md:pt-6 pb-4 md:pb-6 overflow-visible">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="driverSelect">Select Driver</Label>
+                  <div className="relative">
+                    {/* Custom Dropdown Button */}
+                    <button
+                      type="button"
+                      id="driverSelect"
+                      onClick={() => setIsDriverDropdownOpen(!isDriverDropdownOpen)}
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-left focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors"
+                    >
+                      <span className="text-gray-700">
+                        {formData['Driver Name'] && formData['Driver Number']
+                          ? `${formData['Driver Name']} - ${formData['Driver Number']}`
+                          : 'Select driver...'}
+                      </span>
+                      <svg
+                        className={`h-4 w-4 text-gray-500 transition-transform ${isDriverDropdownOpen ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {/* Custom Dropdown Menu */}
+                    {isDriverDropdownOpen && (
+                      <div className="driver-dropdown-menu absolute z-[100] mt-1 w-full rounded-md border border-gray-300 bg-white shadow-xl max-h-60 overflow-y-auto">
+                        {/* Add New Driver Option */}
+                        <div
+                          onClick={() => {
+                            setShowAddDriver(true);
+                            setIsDriverDropdownOpen(false);
+                          }}
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-green-50 cursor-pointer border-b border-gray-200"
+                        >
+                          <Plus className="h-4 w-4 text-green-600" />
+                          <span className="text-sm text-green-600 font-medium">Add New Driver</span>
+                        </div>
+                        
+                        {/* Driver Options */}
+                        {availableDrivers.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-gray-500">No drivers available</div>
+                        ) : (
+                          availableDrivers.map(driver => {
+                            const isSelected = formData['Driver Name'] === driver.name && formData['Driver Number'] === driver.phoneNumber;
+                            return (
+                              <div
+                                key={driver.id}
+                                className={`flex items-center justify-between px-3 py-2 hover:bg-gray-50 cursor-pointer group ${
+                                  isSelected ? 'bg-green-50' : ''
+                                }`}
+                                onClick={(e) => {
+                                  if ((e.target as HTMLElement).closest('button')) {
+                                    return; // Don't select if clicking delete button
+                                  }
+                                  handleDriverSelect(driver.id);
+                                  setIsDriverDropdownOpen(false);
+                                }}
+                              >
+                                <span className="text-sm text-gray-700 flex-1">
+                                  {driver.name} - {driver.phoneNumber}
+                                </span>
+                                <Button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteDriver(driver.id, e);
+                                  }}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  title="Delete driver"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Add Driver Form */}
+                  {showAddDriver && (
+                    <div className="mt-3 p-3 bg-gray-50 border border-gray-300 rounded-md">
+                      <div className="space-y-2">
+                        <Input
+                          value={newDriverName}
+                          onChange={(e) => setNewDriverName(e.target.value)}
+                          placeholder="Enter driver name"
+                          className="flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddDriver();
+                            } else if (e.key === 'Escape') {
+                              setShowAddDriver(false);
+                              setNewDriverName('');
+                              setNewDriverNumber('');
+                            }
+                          }}
+                        />
+                        <Input
+                          value={newDriverNumber}
+                          onChange={(e) => setNewDriverNumber(e.target.value)}
+                          placeholder="Enter driver phone number"
+                          className="flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddDriver();
+                            } else if (e.key === 'Escape') {
+                              setShowAddDriver(false);
+                              setNewDriverName('');
+                              setNewDriverNumber('');
+                            }
+                          }}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            onClick={handleAddDriver}
+                            variant="default"
+                            size="sm"
+                            className="flex-1"
+                          >
+                            Add Driver
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setShowAddDriver(false);
+                              setNewDriverName('');
+                              setNewDriverNumber('');
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="px-3"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Route Information */}
           <Card className="mb-6 border-0 shadow-md hover:shadow-lg transition-shadow duration-300 bg-white/80 backdrop-blur-sm">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent pb-3 md:pb-4 px-4 md:px-6 pt-4 md:pt-6">

@@ -137,7 +137,21 @@ export async function POST(request: NextRequest, { params }: { params: { lrNo: s
 
     return NextResponse.json({ success: true, attachments: combined, uploadedCount: uploaded.length });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message || 'Upload failed' }, { status: 500 });
+    // Track error with Sentry
+    const { trackApiError } = await import('@/lib/utils/errorTracking');
+    const s: any = session;
+    trackApiError(e instanceof Error ? e : new Error(String(e)), {
+      endpoint: '/api/lrs/[lrNo]/attachments',
+      method: 'POST',
+      userEmail: s?.user?.email,
+      userRole: s?.user?.role,
+      metadata: {
+        lrNo: sanitizedLrNo,
+        fileCount: files?.length,
+      },
+    });
+    
+    return NextResponse.json({ success: false, error: 'Upload failed' }, { status: 500 });
   }
 }
 

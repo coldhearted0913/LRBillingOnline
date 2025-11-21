@@ -94,6 +94,20 @@ export async function POST(request: NextRequest) {
     );
   } catch (error: any) {
     console.error("User creation error:", error);
+    
+    // Track error with Sentry
+    const { trackApiError } = await import('@/lib/utils/errorTracking');
+    trackApiError(error instanceof Error ? error : new Error(String(error)), {
+      endpoint: '/api/auth/register',
+      method: 'POST',
+      userEmail: session?.user?.email,
+      userRole: (session?.user as any)?.role,
+      metadata: {
+        // Don't include password or sensitive data
+        attemptedEmail: email?.toLowerCase(),
+      },
+    });
+    
     return NextResponse.json(
       { error: "Failed to create user" },
       { status: 500 }

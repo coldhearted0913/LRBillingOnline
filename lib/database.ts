@@ -8,6 +8,8 @@ export interface LRData {
   "LR Date": string;
   "Vehicle Type": string;
   "Vehicle Number": string;
+  "Driver Name": string;
+  "Driver Number": string;
   "LR No": string;
   "Koel Gate Entry No": string;
   "Koel Gate Entry Date": string;
@@ -39,6 +41,8 @@ const toPrismaFormat = (lrData: LRData) => {
     lrDate: lrData["LR Date"],
     vehicleType: lrData["Vehicle Type"],
     vehicleNumber: lrData["Vehicle Number"] || null,
+    driverName: lrData["Driver Name"] || null,
+    driverNumber: lrData["Driver Number"] || null,
     fromLocation: lrData["FROM"] || null,
     toLocation: lrData["TO"] || null,
     consignor: lrData["Consignor"] || null,
@@ -72,6 +76,8 @@ const fromPrismaFormat = (prismaLr: any): LRData => {
     "LR Date": prismaLr.lrDate,
     "Vehicle Type": prismaLr.vehicleType,
     "Vehicle Number": prismaLr.vehicleNumber || "",
+    "Driver Name": prismaLr.driverName || "",
+    "Driver Number": prismaLr.driverNumber || "",
     "FROM": prismaLr.fromLocation || "",
     "TO": prismaLr.toLocation || "",
     "Consignor": prismaLr.consignor || "",
@@ -112,6 +118,8 @@ export const getAllLRs = async (): Promise<LRData[]> => {
         lrDate: true,
         vehicleType: true,
         vehicleNumber: true,
+        driverName: true,
+        driverNumber: true,
         fromLocation: true,
         toLocation: true,
         consignor: true,
@@ -145,34 +153,36 @@ export const getAllLRs = async (): Promise<LRData[]> => {
       const lrs = await prisma.lR.findMany({
         orderBy: { createdAt: 'desc' },
         select: {
-          id: true,
-          lrNo: true,
-          lrDate: true,
-          vehicleType: true,
-          vehicleNumber: true,
-          fromLocation: true,
-          toLocation: true,
-          consignor: true,
-          consignee: true,
-          loadedWeight: true,
-          emptyWeight: true,
-          descriptionOfGoods: true,
-          quantity: true,
-          koelGateEntryNo: true,
-          koelGateEntryDate: true,
-          weightslipNo: true,
-          totalNoOfInvoices: true,
-          invoiceNo: true,
-          grrNo: true,
-          grrDate: true,
-          status: true,
-          remark: true,
-          billSubmissionDate: true,
-          billNumber: true,
-          deliveryLocations: true,
-          amount: true,
-          createdAt: true,
-          updatedAt: true,
+        id: true,
+        lrNo: true,
+        lrDate: true,
+        vehicleType: true,
+        vehicleNumber: true,
+        driverName: true,
+        driverNumber: true,
+        fromLocation: true,
+        toLocation: true,
+        consignor: true,
+        consignee: true,
+        loadedWeight: true,
+        emptyWeight: true,
+        descriptionOfGoods: true,
+        quantity: true,
+        koelGateEntryNo: true,
+        koelGateEntryDate: true,
+        weightslipNo: true,
+        totalNoOfInvoices: true,
+        invoiceNo: true,
+        grrNo: true,
+        grrDate: true,
+        status: true,
+        remark: true,
+        billSubmissionDate: true,
+        billNumber: true,
+        deliveryLocations: true,
+        amount: true,
+        createdAt: true,
+        updatedAt: true,
         },
       });
       // Map and set attachments empty to keep UI stable
@@ -225,6 +235,8 @@ export const updateLR = async (lrNo: string, lrData: Partial<LRData>): Promise<b
     if (lrData["LR Date"] !== undefined) updateData.lrDate = lrData["LR Date"];
     if (lrData["Vehicle Type"] !== undefined) updateData.vehicleType = lrData["Vehicle Type"];
     if (lrData["Vehicle Number"] !== undefined) updateData.vehicleNumber = lrData["Vehicle Number"] || null;
+    if (lrData["Driver Name"] !== undefined) updateData.driverName = lrData["Driver Name"] || null;
+    if (lrData["Driver Number"] !== undefined) updateData.driverNumber = lrData["Driver Number"] || null;
     if (lrData["FROM"] !== undefined) updateData.fromLocation = lrData["FROM"] || null;
     if (lrData["TO"] !== undefined) updateData.toLocation = lrData["TO"] || null;
     if (lrData["Consignor"] !== undefined) updateData.consignor = lrData["Consignor"] || null;
@@ -280,6 +292,8 @@ export const deleteLR = async (lrNo: string, deletedBy?: string): Promise<boolea
         lrDate: lr.lrDate,
         vehicleType: lr.vehicleType,
         vehicleNumber: lr.vehicleNumber,
+        driverName: lr.driverName,
+        driverNumber: lr.driverNumber,
         fromLocation: lr.fromLocation,
         toLocation: lr.toLocation,
         consignor: lr.consignor,
@@ -340,6 +354,8 @@ export const deleteMultipleLRs = async (lrNumbers: string[], deletedBy?: string)
           lrDate: lr.lrDate,
           vehicleType: lr.vehicleType,
           vehicleNumber: lr.vehicleNumber,
+          driverName: lr.driverName,
+          driverNumber: lr.driverNumber,
           fromLocation: lr.fromLocation,
           toLocation: lr.toLocation,
           consignor: lr.consignor,
@@ -500,6 +516,8 @@ export const restoreArchivedLR = async (archiveId: string) => {
         lrDate: archivedLR.lrDate,
         vehicleType: archivedLR.vehicleType,
         vehicleNumber: archivedLR.vehicleNumber,
+        driverName: archivedLR.driverName,
+        driverNumber: archivedLR.driverNumber,
         fromLocation: archivedLR.fromLocation,
         toLocation: archivedLR.toLocation,
         consignor: archivedLR.consignor,

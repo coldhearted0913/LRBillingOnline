@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server';
 
 // Health check endpoint to verify environment variables
+// SECURITY: Only expose status, not actual values or presence of sensitive env vars
 export async function GET() {
+  // Check if critical env vars are set (without exposing which ones)
+  const criticalVarsSet = !!(
+    process.env.DATABASE_URL &&
+    process.env.NEXTAUTH_SECRET
+  );
+  
   return NextResponse.json({
-    status: 'ok',
-    env: {
-      DATABASE_URL: process.env.DATABASE_URL ? '✅ Set' : '❌ Missing',
-      S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ? '✅ Set' : '❌ Missing',
-      S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ? '✅ Set' : '❌ Missing',
-      S3_REGION: process.env.S3_REGION ? '✅ Set' : '❌ Missing',
-      S3_BUCKET_NAME: process.env.S3_BUCKET_NAME ? '✅ Set' : '❌ Missing',
-      STATS_PASSWORD: process.env.STATS_PASSWORD ? '✅ Set' : '❌ Missing',
-      NODE_ENV: process.env.NODE_ENV,
-    },
+    status: criticalVarsSet ? 'ok' : 'error',
+    // Only expose non-sensitive information
+    nodeEnv: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
+    // Don't expose which specific env vars are missing (security best practice)
   });
 }
 

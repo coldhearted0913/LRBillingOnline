@@ -14,6 +14,19 @@ export const LRSchema = z.object({
   
   vehicleType: z.enum(['PICKUP', 'TRUCK', 'TOROUS']),
   
+  driverName: z.string()
+    .min(2, 'Driver name must be at least 2 characters')
+    .max(100, 'Driver name must be less than 100 characters')
+    .optional()
+    .or(z.literal('')),
+  
+  driverNumber: z.string()
+    .min(10, 'Driver phone number must be at least 10 digits')
+    .max(15, 'Driver phone number must be less than 15 characters')
+    .regex(/^[\d\s\-\+\(\)]+$/, 'Driver phone number can only contain digits, spaces, hyphens, plus sign, and parentheses')
+    .optional()
+    .or(z.literal('')),
+  
   fromLocation: z.string()
     .min(2, 'Origin must be at least 2 characters')
     .max(100, 'Origin must be less than 100 characters'),

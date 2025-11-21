@@ -13,6 +13,8 @@ model LR {
   lrDate             String   @map("lr_date")
   vehicleType        String   @map("vehicle_type")
   vehicleNumber      String?  @map("vehicle_number")
+  driverName         String?  @map("driver_name")
+  driverNumber       String?  @map("driver_number")
   fromLocation       String?  @map("from_location")
   toLocation         String?  @map("to_location")
   consignor          String?  @map("consignor")
@@ -45,6 +47,7 @@ model LR {
   @@index([vehicleType])
   @@index([vehicleNumber])
   @@index([billNumber])
+  @@index([driverName])
   @@index([fromLocation, toLocation])
   @@map("lrs")
 }
@@ -89,6 +92,18 @@ model GoodsDescription {
   @@map("goods_descriptions")
 }
 
+model Driver {
+  id          String   @id @default(cuid())
+  name        String   @map("name")
+  phoneNumber String   @map("phone_number")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([name, phoneNumber])
+  @@index([name])
+  @@map("drivers")
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   userId     String
@@ -114,6 +129,8 @@ model ArchiveLR {
   lrDate             String   @map("lr_date")
   vehicleType        String   @map("vehicle_type")
   vehicleNumber      String?  @map("vehicle_number")
+  driverName         String?  @map("driver_name")
+  driverNumber       String?  @map("driver_number")
   fromLocation       String?  @map("from_location")
   toLocation         String?  @map("to_location")
   consignor          String?  @map("consignor")

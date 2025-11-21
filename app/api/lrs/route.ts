@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 // Ensure API is always dynamic and not statically cached
 export const dynamic = 'force-dynamic';
@@ -29,6 +31,13 @@ export async function GET(request: NextRequest) {
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
+    // Track error with Sentry
+    const { trackApiError } = await import('@/lib/utils/errorTracking');
+    trackApiError(error instanceof Error ? error : new Error(String(error)), {
+      endpoint: '/api/lrs',
+      method: 'GET',
+    });
+    
     return NextResponse.json(
       { success: false, error: 'Failed to fetch LRs' },
       { status: 500 }
@@ -56,6 +65,8 @@ export async function POST(request: NextRequest) {
       lrDate: lrData['LR Date'],
       vehicleNumber: lrData['Vehicle Number'],
       vehicleType: lrData['Vehicle Type'],
+      driverName: lrData['Driver Name'] || '',
+      driverNumber: lrData['Driver Number'] || '',
       fromLocation: lrData['FROM'],
       toLocation: lrData['TO'],
       consignor: lrData['Consignor'],
@@ -114,9 +125,28 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('[POST /api/lrs] Error creating LR:', error);
+    
+    // Track error with Sentry
+    const session = await getServerSession(authOptions).catch(() => null);
+    const { trackApiError } = await import('@/lib/utils/errorTracking');
+    
+    trackApiError(error instanceof Error ? error : new Error(String(error)), {
+      endpoint: '/api/lrs',
+      method: 'POST',
+      userEmail: session?.user?.email,
+      userRole: (session?.user as any)?.role,
+      metadata: {
+        lrNo: lrData?.['LR No'],
+        vehicleType: lrData?.['Vehicle Type'],
+        from: lrData?.['FROM'],
+        to: lrData?.['TO'],
+        // Don't include sensitive data
+      },
+    });
+    
     const errorMessage = error instanceof Error ? error.message : 'Failed to create LR';
     return NextResponse.json(
-      { success: false, error: errorMessage },
+      { success: false, error: 'Failed to create LR' },
       { status: 500 }
     );
   }
@@ -160,6 +190,17 @@ export async function DELETE(request: NextRequest) {
       );
     }
   } catch (error) {
+    // Track error with Sentry
+    const session = await getServerSession(authOptions).catch(() => null);
+    const { trackApiError } = await import('@/lib/utils/errorTracking');
+    
+    trackApiError(error instanceof Error ? error : new Error(String(error)), {
+      endpoint: '/api/lrs',
+      method: 'DELETE',
+      userEmail: session?.user?.email,
+      userRole: (session?.user as any)?.role,
+    });
+    
     return NextResponse.json(
       { success: false, error: 'Failed to delete LRs' },
       { status: 500 }

@@ -143,11 +143,29 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Batch bill generation error:', error);
+    
+    // Track error with Sentry
+    const { getServerSession } = await import('next-auth');
+    const { authOptions } = await import('@/lib/auth');
+    const session = await getServerSession(authOptions).catch(() => null);
+    const { trackApiError } = await import('@/lib/utils/errorTracking');
+    
+    trackApiError(error instanceof Error ? error : new Error(String(error)), {
+      endpoint: '/api/generate-bills',
+      method: 'POST',
+      userEmail: session?.user?.email,
+      userRole: (session?.user as any)?.role,
+      metadata: {
+        lrCount: lrNumbers?.length,
+        errorCount: errors?.length,
+      },
+    });
+    
     const errorMessage = error instanceof Error ? error.message : 'Failed to generate bills';
     return NextResponse.json(
       {
         success: false,
-        error: errorMessage,
+        error: 'Failed to generate bills',
       },
       { status: 500 }
     );

@@ -3954,6 +3954,14 @@ export default function Dashboard() {
               <span className="text-gray-600">Vehicle Type</span>
               <span className="font-semibold text-gray-900">{detailLr?.['Vehicle Type'] || '-'}</span>
             </div>
+            <div className="flex items-center justify-between text-xs sm:text-sm">
+              <span className="text-gray-600">Driver Name</span>
+              <span className="font-semibold text-gray-900">{detailLr?.['Driver Name'] || '-'}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs sm:text-sm">
+              <span className="text-gray-600">Driver Number</span>
+              <span className="font-semibold text-gray-900">{detailLr?.['Driver Number'] || '-'}</span>
+            </div>
             <div className="flex items-start justify-between text-xs sm:text-sm gap-4">
               <span className="text-gray-600 mt-0.5">Description of Goods</span>
               <span className="font-semibold text-gray-900 text-right max-w-[65%] whitespace-pre-line break-words" title={detailLr?.['Description of Goods'] || ''}>
