@@ -1373,7 +1373,12 @@ export const generatePDFFromExcel = async (
     }
     
     // Convert Excel to PDF using LibreOffice headless
-    const command = `libreoffice --headless --convert-to pdf --outdir "${path.dirname(excelFilePath)}" "${excelFilePath}"`;
+    // Escape paths properly for Windows
+    const excelPathEscaped = excelFilePath.replace(/"/g, '\\"');
+    const outDirEscaped = path.dirname(excelFilePath).replace(/"/g, '\\"');
+    const command = process.platform === 'win32' 
+      ? `soffice --headless --convert-to pdf --outdir "${outDirEscaped}" "${excelPathEscaped}"`
+      : `libreoffice --headless --convert-to pdf --outdir "${outDirEscaped}" "${excelPathEscaped}"`;
     await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
     
     // Check if PDF was created
