@@ -41,6 +41,7 @@
     "lucide-react": "^0.294.0",
     "next": "14.0.4",
     "next-auth": "^4.24.11",
+    "puppeteer": "^24.31.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-hot-toast": "^2.6.0",

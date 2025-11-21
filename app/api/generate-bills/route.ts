@@ -77,22 +77,35 @@ export async function POST(request: NextRequest) {
         const lrData = await getLRByNumber(lrNo);
         if (!lrData) { errors.push({ lrNo, error: 'LR not found' }); return; }
         if (!lrData['Vehicle Type']) { errors.push({ lrNo, error: 'Missing Vehicle Type' }); return; }
-        const files = await generateAllFilesForLRNoFinal(lrData, submissionDate, signatureImagePath);
+        const files = await generateAllFilesForLRNoFinal(lrData, submissionDate, signatureImagePath, true);
         
         // Convert full paths to relative paths for download
         const lrFileRel = getRelativePath(files.lrFile);
         const invoiceFileRel = getRelativePath(files.invoiceFile);
+        const lrPdfFileRel = files.lrPdfFile ? getRelativePath(files.lrPdfFile) : undefined;
+        const invoicePdfFileRel = files.invoicePdfFile ? getRelativePath(files.invoicePdfFile) : undefined;
         
         let s3Results = null;
         try {
-          const toUpload = [files.lrFile, files.invoiceFile].filter(Boolean) as string[];
+          const toUpload = [files.lrFile, files.invoiceFile, files.lrPdfFile, files.invoicePdfFile].filter(Boolean) as string[];
           s3Results = await uploadMultipleFiles(toUpload, submissionDate);
         } catch (s3Error) { console.log('S3 upload skipped or failed:', s3Error); }
         try {
           await updateLR(lrNo, { status: 'Bill Done', 'Bill Submission Date': submissionDate } as any);
         } catch (statusError) { console.log('Failed to update status, but files generated:', statusError); }
         selectedLrsData.push(lrData);
-        results.push({ lrNo, success: true, files: { lrFile: lrFileRel, invoiceFile: invoiceFileRel, finalSheet: 'Final Submission Sheet.xlsx' }, s3Upload: s3Results });
+        results.push({ 
+          lrNo, 
+          success: true, 
+          files: { 
+            lrFile: lrFileRel, 
+            invoiceFile: invoiceFileRel,
+            lrPdfFile: lrPdfFileRel,
+            invoicePdfFile: invoicePdfFileRel,
+            finalSheet: 'Final Submission Sheet.xlsx' 
+          }, 
+          s3Upload: s3Results 
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to generate files';
         errors.push({ lrNo, error: errorMessage });

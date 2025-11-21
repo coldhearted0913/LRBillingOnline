@@ -4,6 +4,7 @@ import fs from 'fs';
 import { LRData } from './database';
 import { VEHICLE_AMOUNTS } from './constants';
 import { computeReworkAmount } from './utils';
+import puppeteer from 'puppeteer';
 
 const INVOICE_DIR = path.join(process.cwd(), 'invoices');
 const TEMPLATES_DIR = process.cwd(); // Current directory for templates
@@ -165,6 +166,37 @@ export const generateLRFile = async (
   if (toValue) {
     worksheet.getCell('F6').value = toValue.toUpperCase();
   }
+  
+  // Improve cross-platform compatibility
+  // Set explicit page setup for consistent rendering
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: 'portrait' as const,
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: {
+      left: 0.7,
+      right: 0.7,
+      top: 0.75,
+      bottom: 0.75,
+      header: 0.3,
+      footer: 0.3,
+    },
+  };
+  
+  // Set explicit fonts that are available on both Windows and macOS
+  // Use Arial (available on both platforms) as fallback
+  worksheet.eachRow((row) => {
+    row.eachCell((cell) => {
+      if (cell.font) {
+        // Ensure font family is set to a cross-platform font
+        if (!cell.font.name || cell.font.name === 'Calibri') {
+          cell.font = { ...cell.font, name: 'Arial' };
+        }
+      }
+    });
+  });
   
   // Save file
   const safeFileName = lrData['LR No'].replace(/[\/\\:*?"<>|]/g, '-');
@@ -396,11 +428,42 @@ export const generateAllFilesForLR = async (
 export const generateAllFilesForLRNoFinal = async (
   lrData: LRData,
   submissionDate: string,
-  signatureImagePath?: string
-): Promise<{ lrFile: string; invoiceFile: string }> => {
-  const lrFile = await generateLRFile(lrData, submissionDate, signatureImagePath);
+  signatureImagePath?: string,
+  generatePDF: boolean = true
+): Promise<{ lrFile: string; invoiceFile: string; lrPdfFile?: string; invoicePdfFile?: string }> => {
+  // Generate Excel files - use generateLRFromMasterCopy for better formatting
+  const lrFile = await generateLRFromMasterCopy(lrData, submissionDate);
   const invoiceFile = await generateMangeshInvoice(lrData, submissionDate);
-  return { lrFile, invoiceFile };
+  
+  const result: { lrFile: string; invoiceFile: string; lrPdfFile?: string; invoicePdfFile?: string } = {
+    lrFile,
+    invoiceFile,
+  };
+  
+  // Generate PDF files if requested
+  if (generatePDF) {
+    // Generate PDFs in parallel and wait for completion
+    try {
+      const [lrPdf, invoicePdf] = await Promise.all([
+        generatePDFFromExcel(lrFile).catch(err => {
+          console.error('[PDF] Failed to generate LR PDF:', err);
+          return null;
+        }),
+        generatePDFFromExcel(invoiceFile).catch(err => {
+          console.error('[PDF] Failed to generate Invoice PDF:', err);
+          return null;
+        })
+      ]);
+      
+      if (lrPdf) result.lrPdfFile = lrPdf;
+      if (invoicePdf) result.invoicePdfFile = invoicePdf;
+    } catch (error) {
+      console.error('[PDF] PDF generation error:', error);
+      // Continue even if PDF generation fails - Excel files are still available
+    }
+  }
+  
+  return result;
 };
 
 // Batch append to Final Submission Sheet for a set of LRs
@@ -1236,11 +1299,168 @@ export const generateLRFromMasterCopy = async (
     // Preserve existing font color - don't override
   }
   
+  // Improve cross-platform compatibility
+  // Set explicit page setup for consistent rendering
+  worksheet.pageSetup = {
+    paperSize: 9, // A4
+    orientation: 'portrait' as const,
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: {
+      left: 0.7,
+      right: 0.7,
+      top: 0.75,
+      bottom: 0.75,
+      header: 0.3,
+      footer: 0.3,
+    },
+  };
+  
+  // Set explicit fonts that are available on both Windows and macOS
+  worksheet.eachRow((row) => {
+    row.eachCell((cell) => {
+      if (cell.font) {
+        // Ensure font family is set to a cross-platform font
+        if (!cell.font.name || cell.font.name === 'Calibri') {
+          cell.font = { ...cell.font, name: 'Arial' };
+        }
+      }
+    });
+  });
+  
   // Save file with format: LR-[LRNo].xlsx
   const safeFileName = `LR-${lrData['LR No'].replace(/[\/\\:*?"<>|]/g, '-')}.xlsx`;
   const filePath = path.join(folder, safeFileName);
   await workbook.xlsx.writeFile(filePath);
   
   return filePath;
+};
+
+// Generate PDF from Excel file using LibreOffice headless (preferred) or Puppeteer fallback
+export const generatePDFFromExcel = async (
+  excelFilePath: string
+): Promise<string | null> => {
+  const pdfPath = excelFilePath.replace('.xlsx', '.pdf');
+  
+  // Method 1: Try LibreOffice headless (most reliable for Excel to PDF)
+  try {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    
+    // Check if LibreOffice is available
+    try {
+      await execAsync('which libreoffice || which soffice');
+    } catch {
+      throw new Error('LibreOffice not found');
+    }
+    
+    // Convert Excel to PDF using LibreOffice headless
+    const command = `libreoffice --headless --convert-to pdf --outdir "${path.dirname(excelFilePath)}" "${excelFilePath}"`;
+    await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
+    
+    // Check if PDF was created
+    if (fs.existsSync(pdfPath)) {
+      console.log('[PDF] Successfully generated PDF using LibreOffice');
+      return pdfPath;
+    }
+  } catch (error: any) {
+    console.log('[PDF] LibreOffice conversion failed, trying Puppeteer:', error.message);
+  }
+  
+  // Method 2: Fallback to Puppeteer (convert Excel to HTML, then to PDF)
+  try {
+    if (typeof puppeteer === 'undefined') {
+      throw new Error('Puppeteer not available');
+    }
+
+    // Read Excel file and convert to HTML
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(excelFilePath);
+    const worksheet = workbook.getWorksheet(1);
+    
+    if (!worksheet) {
+      throw new Error('Worksheet not found');
+    }
+    
+    // Generate HTML from Excel data
+    let html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          table { border-collapse: collapse; width: 100%; page-break-inside: avoid; }
+          td, th { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; font-weight: bold; }
+          @media print {
+            body { margin: 0; }
+            table { page-break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <table>
+    `;
+    
+    // Convert worksheet to HTML table
+    worksheet.eachRow((row, rowNumber) => {
+      html += '<tr>';
+      row.eachCell((cell, colNumber) => {
+        const cellValue = cell.value?.toString() || '';
+        const tag = rowNumber === 1 ? 'th' : 'td';
+        const style = cell.font?.bold ? 'font-weight: bold;' : '';
+        html += `<${tag} style="${style}">${cellValue}</${tag}>`;
+      });
+      html += '</tr>';
+    });
+    
+    html += `
+        </table>
+      </body>
+      </html>
+    `;
+    
+    // Launch Puppeteer and generate PDF
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      
+      await page.pdf({
+        path: pdfPath,
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '10mm',
+          right: '10mm',
+          bottom: '10mm',
+          left: '10mm',
+        },
+      });
+      
+      await browser.close();
+      
+      if (fs.existsSync(pdfPath)) {
+        console.log('[PDF] Successfully generated PDF using Puppeteer');
+        return pdfPath;
+      }
+    } catch (error) {
+      await browser.close();
+      throw error;
+    }
+  } catch (error: any) {
+    console.error('[PDF] Puppeteer conversion failed:', error.message);
+  }
+  
+  // If both methods fail, return null
+  console.warn('[PDF] All PDF generation methods failed, returning null');
+  return null;
 };
 
