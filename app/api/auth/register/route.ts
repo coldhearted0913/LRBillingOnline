@@ -96,17 +96,22 @@ export async function POST(request: NextRequest) {
     console.error("User creation error:", error);
     
     // Track error with Sentry
-    const { trackApiError } = await import('@/lib/utils/errorTracking');
-    trackApiError(error instanceof Error ? error : new Error(String(error)), {
-      endpoint: '/api/auth/register',
-      method: 'POST',
-      userEmail: session?.user?.email,
-      userRole: (session?.user as any)?.role,
-      metadata: {
-        // Don't include password or sensitive data
-        attemptedEmail: email?.toLowerCase(),
-      },
-    });
+    try {
+      const currentSession = await getServerSession(authOptions);
+      const { trackApiError } = await import('@/lib/utils/errorTracking');
+      trackApiError(error instanceof Error ? error : new Error(String(error)), {
+        endpoint: '/api/auth/register',
+        method: 'POST',
+        userEmail: currentSession?.user?.email || undefined,
+        userRole: (currentSession?.user as any)?.role,
+        metadata: {
+          // Don't include password or sensitive data
+        },
+      });
+    } catch (trackingError) {
+      // If error tracking fails, continue with error response
+      console.error("Failed to track error:", trackingError);
+    }
     
     return NextResponse.json(
       { error: "Failed to create user" },

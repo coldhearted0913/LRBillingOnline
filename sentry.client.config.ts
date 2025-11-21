@@ -7,36 +7,29 @@ Sentry.init({
   // Adjust sample rate for performance monitoring (10% of transactions)
   tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
   
-  // Capture unhandled promise rejections
-  integrations: [
-    new Sentry.BrowserTracing({
-      // Set tracing origins
-      tracePropagationTargets: [
-        "localhost",
-        /^https:\/\/.*\.vercel\.app/,
-        /^https:\/\/.*\.railway\.app/,
-      ],
-    }),
-  ],
+  // Browser tracing is automatically enabled in @sentry/nextjs
+  // No need to manually add BrowserTracing integration
   
   // Filter out sensitive data before sending to Sentry
   beforeSend(event, hint) {
+    const request = event.request;
+    
     // Remove sensitive fields from request data
-    if (event.request?.data) {
+    if (request?.data) {
       const sensitiveFields = ['password', 'token', 'secret', 'key', 'authorization'];
       sensitiveFields.forEach(field => {
-        if (event.request.data[field]) {
-          event.request.data[field] = '[REDACTED]';
+        if ((request.data as any)[field]) {
+          (request.data as any)[field] = '[REDACTED]';
         }
       });
     }
     
     // Remove sensitive headers
-    if (event.request?.headers) {
+    if (request?.headers) {
       const sensitiveHeaders = ['authorization', 'cookie', 'x-api-key', 'x-csrf-token'];
       sensitiveHeaders.forEach(header => {
-        if (event.request.headers[header]) {
-          event.request.headers[header] = '[REDACTED]';
+        if ((request.headers as any)[header]) {
+          (request.headers as any)[header] = '[REDACTED]';
         }
       });
     }

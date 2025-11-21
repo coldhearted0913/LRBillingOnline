@@ -7,29 +7,29 @@ Sentry.init({
   // Adjust sample rate for performance monitoring (10% of transactions)
   tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
   
-  // Capture unhandled promise rejections
-  integrations: [
-    new Sentry.Integrations.Http({ tracing: true }),
-  ],
+  // HTTP tracing is automatically enabled in @sentry/nextjs
+  // No need to manually add Http integration
   
   // Filter sensitive data before sending to Sentry
   beforeSend(event, hint) {
+    const request = event.request;
+    
     // Remove sensitive headers
-    if (event.request?.headers) {
+    if (request?.headers) {
       const sensitiveHeaders = ['authorization', 'cookie', 'x-api-key', 'x-csrf-token'];
       sensitiveHeaders.forEach(header => {
-        if (event.request.headers[header]) {
-          event.request.headers[header] = '[REDACTED]';
+        if ((request.headers as any)[header]) {
+          (request.headers as any)[header] = '[REDACTED]';
         }
       });
     }
     
     // Remove sensitive request data
-    if (event.request?.data) {
+    if (request?.data) {
       const sensitiveFields = ['password', 'token', 'secret', 'key', 'currentPassword', 'newPassword'];
       sensitiveFields.forEach(field => {
-        if (event.request.data[field]) {
-          event.request.data[field] = '[REDACTED]';
+        if ((request.data as any)[field]) {
+          (request.data as any)[field] = '[REDACTED]';
         }
       });
     }
@@ -45,10 +45,11 @@ Sentry.init({
     // Remove sensitive data from extra context
     if (event.extra) {
       Object.keys(event.extra).forEach(key => {
-        if (typeof event.extra[key] === 'string' && 
-            (event.extra[key].includes('postgresql://') || 
-             event.extra[key].includes('DATABASE_URL'))) {
-          event.extra[key] = '[REDACTED]';
+        const value = (event.extra as any)[key];
+        if (typeof value === 'string' && 
+            (value.includes('postgresql://') || 
+             value.includes('DATABASE_URL'))) {
+          (event.extra as any)[key] = '[REDACTED]';
         }
       });
     }

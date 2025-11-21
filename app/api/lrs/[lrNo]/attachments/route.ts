@@ -138,18 +138,22 @@ export async function POST(request: NextRequest, { params }: { params: { lrNo: s
     return NextResponse.json({ success: true, attachments: combined, uploadedCount: uploaded.length });
   } catch (e: any) {
     // Track error with Sentry
-    const { trackApiError } = await import('@/lib/utils/errorTracking');
-    const s: any = session;
-    trackApiError(e instanceof Error ? e : new Error(String(e)), {
-      endpoint: '/api/lrs/[lrNo]/attachments',
-      method: 'POST',
-      userEmail: s?.user?.email,
-      userRole: s?.user?.role,
-      metadata: {
-        lrNo: sanitizedLrNo,
-        fileCount: files?.length,
-      },
-    });
+    try {
+      const currentSession = await getServerSession(authOptions as any) as any;
+      const { trackApiError } = await import('@/lib/utils/errorTracking');
+      trackApiError(e instanceof Error ? e : new Error(String(e)), {
+        endpoint: '/api/lrs/[lrNo]/attachments',
+        method: 'POST',
+        userEmail: currentSession?.user?.email || undefined,
+        userRole: currentSession?.user?.role,
+        metadata: {
+          // Metadata available from error context
+        },
+      });
+    } catch (trackingError) {
+      // If error tracking fails, continue with error response
+      console.error("Failed to track error:", trackingError);
+    }
     
     return NextResponse.json({ success: false, error: 'Upload failed' }, { status: 500 });
   }

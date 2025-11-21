@@ -9,12 +9,14 @@ Sentry.init({
   
   // Filter sensitive data
   beforeSend(event, hint) {
+    const request = event.request;
+    
     // Remove sensitive headers
-    if (event.request?.headers) {
+    if (request?.headers) {
       const sensitiveHeaders = ['authorization', 'cookie', 'x-api-key'];
       sensitiveHeaders.forEach(header => {
-        if (event.request.headers[header]) {
-          event.request.headers[header] = '[REDACTED]';
+        if ((request.headers as any)[header]) {
+          (request.headers as any)[header] = '[REDACTED]';
         }
       });
     }

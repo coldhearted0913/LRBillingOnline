@@ -153,11 +153,10 @@ export async function POST(request: NextRequest) {
     trackApiError(error instanceof Error ? error : new Error(String(error)), {
       endpoint: '/api/generate-bills',
       method: 'POST',
-      userEmail: session?.user?.email,
+      userEmail: session?.user?.email || undefined,
       userRole: (session?.user as any)?.role,
       metadata: {
-        lrCount: lrNumbers?.length,
-        errorCount: errors?.length,
+        // Metadata available from error context
       },
     });
     

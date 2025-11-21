@@ -1022,25 +1022,25 @@ export const generateLRFromMasterCopy = async (
 
   // ========== ORIGINAL MAPPINGS (First Section) ==========
   
-  // Map FROM to L5
+  // Map FROM to L7
   if (lrData['FROM']) {
-    const cell = worksheet.getCell('L5');
+    const cell = worksheet.getCell('L7');
     cell.value = lrData['FROM'].toUpperCase();
     // Preserve existing font color - don't override
   }
   
-  // Map TO to L6
+  // Map TO to L8
   if (lrData['TO']) {
-    const cell = worksheet.getCell('L6');
+    const cell = worksheet.getCell('L8');
     cell.value = lrData['TO'].toUpperCase();
     // Preserve existing font color - don't override
   }
   
-  // Map Consignor to B4-B6 (split by '/' and write each in cell below)
+  // Map Consignor to B6-B8 (split by '/' and write each in cell below)
   if (lrData['Consignor']) {
     const consignors = lrData['Consignor'].split('/').map(c => c.trim()).filter(c => c.length > 0);
-    const maxConsignors = 3; // B4, B5, B6 = 3 rows max
-    const startRow = 4;
+    const maxConsignors = 3; // B6, B7, B8 = 3 rows max
+    const startRow = 6;
     
     for (let i = 0; i < Math.min(consignors.length, maxConsignors); i++) {
       const row = startRow + i;
@@ -1050,11 +1050,11 @@ export const generateLRFromMasterCopy = async (
     }
   }
   
-  // Map Consignee to B8-B10 (split by '/' and write each in cell below)
+  // Map Consignee to B10-B12 (split by '/' and write each in cell below)
   if (lrData['Consignee']) {
     const consignees = lrData['Consignee'].split('/').map(c => c.trim()).filter(c => c.length > 0);
-    const maxConsignees = 3; // B8, B9, B10 = 3 rows max
-    const startRow = 8;
+    const maxConsignees = 3; // B10, B11, B12 = 3 rows max
+    const startRow = 10;
     
     for (let i = 0; i < Math.min(consignees.length, maxConsignees); i++) {
       const row = startRow + i;
@@ -1064,51 +1064,51 @@ export const generateLRFromMasterCopy = async (
     }
   }
   
-  // Map LR No to L4 (plain text, no formatting)
+  // Map LR No to L6 (plain text, no formatting)
   if (lrData['LR No']) {
-    const cell = worksheet.getCell('L4');
+    const cell = worksheet.getCell('L6');
     cell.value = lrData['LR No'].toUpperCase();
     // Preserve existing font color - don't override
   }
   
-  // Map LR Date to L8
+  // Map LR Date to L10
   if (lrData['LR Date']) {
-    const cell = worksheet.getCell('L8');
+    const cell = worksheet.getCell('L10');
     cell.value = formatDateToDDMMYYYY(lrData['LR Date']).toUpperCase();
     // Preserve existing font color - don't override
   }
   
-  // Map Vehicle Type to L10
+  // Map Vehicle Type to L12
   if (lrData['Vehicle Type']) {
-    const cell = worksheet.getCell('L10');
+    const cell = worksheet.getCell('L12');
     cell.value = lrData['Vehicle Type'].toUpperCase();
     // Preserve existing font color - don't override
   }
   
-  // Map Vehicle Number to L9
+  // Map Vehicle Number to L11
   if (lrData['Vehicle Number']) {
-    const cell = worksheet.getCell('L9');
+    const cell = worksheet.getCell('L11');
     cell.value = lrData['Vehicle Number'].toUpperCase();
     // Preserve existing font color - don't override
   }
   
-  // Map Description of Goods and Quantity starting from B13 (up to B22)
+  // Map Description of Goods and Quantity starting from B15 (up to B23)
   const goodsList1 = parseGoodsAndQuantity();
-  const maxGoodsRows1 = 10; // B13 to B22 = 10 rows
-  const startRow1 = 13;
+  const maxGoodsRows1 = 9; // B15 to B23 = 9 rows
+  const startRow1 = 15;
   
   for (let i = 0; i < Math.min(goodsList1.length, maxGoodsRows1); i++) {
     const row = startRow1 + i;
     const goods = goodsList1[i];
     
-    // Quantity in column A (A13, A14, etc.)
+    // Quantity in column A (A15, A16, etc.)
     if (goods.quantity) {
       const cell = worksheet.getCell(`A${row}`);
       cell.value = goods.quantity;
       // Preserve existing font color - don't override
     }
     
-    // Description in column B (B13, B14, etc.)
+    // Description in column B (B15, B16, etc.)
     if (goods.description) {
       const cell = worksheet.getCell(`B${row}`);
       cell.value = goods.description;
@@ -1116,48 +1116,48 @@ export const generateLRFromMasterCopy = async (
     }
   }
   
-  // Map Invoice No to B22
+  // Map Invoice No to B24
   if (lrData['Invoice No']) {
-    const cell = worksheet.getCell('B22');
+    const cell = worksheet.getCell('B24');
     cell.value = lrData['Invoice No'].toUpperCase();
     // Preserve existing font color - don't override
   }
 
-  // Map GRR No to B23
+  // Map GRR No to B26
   if (lrData['GRR No']) {
-    const cell = worksheet.getCell('B23');
+    const cell = worksheet.getCell('B26');
     cell.value = lrData['GRR No'].toUpperCase();
     // Preserve existing font color - don't override
   }
 
   // ========== NEW MAPPINGS (Second Section) ==========
   
-  // Map FROM to L34
+  // Map FROM to L38
   if (lrData['FROM']) {
-    const cell = worksheet.getCell('L34');
+    const cell = worksheet.getCell('L38');
     cell.value = lrData['FROM'].toUpperCase();
     // Preserve existing font color - don't override
   }
   
-  // Map TO to L35
+  // Map TO to L39
   if (lrData['TO']) {
-    const cell = worksheet.getCell('L35');
+    const cell = worksheet.getCell('L39');
     cell.value = lrData['TO'].toUpperCase();
     // Preserve existing font color - don't override
   }
   
-  // Map LR Date to L37
+  // Map LR Date to L41
   if (lrData['LR Date']) {
-    const cell = worksheet.getCell('L37');
+    const cell = worksheet.getCell('L41');
     cell.value = formatDateToDDMMYYYY(lrData['LR Date']).toUpperCase();
     // Preserve existing font color - don't override
   }
   
-  // Map Consignor to B33-B35 (split by '/' and write each in cell below)
+  // Map Consignor to B37-B39 (split by '/' and write each in cell below)
   if (lrData['Consignor']) {
     const consignors = lrData['Consignor'].split('/').map(c => c.trim()).filter(c => c.length > 0);
-    const maxConsignors = 3; // B33, B34, B35 = 3 rows max
-    const startRow = 33;
+    const maxConsignors = 3; // B37, B38, B39 = 3 rows max
+    const startRow = 37;
     
     for (let i = 0; i < Math.min(consignors.length, maxConsignors); i++) {
       const row = startRow + i;
@@ -1167,11 +1167,11 @@ export const generateLRFromMasterCopy = async (
     }
   }
   
-  // Map Consignee to B37-B39 (split by '/' and write each in cell below)
+  // Map Consignee to B41-B43 (split by '/' and write each in cell below)
   if (lrData['Consignee']) {
     const consignees = lrData['Consignee'].split('/').map(c => c.trim()).filter(c => c.length > 0);
-    const maxConsignees = 3; // B37, B38, B39 = 3 rows max
-    const startRow = 37;
+    const maxConsignees = 3; // B41, B42, B43 = 3 rows max
+    const startRow = 41;
     
     for (let i = 0; i < Math.min(consignees.length, maxConsignees); i++) {
       const row = startRow + i;
@@ -1181,40 +1181,40 @@ export const generateLRFromMasterCopy = async (
     }
   }
   
-  // Map LR No to L33
+  // Map LR No to L37
   if (lrData['LR No']) {
-    const cell = worksheet.getCell('L33');
+    const cell = worksheet.getCell('L37');
     cell.value = lrData['LR No'].toUpperCase();
     // Preserve existing font color - don't override
   }
   
-  // Map Vehicle Type to L39
+  // Map Vehicle Type to L43
   if (lrData['Vehicle Type']) {
-    worksheet.getCell('L39').value = lrData['Vehicle Type'].toUpperCase();
+    worksheet.getCell('L43').value = lrData['Vehicle Type'].toUpperCase();
   }
   
-  // Map Vehicle Number to L38
+  // Map Vehicle Number to L42
   if (lrData['Vehicle Number']) {
-    worksheet.getCell('L38').value = lrData['Vehicle Number'].toUpperCase();
+    worksheet.getCell('L42').value = lrData['Vehicle Number'].toUpperCase();
   }
   
-  // Map Description of Goods and Quantity starting from B42 (up to B51)
+  // Map Description of Goods and Quantity starting from B46 (up to B54)
   const goodsList2 = parseGoodsAndQuantity();
-  const maxGoodsRows2 = 10; // B42 to B51 = 10 rows
-  const startRow2 = 42;
+  const maxGoodsRows2 = 9; // B46 to B54 = 9 rows
+  const startRow2 = 46;
   
   for (let i = 0; i < Math.min(goodsList2.length, maxGoodsRows2); i++) {
     const row = startRow2 + i;
     const goods = goodsList2[i];
     
-    // Quantity in column A (A42, A43, etc.)
+    // Quantity in column A (A46, A47, etc.)
     if (goods.quantity) {
       const cell = worksheet.getCell(`A${row}`);
       cell.value = goods.quantity;
       // Preserve existing font color - don't override
     }
     
-    // Description in column B (B42, B43, etc.)
+    // Description in column B (B46, B47, etc.)
     if (goods.description) {
       const cell = worksheet.getCell(`B${row}`);
       cell.value = goods.description;
@@ -1222,16 +1222,16 @@ export const generateLRFromMasterCopy = async (
     }
   }
   
-  // Map Invoice No to B50
+  // Map Invoice No to B55
   if (lrData['Invoice No']) {
-    const cell = worksheet.getCell('B50');
+    const cell = worksheet.getCell('B55');
     cell.value = lrData['Invoice No'].toUpperCase();
     // Preserve existing font color - don't override
   }
 
-  // Map GRR No to B51
+  // Map GRR No to B57
   if (lrData['GRR No']) {
-    const cell = worksheet.getCell('B51');
+    const cell = worksheet.getCell('B57');
     cell.value = lrData['GRR No'].toUpperCase();
     // Preserve existing font color - don't override
   }

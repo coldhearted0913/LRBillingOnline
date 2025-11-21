@@ -127,24 +127,23 @@ export async function POST(request: NextRequest) {
     console.error('[POST /api/lrs] Error creating LR:', error);
     
     // Track error with Sentry
-    const session = await getServerSession(authOptions).catch(() => null);
-    const { trackApiError } = await import('@/lib/utils/errorTracking');
+    try {
+      const session = await getServerSession(authOptions);
+      const { trackApiError } = await import('@/lib/utils/errorTracking');
+      trackApiError(error instanceof Error ? error : new Error(String(error)), {
+        endpoint: '/api/lrs',
+        method: 'POST',
+        userEmail: session?.user?.email || undefined,
+        userRole: (session?.user as any)?.role,
+        metadata: {
+          // Metadata available from error context
+        },
+      });
+    } catch (trackingError) {
+      // If error tracking fails, continue with error response
+      console.error("Failed to track error:", trackingError);
+    }
     
-    trackApiError(error instanceof Error ? error : new Error(String(error)), {
-      endpoint: '/api/lrs',
-      method: 'POST',
-      userEmail: session?.user?.email,
-      userRole: (session?.user as any)?.role,
-      metadata: {
-        lrNo: lrData?.['LR No'],
-        vehicleType: lrData?.['Vehicle Type'],
-        from: lrData?.['FROM'],
-        to: lrData?.['TO'],
-        // Don't include sensitive data
-      },
-    });
-    
-    const errorMessage = error instanceof Error ? error.message : 'Failed to create LR';
     return NextResponse.json(
       { success: false, error: 'Failed to create LR' },
       { status: 500 }
@@ -197,7 +196,7 @@ export async function DELETE(request: NextRequest) {
     trackApiError(error instanceof Error ? error : new Error(String(error)), {
       endpoint: '/api/lrs',
       method: 'DELETE',
-      userEmail: session?.user?.email,
+      userEmail: session?.user?.email || undefined,
       userRole: (session?.user as any)?.role,
     });
     
