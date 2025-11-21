@@ -41,19 +41,10 @@ export async function GET(request: NextRequest) {
     const fileBuffer = fs.readFileSync(fullPath);
     const fileName = path.basename(fullPath);
     
-    // Determine content type based on file extension
-    const ext = path.extname(fileName).toLowerCase();
-    let contentType = 'application/octet-stream';
-    if (ext === '.xlsx') {
-      contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    } else if (ext === '.pdf') {
-      contentType = 'application/pdf';
-    }
-    
     // Return file
     return new NextResponse(fileBuffer, {
       headers: {
-        'Content-Type': contentType,
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename="${fileName}"`,
       },
     });
