@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getAllLRs, updateLR } from '@/lib/database';
-import { generateLRFromMasterCopy } from '@/lib/excelGenerator';
+import { generateLRFromMasterCopy, generatePDFFromExcel } from '@/lib/excelGenerator';
 import { uploadFileToS3 } from '@/lib/s3Upload';
 import path from 'path';
 import fs from 'fs';
@@ -51,7 +51,25 @@ export async function POST(request: NextRequest) {
 
     for (const lrData of selectedLRs) {
       try {
-        const filePath = await generateLRFromMasterCopy(lrData, submissionDate);
+        // Generate Excel file first
+        const excelFilePath = await generateLRFromMasterCopy(lrData, submissionDate);
+        
+        // Generate PDF from Excel
+        let pdfFilePath: string | null = null;
+        try {
+          pdfFilePath = await generatePDFFromExcel(excelFilePath);
+          if (pdfFilePath) {
+            console.log(`[Print LR] Successfully generated PDF for ${lrData['LR No']}: ${pdfFilePath}`);
+          } else {
+            console.warn(`[Print LR] PDF generation returned null for ${lrData['LR No']}`);
+          }
+        } catch (pdfError) {
+          console.error(`[Print LR] Failed to generate PDF for ${lrData['LR No']}:`, pdfError);
+          // Continue with Excel file if PDF generation fails
+        }
+        
+        // Use PDF if available, otherwise use Excel
+        const filePath = pdfFilePath || excelFilePath;
         const fileName = path.basename(filePath);
         
         // Upload to S3 in a separate LR folder and save as attachment
@@ -118,9 +136,15 @@ export async function POST(request: NextRequest) {
       const file = generatedFiles[0];
       const fileBuffer = fs.readFileSync(file.filePath);
       
+      // Determine content type based on file extension
+      const isPdf = file.fileName.endsWith('.pdf');
+      const contentType = isPdf 
+        ? 'application/pdf' 
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      
       return new NextResponse(fileBuffer, {
         headers: {
-          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Type': contentType,
           'Content-Disposition': `attachment; filename="${file.fileName}"`,
         },
       });

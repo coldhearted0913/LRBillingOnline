@@ -525,6 +525,7 @@ export default function Dashboard() {
       // Determine file name based on content type
       const contentType = response.headers.get('content-type');
       const isZip = contentType?.includes('zip');
+      const isPdf = contentType?.includes('pdf');
       
       // Helper function to format LR number for filename (MT/25-26/1741 -> MT_25-26_1741)
       const formatLrNoForFileName = (lrNo: string): string => {
@@ -533,6 +534,8 @@ export default function Dashboard() {
       
       const fileName = isZip
         ? `LR_Print_${selectedLrs.size}_${new Date().toISOString().split('T')[0]}.zip`
+        : isPdf
+        ? `${formatLrNoForFileName(Array.from(selectedLrs)[0])}.pdf`
         : `${formatLrNoForFileName(Array.from(selectedLrs)[0])}.xlsx`;
       
       a.href = url;
