@@ -444,19 +444,31 @@ export const generateAllFilesForLRNoFinal = async (
   if (generatePDF) {
     // Generate PDFs in parallel and wait for completion
     try {
+      console.log(`[PDF] Starting PDF generation for LR: ${lrData['LR No']}`);
       const [lrPdf, invoicePdf] = await Promise.all([
         generatePDFFromExcel(lrFile).catch(err => {
-          console.error('[PDF] Failed to generate LR PDF:', err);
+          console.error(`[PDF] Failed to generate LR PDF for ${lrData['LR No']}:`, err);
           return null;
         }),
         generatePDFFromExcel(invoiceFile).catch(err => {
-          console.error('[PDF] Failed to generate Invoice PDF:', err);
+          console.error(`[PDF] Failed to generate Invoice PDF for ${lrData['LR No']}:`, err);
           return null;
         })
       ]);
       
-      if (lrPdf) result.lrPdfFile = lrPdf;
-      if (invoicePdf) result.invoicePdfFile = invoicePdf;
+      if (lrPdf) {
+        result.lrPdfFile = lrPdf;
+        console.log(`[PDF] Successfully generated LR PDF: ${lrPdf}`);
+      } else {
+        console.warn(`[PDF] LR PDF not generated for ${lrData['LR No']}`);
+      }
+      
+      if (invoicePdf) {
+        result.invoicePdfFile = invoicePdf;
+        console.log(`[PDF] Successfully generated Invoice PDF: ${invoicePdf}`);
+      } else {
+        console.warn(`[PDF] Invoice PDF not generated for ${lrData['LR No']}`);
+      }
     } catch (error) {
       console.error('[PDF] PDF generation error:', error);
       // Continue even if PDF generation fails - Excel files are still available
@@ -1351,7 +1363,11 @@ export const generatePDFFromExcel = async (
     
     // Check if LibreOffice is available
     try {
-      await execAsync('which libreoffice || which soffice');
+      if (process.platform === 'win32') {
+        await execAsync('where soffice');
+      } else {
+        await execAsync('which libreoffice || which soffice');
+      }
     } catch {
       throw new Error('LibreOffice not found');
     }

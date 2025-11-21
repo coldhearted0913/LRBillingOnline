@@ -85,6 +85,18 @@ export async function POST(request: NextRequest) {
         const lrPdfFileRel = files.lrPdfFile ? getRelativePath(files.lrPdfFile) : undefined;
         const invoicePdfFileRel = files.invoicePdfFile ? getRelativePath(files.invoicePdfFile) : undefined;
         
+        // Log PDF generation status
+        if (lrPdfFileRel) {
+          console.log(`[Generate Bills] LR PDF generated: ${lrPdfFileRel}`);
+        } else {
+          console.log(`[Generate Bills] LR PDF not generated for ${lrNo}`);
+        }
+        if (invoicePdfFileRel) {
+          console.log(`[Generate Bills] Invoice PDF generated: ${invoicePdfFileRel}`);
+        } else {
+          console.log(`[Generate Bills] Invoice PDF not generated for ${lrNo}`);
+        }
+        
         let s3Results = null;
         try {
           const toUpload = [files.lrFile, files.invoiceFile, files.lrPdfFile, files.invoicePdfFile].filter(Boolean) as string[];

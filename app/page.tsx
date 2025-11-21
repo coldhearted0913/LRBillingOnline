@@ -1648,6 +1648,12 @@ export default function Dashboard() {
   
   // Download file
   const downloadFile = (filePath: string) => {
+    // Simply download the file as-is (frontend will prefer PDF if available in the response)
+    downloadFileDirect(filePath);
+  };
+  
+  const downloadFileDirect = (filePath: string) => {
+    if (!filePath) return;
     // If caller passed a path containing a folder, use it directly. Otherwise fall back to current submissionDate.
     const hasFolder = /[/\\]/.test(filePath);
     const fileName = filePath.split(/[/\\]/).pop() || 'file.xlsx';
@@ -1666,15 +1672,18 @@ export default function Dashboard() {
     if (!submissionDate || generatedFiles.length === 0) return;
     
     for (const result of generatedFiles) {
-      downloadFile(result.files.lrFile);
+      // Prefer PDF files if available, otherwise use Excel
+      const lrFile = result.files.lrPdfFile || result.files.lrFile;
+      const invoiceFile = result.files.invoicePdfFile || result.files.invoiceFile;
+      downloadFileDirect(lrFile);
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      downloadFile(result.files.invoiceFile);
+      downloadFileDirect(invoiceFile);
       await new Promise(resolve => setTimeout(resolve, 500));
     }
     
     if (generatedFiles.length > 0) {
-      downloadFile(generatedFiles[0].files.finalSheet);
+      downloadFileDirect(generatedFiles[0].files.finalSheet);
     }
   };
 
@@ -1740,9 +1749,9 @@ export default function Dashboard() {
             // Add regular bill files
             for (const entry of result.results) {
               if (entry.files) {
-                // Add LR file - use relative path directly
-                const lrPath = entry.files.lrFile;
-                const lrFileName = lrPath.split('/').pop() || lrPath.split('\\').pop() || 'lr.xlsx';
+                // Prefer PDF files if available
+                const lrPath = entry.files.lrPdfFile || entry.files.lrFile;
+                const lrFileName = lrPath.split('/').pop() || lrPath.split('\\').pop() || (entry.files.lrPdfFile ? 'lr.pdf' : 'lr.xlsx');
                 const lrResponse = await fetch(`/api/download-file?path=${encodeURIComponent(lrPath)}`);
                 if (lrResponse.ok) {
                   const lrBlob = await lrResponse.blob();
@@ -1750,9 +1759,9 @@ export default function Dashboard() {
                   fileCount++;
                 }
                 
-                // Add invoice file - use relative path directly
-                const invoicePath = entry.files.invoiceFile;
-                const invoiceFileName = invoicePath.split('/').pop() || invoicePath.split('\\').pop() || 'invoice.xlsx';
+                // Prefer PDF files if available
+                const invoicePath = entry.files.invoicePdfFile || entry.files.invoiceFile;
+                const invoiceFileName = invoicePath.split('/').pop() || invoicePath.split('\\').pop() || (entry.files.invoicePdfFile ? 'invoice.pdf' : 'invoice.xlsx');
                 const invoiceResponse = await fetch(`/api/download-file?path=${encodeURIComponent(invoicePath)}`);
                 if (invoiceResponse.ok) {
                   const invoiceBlob = await invoiceResponse.blob();
@@ -3260,8 +3269,11 @@ export default function Dashboard() {
             <div className="space-y-3">
               <h3 className="font-semibold text-sm text-muted-foreground uppercase">Individual Files:</h3>
               {generatedFiles.map((result, index) => {
-                const lrFileName = result.files.lrFile.split(/[/\\]/).pop();
-                const invoiceFileName = result.files.invoiceFile.split(/[/\\]/).pop();
+                // Prefer PDF file names if available
+                const lrFile = result.files.lrPdfFile || result.files.lrFile;
+                const invoiceFile = result.files.invoicePdfFile || result.files.invoiceFile;
+                const lrFileName = lrFile.split(/[/\\]/).pop();
+                const invoiceFileName = invoiceFile.split(/[/\\]/).pop();
                 
                 return (
                   <Card key={index} className="bg-slate-50">
@@ -3270,22 +3282,28 @@ export default function Dashboard() {
                     </CardHeader>
                     <CardContent className="space-y-2">
                       <Button
-                        onClick={() => downloadFile(result.files.lrFile)}
+                        onClick={() => {
+                          const lrFile = result.files.lrPdfFile || result.files.lrFile;
+                          downloadFileDirect(lrFile);
+                        }}
                         variant="outline"
                         className="w-full justify-start"
                         size="sm"
                       >
                         <Download className="mr-2 h-4 w-4" />
-                        📄 {lrFileName}
+                        {result.files.lrPdfFile ? '📄' : '📊'} {lrFileName} {result.files.lrPdfFile ? '(PDF)' : '(Excel)'}
                       </Button>
                       <Button
-                        onClick={() => downloadFile(result.files.invoiceFile)}
+                        onClick={() => {
+                          const invoiceFile = result.files.invoicePdfFile || result.files.invoiceFile;
+                          downloadFileDirect(invoiceFile);
+                        }}
                         variant="outline"
                         className="w-full justify-start bg-purple-50 hover:bg-purple-100"
                         size="sm"
                       >
                         <Download className="mr-2 h-4 w-4" />
-                        🧾 {invoiceFileName}
+                        {result.files.invoicePdfFile ? '🧾' : '📊'} {invoiceFileName} {result.files.invoicePdfFile ? '(PDF)' : '(Excel)'}
                       </Button>
                     </CardContent>
                   </Card>
