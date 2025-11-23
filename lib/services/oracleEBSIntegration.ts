@@ -263,7 +263,7 @@ export class OracleEBSIntegration {
         if (exportLink.href) {
           await page.goto(exportLink.href, { waitUntil: 'networkidle2' });
         } else if (exportLink.onclick) {
-          await page.evaluate((onclick) => {
+          await page.evaluate((onclick: string) => {
             eval(onclick);
           }, exportLink.onclick);
         }
