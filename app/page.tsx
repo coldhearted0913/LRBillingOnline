@@ -8,7 +8,7 @@ import {
   Plus, RefreshCw, Check, X, Trash2, FileText, Download, 
   Truck, Calendar, MapPin, Package, TrendingUp, BarChart3, Search, Folder, 
   DollarSign, PieChart, ChevronLeft, ChevronRight, Eye, EyeOff, FileSpreadsheet, Printer, HelpCircle, Settings,
-  Smartphone, MessageCircle, Send
+  Smartphone, MessageCircle, Send, CreditCard, Upload, XCircle, CheckCircle
 } from 'lucide-react';
 import JSZip from 'jszip';
 import toast from 'react-hot-toast';
@@ -35,6 +35,7 @@ import LoadingSkeleton from '@/components/LoadingSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import EmptyState from '@/components/EmptyState';
 import DashboardCharts from '@/components/DashboardCharts';
+import { fetchWithCSRF } from '@/lib/utils/fetchWithCSRF';
 
 type NormalizedVehicleType = 'PICKUP' | 'TRUCK' | 'TOROUS';
 
@@ -272,7 +273,19 @@ export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const isCEO = ((session?.user as any)?.role === 'CEO');
+  const isManager = ((session?.user as any)?.role === 'MANAGER');
   const [sendingLRDone, setSendingLRDone] = useState(false);
+  
+  // Payment Sync State
+  const [showPaymentSync, setShowPaymentSync] = useState(false);
+  const [syncingPayments, setSyncingPayments] = useState(false);
+  const [paymentSyncCredentials, setPaymentSyncCredentials] = useState({
+    username: '',
+    password: '',
+    csvExportUrl: '',
+  });
+  const [paymentSyncResult, setPaymentSyncResult] = useState<any>(null);
+  const [uploadingCSV, setUploadingCSV] = useState(false);
   
   // React Query Client
   const queryClient = useQueryClient();
@@ -346,6 +359,90 @@ export default function Dashboard() {
     const updated = [query, ...recentSearches.filter(s => s !== query)].slice(0, 10);
     setRecentSearches(updated);
     localStorage.setItem('lr-recent-searches', JSON.stringify(updated));
+  };
+
+  // Payment Sync Handler
+  const handlePaymentSync = async () => {
+    if (!paymentSyncCredentials.username || !paymentSyncCredentials.password) {
+      toast.error('Please enter Oracle EBS username and password');
+      return;
+    }
+
+    setSyncingPayments(true);
+    setPaymentSyncResult(null);
+
+    try {
+      const response = await fetchWithCSRF('/api/payments/sync', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: paymentSyncCredentials.username,
+          password: paymentSyncCredentials.password,
+          csvExportUrl: paymentSyncCredentials.csvExportUrl || undefined,
+          autoSave: true,
+          autoMarkPaid: true,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPaymentSyncResult(data);
+        toast.success(`Successfully synced ${data.stats?.matched || 0} payments`);
+        // Refresh LRs to show updated payment status
+        refetchLRs();
+        // Clear credentials for security
+        setPaymentSyncCredentials({ username: '', password: '', csvExportUrl: '' });
+      } else {
+        setPaymentSyncResult({ error: data.error || 'Sync failed', details: data.details });
+        toast.error(data.error || 'Payment sync failed');
+      }
+    } catch (error: any) {
+      setPaymentSyncResult({ error: 'Network error', details: error.message });
+      toast.error('Network error: ' + error.message);
+    } finally {
+      setSyncingPayments(false);
+    }
+  };
+
+  // CSV Upload Handler
+  const handleCSVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      toast.error('Please upload a CSV file');
+      return;
+    }
+
+    setUploadingCSV(true);
+    setPaymentSyncResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('autoSave', 'true');
+
+      const response = await fetchWithCSRF('/api/payments/upload-csv', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPaymentSyncResult(data);
+        toast.success(`Successfully processed ${data.stats?.matched || 0} payments`);
+        refetchLRs();
+      } else {
+        setPaymentSyncResult({ error: data.error || 'Upload failed', details: data.details });
+        toast.error(data.error || 'CSV upload failed');
+      }
+    } catch (error: any) {
+      setPaymentSyncResult({ error: 'Network error', details: error.message });
+      toast.error('Network error: ' + error.message);
+    } finally {
+      setUploadingCSV(false);
+    }
   };
 
   const handleSendLRDoneNotifications = async () => {
@@ -1902,6 +1999,21 @@ export default function Dashboard() {
                 <span className="hidden sm:inline md:hidden">New LR</span>
                 <span className="sm:hidden">New</span>
               </Button>
+              
+              {/* Payment Sync Button - CEO and MANAGER only */}
+              {(isCEO || isManager) && (
+                <Button 
+                  onClick={() => setShowPaymentSync(true)} 
+                  size="lg"
+                  className="bg-green-600 text-white hover:bg-green-700 shadow-lg font-semibold text-xs sm:text-sm md:text-base px-2 sm:px-3 md:px-4 active:scale-95 transition-transform duration-150 hover:shadow-xl hover:scale-105"
+                  title="Sync payments from Oracle EBS"
+                >
+                  <CreditCard className="mr-1 sm:mr-2 h-4 w-4 md:h-5 md:w-5" />
+                  <span className="hidden md:inline">Sync Payments</span>
+                  <span className="hidden sm:inline md:hidden">Payments</span>
+                  <span className="sm:hidden">Pay</span>
+                </Button>
+              )}
               
               {/* User Profile Dropdown - Always visible, inline with buttons */}
               {session && (
@@ -4147,6 +4259,182 @@ export default function Dashboard() {
           </div>
         </>
       )}
+
+      {/* Payment Sync Dialog */}
+      <Dialog open={showPaymentSync} onOpenChange={setShowPaymentSync}>
+        <DialogContent className="max-w-2xl w-[95vw] sm:w-full mx-auto max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Sync Payments from Oracle EBS
+            </DialogTitle>
+            <DialogDescription>
+              Automatically log in to Oracle EBS, download payment CSV, and match payments with LRs.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Automatic Sync Section */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="oracle-username">Oracle EBS Username</Label>
+                <Input
+                  id="oracle-username"
+                  type="text"
+                  value={paymentSyncCredentials.username}
+                  onChange={(e) => setPaymentSyncCredentials({ ...paymentSyncCredentials, username: e.target.value })}
+                  placeholder="Enter your Oracle EBS username"
+                  disabled={syncingPayments}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="oracle-password">Oracle EBS Password</Label>
+                <Input
+                  id="oracle-password"
+                  type="password"
+                  value={paymentSyncCredentials.password}
+                  onChange={(e) => setPaymentSyncCredentials({ ...paymentSyncCredentials, password: e.target.value })}
+                  placeholder="Enter your Oracle EBS password"
+                  disabled={syncingPayments}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="csv-export-url">CSV Export URL (Optional)</Label>
+                <Input
+                  id="csv-export-url"
+                  type="text"
+                  value={paymentSyncCredentials.csvExportUrl}
+                  onChange={(e) => setPaymentSyncCredentials({ ...paymentSyncCredentials, csvExportUrl: e.target.value })}
+                  placeholder="https://knode1.koel.co.in:8443/... (leave empty to auto-detect)"
+                  disabled={syncingPayments}
+                />
+                <p className="text-xs text-gray-500">
+                  If you know the direct URL to the CSV export page, enter it here. Otherwise, leave empty and the system will try to find it automatically.
+                </p>
+              </div>
+
+              <Button
+                onClick={handlePaymentSync}
+                disabled={syncingPayments || !paymentSyncCredentials.username || !paymentSyncCredentials.password}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                {syncingPayments ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Syncing payments...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    Sync Payments from Oracle EBS
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-500">Or</span>
+              </div>
+            </div>
+
+            {/* Manual CSV Upload Section */}
+            <div className="space-y-2">
+              <Label>Manual CSV Upload (Alternative)</Label>
+              <p className="text-xs text-gray-500 mb-2">
+                If automatic sync doesn't work, you can manually download the CSV from Oracle EBS and upload it here.
+              </p>
+              <div className="flex items-center gap-4">
+                <Input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCSVUpload}
+                  disabled={uploadingCSV || syncingPayments}
+                  className="flex-1"
+                />
+              </div>
+              {uploadingCSV && (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Uploading and processing CSV...
+                </div>
+              )}
+            </div>
+
+            {/* Results */}
+            {paymentSyncResult && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  {paymentSyncResult.error ? (
+                    <>
+                      <XCircle className="h-5 w-5 text-red-500" />
+                      Sync Result (Error)
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      Sync Result (Success)
+                    </>
+                  )}
+                </h4>
+                <div className="space-y-2 text-sm">
+                  {paymentSyncResult.stats && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>Total: <span className="font-semibold">{paymentSyncResult.stats.total}</span></div>
+                      <div>Matched: <span className="font-semibold text-green-600">{paymentSyncResult.stats.matched}</span></div>
+                      <div>Unmatched: <span className="font-semibold text-yellow-600">{paymentSyncResult.stats.unmatched}</span></div>
+                      <div>Saved: <span className="font-semibold text-blue-600">{paymentSyncResult.stats.saved || 0}</span></div>
+                    </div>
+                  )}
+                  {paymentSyncResult.error && (
+                    <div className="text-red-600">
+                      <p className="font-semibold">{paymentSyncResult.error}</p>
+                      {paymentSyncResult.details && (
+                        <p className="text-xs mt-1">{paymentSyncResult.details}</p>
+                      )}
+                    </div>
+                  )}
+                  {paymentSyncResult.unmatched && paymentSyncResult.unmatched.length > 0 && (
+                    <div className="mt-2">
+                      <p className="font-semibold text-xs">Unmatched Payments ({paymentSyncResult.unmatched.length}):</p>
+                      <div className="max-h-32 overflow-y-auto mt-1 text-xs">
+                        {paymentSyncResult.unmatched.slice(0, 5).map((p: any, idx: number) => (
+                          <div key={idx} className="text-gray-600">
+                            {p.lrNo || p.billNumber || 'Unknown'} - ₹{p.amount}
+                          </div>
+                        ))}
+                        {paymentSyncResult.unmatched.length > 5 && (
+                          <div className="text-gray-500">... and {paymentSyncResult.unmatched.length - 5} more</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowPaymentSync(false);
+                setPaymentSyncResult(null);
+                setPaymentSyncCredentials({ username: '', password: '', csvExportUrl: '' });
+              }}
+              disabled={syncingPayments || uploadingCSV}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
 </>
   );

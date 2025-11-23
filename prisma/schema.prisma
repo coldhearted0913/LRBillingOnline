@@ -39,6 +39,7 @@ model LR {
   attachments        String?  @map("attachments")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
+  payments           Payment[]
 
   @@index([status])
   @@index([lrDate])
@@ -160,4 +161,52 @@ model ArchiveLR {
   @@index([lrNo])
   @@index([deletedAt])
   @@map("archive_lrs")
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  lrId             String?  @map("lr_id")
+  lrNo             String?  @map("lr_no")
+  billNumber       String?  @map("bill_number")
+  invoiceNo        String?  @map("invoice_no")
+  paymentAmount    Float    @map("payment_amount")
+  paymentDate      DateTime @map("payment_date")
+  paymentMethod    String?  @map("payment_method")
+  referenceNumber  String?  @map("reference_number")
+  bankName         String?  @map("bank_name")
+  transactionId    String?  @map("transaction_id")
+  status           String   @default("verified") @map("status") // verified, pending, disputed
+  source           String   @default("oracle_ebs") @map("source") // oracle_ebs, manual
+  notes            String?  @map("notes")
+  syncedAt         DateTime @default(now()) @map("synced_at")
+  syncedBy         String?  @map("synced_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  lr               LR?      @relation(fields: [lrId], references: [id], onDelete: SetNull)
+
+  @@index([lrId])
+  @@index([lrNo])
+  @@index([billNumber])
+  @@index([invoiceNo])
+  @@index([paymentDate])
+  @@index([status])
+  @@index([source])
+  @@map("payments")
+}
+
+model PaymentSyncLog {
+  id              String   @id @default(cuid())
+  syncDate        DateTime @default(now()) @map("sync_date")
+  status          String   @map("status") // success, failed, partial
+  totalRecords    Int      @default(0) @map("total_records")
+  matchedRecords  Int      @default(0) @map("matched_records")
+  unmatchedRecords Int     @default(0) @map("unmatched_records")
+  errorMessage    String?  @map("error_message")
+  csvFilePath     String?  @map("csv_file_path")
+  syncedBy        String?  @map("synced_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([syncDate])
+  @@index([status])
+  @@map("payment_sync_logs")
 }

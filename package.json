@@ -35,6 +35,7 @@
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
+    "csv-parse": "^6.1.0",
     "date-fns": "^2.30.0",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.1",
@@ -54,6 +55,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@types/csv-parse": "^1.1.12",
     "@types/node": "20.10.5",
     "@types/react": "18.2.45",
     "@types/react-dom": "18.2.18",
