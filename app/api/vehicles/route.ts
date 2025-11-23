@@ -109,6 +109,10 @@ export async function POST(request: NextRequest) {
 
 // DELETE: Remove vehicle
 export async function DELETE(request: NextRequest) {
+  // Apply rate limiting and CSRF protection
+  const middlewareResponse = await applyApiMiddleware(request);
+  if (middlewareResponse) return middlewareResponse;
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {

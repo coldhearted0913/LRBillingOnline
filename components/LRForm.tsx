@@ -233,7 +233,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     }
     
     try {
-      const response = await fetch('/api/vehicles', {
+      const response = await fetchWithCSRF('/api/vehicles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -266,7 +266,7 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
     }
     
     try {
-      const response = await fetch(
+      const response = await fetchWithCSRF(
         `/api/vehicles?vehicleNumber=${vehicleNumber}&vehicleType=${formData['Vehicle Type']}`,
         { method: 'DELETE' }
       );
