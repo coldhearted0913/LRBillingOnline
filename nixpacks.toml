@@ -9,7 +9,7 @@ cmds = [
   "export PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1",
   "npm install",
   "npx prisma generate",
-  "npx prisma migrate deploy",
+  "node scripts/baseline-migrations.js",
   "npm run build"
 ]
 
