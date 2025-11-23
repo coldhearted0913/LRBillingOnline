@@ -626,7 +626,7 @@ export class OracleEBSIntegration {
       }
       
       // If we have records but no invoices, that's okay - we'll use voucher data
-      const recordsWithInvoices = paymentRecords.filter(r => r.invoices.length > 0).length;
+      const recordsWithInvoices = paymentRecords.filter((r: OraclePaymentRecord) => r.invoices.length > 0).length;
       console.log(`[Oracle EBS] ${recordsWithInvoices} out of ${paymentRecords.length} records have invoice details`);
 
       // For each payment voucher, click to get invoice details
@@ -634,7 +634,7 @@ export class OracleEBSIntegration {
         const record = paymentRecords[i];
         try {
           // Find and click the payment voucher link
-          const invoiceDetails = await page.evaluate((voucherNo) => {
+          const invoiceDetails = await page.evaluate((voucherNo: string) => {
             // Find link containing the voucher number
             const links = Array.from(document.querySelectorAll('a'));
             const voucherLink = links.find(link => 
