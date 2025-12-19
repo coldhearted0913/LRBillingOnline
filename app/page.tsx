@@ -704,7 +704,7 @@ export default function Dashboard() {
   // Delete LRs mutation
   const deleteLRsMutation = useMutation({
     mutationFn: async (lrNumbers: string[]) => {
-      const response = await fetch('/api/lrs', {
+      const response = await fetchWithCSRF('/api/lrs', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lrNumbers }),
