@@ -5,6 +5,7 @@ import { X, Users, Lock, Plus, Trash2, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { fetchWithCSRF } from '@/lib/utils/fetchWithCSRF';
 
 interface ProfileSettingsModalProps {
   isOpen: boolean;
@@ -141,9 +142,8 @@ export default function ProfileSettingsModal({
     console.log('[ProfileSettings] Saving phone number:', formattedPhone, '(original:', userPhone, ')');
     
     try {
-      const response = await fetch('/api/auth/update-phone', {
+      const response = await fetchWithCSRF('/api/auth/update-phone', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: formattedPhone }),
       });
 
@@ -176,9 +176,8 @@ export default function ProfileSettingsModal({
     try {
       const formattedPhone = newUserPhone ? formatPhoneNumber(newUserPhone) : undefined;
       
-      const response = await fetch('/api/auth/register', {
+      const response = await fetchWithCSRF('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: newUserEmail,
           password: newUserPassword,
@@ -212,7 +211,7 @@ export default function ProfileSettingsModal({
     if (!confirm('Are you sure you want to delete this user?')) return;
 
     try {
-      const response = await fetch(`/api/auth/users/${userId}`, {
+      const response = await fetchWithCSRF(`/api/auth/users/${userId}`, {
         method: 'DELETE',
       });
 
@@ -231,9 +230,8 @@ export default function ProfileSettingsModal({
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
     try {
-      const response = await fetch(`/api/auth/users/${userId}`, {
+      const response = await fetchWithCSRF(`/api/auth/users/${userId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: newRole }),
       });
 
@@ -277,9 +275,8 @@ export default function ProfileSettingsModal({
 
     setPasswordLoading(true);
     try {
-      const response = await fetch('/api/auth/change-password', {
+      const response = await fetchWithCSRF('/api/auth/change-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           currentPassword,
           newPassword,

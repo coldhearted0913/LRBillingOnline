@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 // Ensure API is always dynamic and not statically cached
 export const dynamic = 'force-dynamic';
 import { getAllLRs, addLR, deleteMultipleLRs, getLRsByMonth } from '@/lib/database';
+import '@/lib/init'; // Initialize scheduler
 import { LRSchema } from '@/lib/validations/schemas';
 import { applyApiMiddleware } from '@/lib/middleware/apiMiddleware';
 import { sanitizeLRData } from '@/lib/utils/sanitize';

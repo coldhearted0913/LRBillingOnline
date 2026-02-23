@@ -32,6 +32,8 @@ export interface LRData {
   "Delivery Locations"?: string[];
   "Amount"?: number;
   attachments?: Array<{ url: string; name: string; type: string }>;
+  // Payment fields
+  "Payment Date"?: string;
 }
 
 // Convert Prisma LR to LRData format
@@ -97,6 +99,7 @@ const fromPrismaFormat = (prismaLr: any): LRData => {
     remark: prismaLr.remark || "",
     created_at: prismaLr.createdAt?.toISOString(),
     updated_at: prismaLr.updatedAt?.toISOString(),
+    "Payment Date": undefined, // Will be set by caller if payments exist
     // Bill-specific fields
     "Bill Submission Date": prismaLr.billSubmissionDate || "",
     "Bill Number": prismaLr.billNumber || "",
@@ -109,44 +112,31 @@ const fromPrismaFormat = (prismaLr: any): LRData => {
 // Get all LRs (optimized with select to reduce data transfer)
 export const getAllLRs = async (): Promise<LRData[]> => {
   try {
-    // Primary path: select including attachments (requires latest schema/client)
+    // Primary path: select including attachments and payments
     const lrs = await prisma.lR.findMany({
       orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        lrNo: true,
-        lrDate: true,
-        vehicleType: true,
-        vehicleNumber: true,
-        driverName: true,
-        driverNumber: true,
-        fromLocation: true,
-        toLocation: true,
-        consignor: true,
-        consignee: true,
-        loadedWeight: true,
-        emptyWeight: true,
-        descriptionOfGoods: true,
-        quantity: true,
-        koelGateEntryNo: true,
-        koelGateEntryDate: true,
-        weightslipNo: true,
-        totalNoOfInvoices: true,
-        invoiceNo: true,
-        grrNo: true,
-        grrDate: true,
-        status: true,
-        remark: true,
-        billSubmissionDate: true,
-        billNumber: true,
-        deliveryLocations: true,
-        amount: true,
-        attachments: true,
-        createdAt: true,
-        updatedAt: true,
+      include: {
+        payments: {
+          where: { status: 'verified' },
+          orderBy: { paymentDate: 'desc' },
+          take: 1, // Get latest payment date
+        },
       },
     });
-    return lrs.map(fromPrismaFormat);
+    return lrs.map(lr => {
+      const lrData = fromPrismaFormat(lr);
+      // Add payment date from latest payment
+      if (lr.payments && lr.payments.length > 0) {
+        lrData["Payment Date"] = lr.payments[0].paymentDate.toISOString().split('T')[0];
+        // If payment exists, update status to show payment date (DD-MM-YYYY format)
+        const paymentDate = lr.payments[0].paymentDate;
+        const day = paymentDate.getDate().toString().padStart(2, '0');
+        const month = (paymentDate.getMonth() + 1).toString().padStart(2, '0');
+        const year = paymentDate.getFullYear();
+        lrData.status = `${day}-${month}-${year}`;
+      }
+      return lrData;
+    });
   } catch (error) {
     console.warn('[getAllLRs] attachments column not available yet; falling back without it. Error:', (error as any)?.message);
     try {
@@ -210,6 +200,18 @@ export const getLRByNumber = async (lrNo: string): Promise<LRData | null> => {
 // Add new LR (or update if exists)
 export const addLR = async (lrData: LRData): Promise<boolean> => {
   try {
+    // Prevent creating/updating a new LR using an LR No that belongs to a cancelled LR
+    if (lrData['LR No']) {
+      const existing = await prisma.lR.findUnique({
+        where: { lrNo: lrData['LR No'] },
+      });
+
+      if (existing && typeof existing.status === 'string' && existing.status.toLowerCase() === 'cancelled') {
+        console.warn('Attempt to create or update LR with cancelled LR No:', lrData['LR No']);
+        return false;
+      }
+    }
+
     // Use upsert to update if exists, create if not
     await prisma.lR.upsert({
       where: { lrNo: lrData['LR No'] },

@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
       username, 
       password, 
       csvExportUrl,
+      paymentDate, // Optional payment date from user
       autoSave = true, // Default to true - automatically save and mark as paid
       autoMarkPaid = true // Default to true - automatically mark LRs as paid
     } = body;
@@ -39,6 +40,39 @@ export async function POST(request: NextRequest) {
         { error: 'Oracle EBS username and password are required' },
         { status: 400 }
       );
+    }
+
+    // SAFETY: Rate limiting - prevent rapid syncs that could trigger Oracle EBS security
+    // Check last successful sync time for this user
+    const MIN_SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes minimum between syncs
+    const lastSync = await prisma.paymentSyncLog.findFirst({
+      where: {
+        syncedBy: session.user.email,
+        status: { in: ['success', 'partial'] },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    if (lastSync) {
+      const timeSinceLastSync = Date.now() - lastSync.createdAt.getTime();
+      if (timeSinceLastSync < MIN_SYNC_INTERVAL) {
+        const minutesRemaining = Math.ceil((MIN_SYNC_INTERVAL - timeSinceLastSync) / 60000);
+        return NextResponse.json(
+          { 
+            error: 'Rate limit exceeded',
+            message: `Please wait ${minutesRemaining} minute(s) before syncing again. This prevents triggering Oracle EBS security measures.`,
+            retryAfter: Math.ceil((MIN_SYNC_INTERVAL - timeSinceLastSync) / 1000),
+          },
+          { 
+            status: 429,
+            headers: {
+              'Retry-After': Math.ceil((MIN_SYNC_INTERVAL - timeSinceLastSync) / 1000).toString(),
+            },
+          }
+        );
+      }
     }
 
     // Initialize Oracle EBS integration
@@ -89,10 +123,24 @@ export async function POST(request: NextRequest) {
       // Auto-save matched payments if requested (default: true)
       let savedCount = 0;
       if (autoSave) {
+        // Parse payment date if provided by user, otherwise use null (will use dates from CSV)
+        let paymentDateOverride: Date | undefined = undefined;
+        if (paymentDate) {
+          try {
+            paymentDateOverride = new Date(paymentDate);
+            if (isNaN(paymentDateOverride.getTime())) {
+              paymentDateOverride = undefined; // Invalid date, ignore
+            }
+          } catch {
+            paymentDateOverride = undefined;
+          }
+        }
+
         savedCount = await matchingService.savePayments(
           matchingResult.matched,
           session.user.email,
-          autoMarkPaid // Automatically mark LRs as paid when payments are matched
+          autoMarkPaid, // Automatically mark LRs as paid when payments are matched
+          paymentDateOverride // Use user-provided date if available
         );
       }
 

@@ -210,3 +210,16 @@ model PaymentSyncLog {
   @@index([status])
   @@map("payment_sync_logs")
 }
+
+model PaymentCSVSnapshot {
+  id                   String   @id @default(cuid())
+  lrNo                 String   @map("lr_no")
+  paymentStatus        String   @map("payment_status")   // Fully Paid, Not Paid
+  amount               Float    @map("amount")
+  scheduledPaymentDate String?  @map("scheduled_payment_date")
+  uploadedAt           DateTime @default(now()) @map("uploaded_at")
+
+  @@index([lrNo])
+  @@index([uploadedAt])
+  @@map("payment_csv_snapshots")
+}

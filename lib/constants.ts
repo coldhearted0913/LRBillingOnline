@@ -82,6 +82,7 @@ export const LR_STATUS_OPTIONS = [
   'LR Collected',
   'Bill Done',
   'Bill Submitted',
+  'Cancelled',
 ];
 
 export const STATUS_COLORS = {
@@ -89,6 +90,7 @@ export const STATUS_COLORS = {
   'LR Collected': { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-300' },
   'Bill Done': { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-300' },
   'Bill Submitted': { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-300' },
+  'Cancelled': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-300' },
 } as const;
 
 export const FORM_FIELDS = [

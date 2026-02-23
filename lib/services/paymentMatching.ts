@@ -29,10 +29,12 @@ export interface PaymentMatchingResult {
 export class PaymentMatchingService {
   /**
    * Normalize LR number for matching
+   * Preserves slashes and hyphens for LR number format (MT/25-26/1722)
    */
   private normalizeLRNo(lrNo: string | undefined | null): string {
     if (!lrNo) return '';
-    return lrNo.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    // Preserve slashes and hyphens, only remove other special chars
+    return lrNo.trim().toUpperCase().replace(/[^A-Z0-9\/\-]/g, '');
   }
 
   /**
@@ -45,10 +47,12 @@ export class PaymentMatchingService {
 
   /**
    * Normalize invoice number for matching
+   * Preserves slashes and hyphens for LR number format (MT/25-26/1722)
    */
   private normalizeInvoiceNo(invoiceNo: string | undefined | null): string {
     if (!invoiceNo) return '';
-    return invoiceNo.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    // Preserve slashes and hyphens, only remove other special chars
+    return invoiceNo.trim().toUpperCase().replace(/[^A-Z0-9\/\-]/g, '');
   }
 
   /**
@@ -106,42 +110,52 @@ export class PaymentMatchingService {
   async matchPayment(payment: PaymentCSVRow): Promise<MatchedPayment> {
     const normalizedLRNo = this.normalizeLRNo(payment.lrNo);
     const normalizedBillNo = this.normalizeBillNo(payment.billNumber);
-    const normalizedInvoiceNo = this.normalizeInvoiceNo(payment.invoiceNo);
     const paymentAmount = this.parseAmount(payment.paymentAmount);
 
-    // Strategy 1: Match by Invoice Number (exact) - Oracle EBS invoice numbers contain LR numbers
+    // Strategy 1: Match by Invoice Number - Extract LR number from invoice number
     // Invoice numbers like "MT/25-26/1109" or "MT/25-26/1109-TDS-CM-6432443" should match LR "MT/25-26/1109"
-    if (normalizedInvoiceNo) {
-      // Try exact match first
-      let lr = await prisma.lR.findFirst({
-        where: {
-          OR: [
-            { lrNo: { equals: normalizedInvoiceNo, mode: 'insensitive' } },
-            { lrNo: { startsWith: normalizedInvoiceNo, mode: 'insensitive' } },
-          ],
-        },
-      });
+    if (payment.invoiceNo) {
+      // Extract LR number pattern: MT/25-26/#### (handles both simple and TDS-CM formats)
+      const lrMatch = payment.invoiceNo.match(/MT\/25-26\/\d+/i);
+      if (lrMatch) {
+        const extractedLRNo = lrMatch[0].toUpperCase();
+        
+        // Try exact match with extracted LR number
+        let lr = await prisma.lR.findFirst({
+          where: {
+            lrNo: { equals: extractedLRNo, mode: 'insensitive' },
+          },
+        });
 
-      // If no exact match, try to extract LR number from invoice number (e.g., "MT/25-26/1109" from "MT/25-26/1109-TDS-CM-6432443")
-      if (!lr && payment.invoiceNo) {
-        const lrMatch = payment.invoiceNo.match(/MT\/25-26\/\d+/i);
-        if (lrMatch) {
-          const extractedLRNo = lrMatch[0].toUpperCase();
-          lr = await prisma.lR.findFirst({
-            where: { lrNo: { equals: extractedLRNo, mode: 'insensitive' } },
-          });
+        if (lr) {
+          return {
+            payment,
+            lrId: lr.id,
+            lrNo: lr.lrNo,
+            matchType: 'exact',
+            matchConfidence: 1.0,
+            matchReason: `Matched by Invoice Number: ${payment.invoiceNo} -> ${lr.lrNo}`,
+          };
         }
-      }
+      } else {
+        // If no pattern match, try using invoice number as-is (might already be LR number)
+        const invoiceNoUpper = payment.invoiceNo.trim().toUpperCase();
+        const lr = await prisma.lR.findFirst({
+          where: {
+            lrNo: { equals: invoiceNoUpper, mode: 'insensitive' },
+          },
+        });
 
-      if (lr) {
-        return {
-          payment,
-          lrId: lr.id,
-          lrNo: lr.lrNo,
-          matchType: 'exact',
-          matchConfidence: 1.0,
-          matchReason: 'Matched by Invoice Number (from Oracle EBS)',
-        };
+        if (lr) {
+          return {
+            payment,
+            lrId: lr.id,
+            lrNo: lr.lrNo,
+            matchType: 'exact',
+            matchConfidence: 1.0,
+            matchReason: `Matched by Invoice Number (exact): ${payment.invoiceNo}`,
+          };
+        }
       }
     }
 
@@ -269,8 +283,12 @@ export class PaymentMatchingService {
 
   /**
    * Save matched payments to database and update LR payment status
+   * @param matchedPayments - Matched payment records
+   * @param syncedBy - User who synced the payments
+   * @param autoMarkPaid - Automatically mark LRs as paid
+   * @param paymentDateOverride - Optional payment date to use for all payments (for manual uploads)
    */
-  async savePayments(matchedPayments: MatchedPayment[], syncedBy?: string, autoMarkPaid: boolean = true): Promise<number> {
+  async savePayments(matchedPayments: MatchedPayment[], syncedBy?: string, autoMarkPaid: boolean = true, paymentDateOverride?: Date): Promise<number> {
     let savedCount = 0;
 
     for (const matched of matchedPayments) {
@@ -280,7 +298,8 @@ export class PaymentMatchingService {
 
       try {
         const paymentAmount = this.parseAmount(matched.payment.paymentAmount);
-        const paymentDate = this.parseDate(matched.payment.paymentDate) || new Date();
+        // Use override date if provided (manual upload), otherwise use payment date from CSV or current date
+        const paymentDate = paymentDateOverride || this.parseDate(matched.payment.paymentDate) || new Date();
 
         // Check if payment already exists (avoid duplicates)
         // For negative amounts (credit memos), also check by absolute amount
@@ -309,7 +328,22 @@ export class PaymentMatchingService {
         });
 
         if (existing) {
-          console.log(`[Payment Matching] Payment already exists for LR ${matched.lrNo}`);
+          console.log(`[Payment Matching] Payment already exists for LR ${matched.lrNo}, updating payment date and status`);
+          
+          // Update existing payment with new payment date if provided
+          await prisma.payment.update({
+            where: { id: existing.id },
+            data: {
+              paymentDate: paymentDate, // Update with new payment date
+            },
+          });
+
+          // Update LR payment status with new payment date even if payment exists
+          if (autoMarkPaid && matched.lrId) {
+            await this.updateLRPaymentStatus(matched.lrId, paymentAmount, paymentDate);
+          }
+          
+          savedCount++; // Count as saved since we updated it
           continue;
         }
 
@@ -339,7 +373,7 @@ export class PaymentMatchingService {
 
         // Update LR payment status if autoMarkPaid is enabled
         if (autoMarkPaid && matched.lrId) {
-          await this.updateLRPaymentStatus(matched.lrId, paymentAmount);
+          await this.updateLRPaymentStatus(matched.lrId, paymentAmount, paymentDate);
         }
 
         savedCount++;
@@ -354,8 +388,9 @@ export class PaymentMatchingService {
   /**
    * Update LR payment status based on total payments received
    * Accounts for 2% tax deduction that is returned after year-end tax filing
+   * Updates LR status field with payment date
    */
-  private async updateLRPaymentStatus(lrId: string, newPaymentAmount: number) {
+  private async updateLRPaymentStatus(lrId: string, newPaymentAmount: number, paymentDate: Date) {
     try {
       const lr = await prisma.lR.findUnique({
         where: { id: lrId },
@@ -407,22 +442,35 @@ export class PaymentMatchingService {
         paymentStatus = `Payment Issue (Net: ₹${netPayments.toLocaleString('en-IN')})`;
       }
 
-      // Update LR remark with payment status
+      // Format payment date as DD-MM-YYYY for status and remark fields
+      const formatPaymentDate = (date: Date): string => {
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+      };
+
+      const paymentDateFormatted = formatPaymentDate(paymentDate);
+
+      // Update LR remark with payment date (instead of payment status)
       const currentRemark = lr.remark || '';
-      // Remove old payment status if exists
-      const remarkWithoutPaymentStatus = currentRemark
+      // Remove old payment status/date if exists
+      const remarkWithoutPaymentInfo = currentRemark
         .replace(/\|?\s*Fully Paid.*/gi, '')
         .replace(/\|?\s*Partially Paid.*/gi, '')
+        .replace(/\|?\s*\d{2}-\d{2}-\d{4}.*/gi, '') // Remove old date format
         .trim();
       
-      const updatedRemark = paymentStatus 
-        ? `${remarkWithoutPaymentStatus ? remarkWithoutPaymentStatus + ' | ' : ''}${paymentStatus}`.trim()
-        : remarkWithoutPaymentStatus;
+      // Add payment date to remark
+      const updatedRemark = remarkWithoutPaymentInfo 
+        ? `${remarkWithoutPaymentInfo} | ${paymentDateFormatted}`.trim()
+        : paymentDateFormatted;
 
       await prisma.lR.update({
         where: { id: lrId },
         data: {
-          remark: updatedRemark,
+          remark: updatedRemark, // Update remark with payment date
+          status: paymentDateFormatted, // Update status with payment date (DD-MM-YYYY format)
         },
       });
 

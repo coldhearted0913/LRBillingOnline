@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Database, Download, RefreshCw, Trash2, Eye } from 'lucide-react';
+import { Database, Download, RefreshCw, Trash2, Eye, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PaymentUpload } from '@/components/PaymentUpload';
+import { LR_STATUS_OPTIONS } from '@/lib/constants';
 
 export default function AdminDashboard() {
   const [lrs, setLrs] = useState<any[]>([]);
@@ -42,6 +44,42 @@ export default function AdminDashboard() {
       console.error('Failed to load data:', error);
     }
     setLoading(false);
+  };
+
+  const handleStatusChange = async (lrNo: string, newStatus: string) => {
+    // Optimistically update UI immediately (before API call)
+    const previousLrs = [...lrs];
+    setLrs(prevLrs => 
+      prevLrs.map(lr => 
+        lr['LR No'] === lrNo ? { ...lr, status: newStatus } : lr
+      )
+    );
+
+    try {
+      const response = await fetch('/api/lrs/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lrNo, status: newStatus }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Success - refresh from server after a short delay to ensure consistency
+        setTimeout(() => {
+          loadData();
+        }, 300);
+      } else {
+        // Revert on error
+        console.error('Failed to update status:', data.error);
+        setLrs(previousLrs);
+        alert(`Failed to update status: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error: any) {
+      // Revert on error
+      console.error('Error updating status:', error);
+      setLrs(previousLrs);
+      alert(`Error updating status: ${error.message || 'Unknown error'}`);
+    }
   };
 
   const calculateStats = (allLrs: any[]) => {
@@ -123,6 +161,11 @@ export default function AdminDashboard() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
+        {/* Payment Upload Section */}
+        <div className="mb-8">
+          <PaymentUpload />
+        </div>
+
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
@@ -214,13 +257,14 @@ export default function AdminDashboard() {
                     <th className="px-3 py-2 text-left">TO</th>
                     <th className="px-3 py-2 text-left">Vehicle</th>
                     <th className="px-3 py-2 text-left">Status</th>
+                    <th className="px-3 py-2 text-left">Payment Date</th>
                     <th className="px-3 py-2 text-left">Created</th>
                     <th className="px-3 py-2 text-left">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {lrs.map((lr, index) => (
-                    <tr key={lr['LR No']} className="hover:bg-muted/50">
+                    <tr key={`${lr['LR No']}-${lr.status || 'default'}`} className="hover:bg-muted/50">
                       <td className="px-3 py-2">{index + 1}</td>
                       <td className="px-3 py-2 font-mono text-xs">{lr['LR No']}</td>
                       <td className="px-3 py-2">{lr['LR Date']}</td>
@@ -228,9 +272,44 @@ export default function AdminDashboard() {
                       <td className="px-3 py-2">{lr['TO'] || '-'}</td>
                       <td className="px-3 py-2">{lr['Vehicle Type']}</td>
                       <td className="px-3 py-2">
-                        <Badge variant="outline" className="text-xs">
-                          {lr.status || 'LR Done'}
-                        </Badge>
+                        <select
+                          key={`status-${lr['LR No']}-${lr.status || 'default'}`}
+                          value={lr.status || 'LR Done'}
+                          onChange={(e) => {
+                            const newStatus = e.target.value;
+                            handleStatusChange(lr['LR No'], newStatus);
+                          }}
+                          className={`text-xs px-2 py-1 border rounded bg-white w-full ${
+                            lr['Payment Date'] ? 'border-green-300 bg-green-50' : ''
+                          }`}
+                          disabled={loading}
+                        >
+                          {LR_STATUS_OPTIONS.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                          {/* Show current status if it's a date format (payment date) and not in standard options */}
+                          {lr.status && 
+                           /^\d{2}-\d{2}-\d{4}$/.test(lr.status) && 
+                           !LR_STATUS_OPTIONS.includes(lr.status) && (
+                            <option value={lr.status}>{lr.status}</option>
+                          )}
+                        </select>
+                        {lr['Payment Date'] && (
+                          <p className="text-xs text-green-600 mt-1">
+                            Payment: {new Date(lr['Payment Date']).toLocaleDateString()}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {lr['Payment Date'] ? (
+                          <span className="text-green-600 font-medium">
+                            {new Date(lr['Payment Date']).toLocaleDateString()}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
                         {lr.created_at ? new Date(lr.created_at).toLocaleDateString() : '-'}

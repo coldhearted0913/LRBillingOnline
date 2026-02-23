@@ -18,7 +18,7 @@ export async function PATCH(
     }
     
     // Valid statuses
-    const validStatuses = ['LR Done', 'LR Collected', 'Bill Done', 'Bill Submitted'];
+    const validStatuses = ['LR Done', 'LR Collected', 'Bill Done', 'Bill Submitted', 'Cancelled'];
     if (!validStatuses.includes(status)) {
       return NextResponse.json(
         { success: false, error: 'Invalid status' },

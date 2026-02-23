@@ -1,216 +1,205 @@
-# Payment Tracking Integration with Oracle EBS
+# Payment Tracking Setup Guide
+
+This guide explains how to set up automatic payment tracking from the Koel portal CSV.
 
 ## Overview
-This feature automatically syncs payment data from Oracle EBS system and matches it with LRs in the database.
+
+The payment tracking system allows you to:
+- Automatically fetch payment CSV from Koel portal
+- Match payments with LRs automatically
+- Track outstanding payments
+- View payment history per LR
+- Set up automated cron jobs for daily sync
+
+## Features
+
+### 1. CSV Payment Sync
+- Fetch CSV directly from Koel portal URL
+- Support for authenticated URLs (cookies/headers)
+- Automatic payment matching with LRs
+- Automatic status update when payments are received
+
+### 2. Payment Tracking Dashboard
+- View outstanding payments
+- Filter by date range and vehicle type
+- Export outstanding payments to CSV
+- View payment history for each LR
+
+### 3. Automated Sync (Cron)
+- Set up automated daily sync via cron jobs
+- Environment variable configuration
+- API key authentication for security
 
 ## Setup Instructions
 
-### 1. Database Migration
-Run the following command to add the Payment and PaymentSyncLog tables:
+### Option 1: Manual CSV Sync via Dashboard
 
-```bash
-npx prisma db push
-# or
-npx prisma migrate dev --name add_payment_tracking
-```
+1. **Access Payment Tracking Dashboard**
+   - Navigate to `/payments` page
+   - Or click "Payment Tracking" button in the header (CEO/MANAGER only)
 
-### 2. Environment Variables
-Add the following to your `.env.local` file:
+2. **Configure CSV URL**
+   - Click "Configure CSV Sync" button
+   - Enter the CSV URL from Koel portal
+   - Example: `https://knode1.koel.co.in:8443/.../payments.csv`
+   - If authentication is required:
+     - Check "Requires Authentication"
+     - Enter Auth Cookie (e.g., `session_id=...`)
+     - Or enter Authorization Header (e.g., `Bearer token...`)
 
-```env
-# Oracle EBS Integration
-ORACLE_EBS_USERNAME=your_username
-ORACLE_EBS_PASSWORD=your_password
-ORACLE_EBS_CSV_EXPORT_URL=https://knode1.koel.co.in:8443/... (optional)
-```
+3. **Test CSV URL**
+   - Click "Test URL" to verify the CSV is accessible
+   - Check the result to see how many records are found
 
-### 3. CSV Export URL Configuration
-You need to find the direct URL to the CSV export page in Oracle EBS:
+4. **Sync Payments**
+   - Click "Sync Now" to fetch and process payments
+   - The system will:
+     - Fetch CSV from the URL
+     - Match payments with LRs
+     - Save payment records
+     - Update LR status automatically
 
-1. Log in to Oracle EBS manually
-2. Navigate to the payment/receipts page
-3. Click on the CSV export button/link
-4. Copy the URL from the browser address bar
-5. Add it to `ORACLE_EBS_CSV_EXPORT_URL` in `.env.local`
+### Option 2: Automated Cron Sync
 
-**Note:** If you don't provide the CSV export URL, the system will attempt to find it automatically, but this may require adjustments based on your Oracle EBS interface.
+1. **Set Environment Variables**
+   Add these to your `.env` file:
+   ```env
+   PAYMENT_SYNC_CSV_URL=https://knode1.koel.co.in:8443/.../payments.csv
+   PAYMENT_SYNC_REQUIRES_AUTH=true
+   PAYMENT_SYNC_AUTH_COOKIE=session_id=... (optional)
+   PAYMENT_SYNC_AUTH_HEADER=Bearer token... (optional)
+   PAYMENT_SYNC_AUTO_MARK_PAID=true
+   PAYMENT_SYNC_API_KEY=your-secret-api-key (optional, for cron security)
+   ```
 
-## API Endpoints
+2. **Set Up Cron Job**
+   - Use a cron service like cron-job.org, EasyCron, or your server's cron
+   - Schedule: Daily at a specific time (e.g., 9:00 AM)
+   - URL: `https://your-domain.com/api/payments/cron-sync`
+   - Method: POST
+   - Headers (if API key is set):
+     ```
+     Authorization: Bearer your-secret-api-key
+     ```
 
-### 1. Sync Payments from Oracle EBS
-**POST** `/api/payments/sync`
+3. **Test Cron Endpoint**
+   ```bash
+   curl -X POST https://your-domain.com/api/payments/cron-sync \
+     -H "Authorization: Bearer your-secret-api-key"
+   ```
 
-**Request Body:**
-```json
-{
-  "username": "oracle_username",
-  "password": "oracle_password",
-  "csvExportUrl": "https://...", // optional
-  "autoSave": false // if true, automatically saves matched payments
-}
-```
+## CSV Format Requirements
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Payments synced successfully",
-  "syncLogId": "...",
-  "stats": {
-    "total": 100,
-    "matched": 85,
-    "unmatched": 15,
-    "saved": 85
-  },
-  "matched": [...],
-  "unmatched": [...]
-}
-```
+The CSV file should contain the following columns (column names are flexible):
 
-### 2. Get Payments
-**GET** `/api/payments?lrNo=MT/25-26/1234&startDate=2024-01-01&endDate=2024-12-31`
+**Required:**
+- `Invoice No` or `LR No` - Must match LR number format (e.g., MT/25-26/1109)
 
-**Query Parameters:**
-- `lrNo` - Filter by LR number
-- `lrId` - Filter by LR ID
-- `startDate` - Start date (ISO format)
-- `endDate` - End date (ISO format)
-- `status` - Payment status (verified, pending, disputed)
+**Optional:**
+- `Payment Date` - Payment date
+- `Payment Amount` - Payment amount
+- `Bill Number` - Bill number
+- `Reference Number` or `Voucher No` - Reference number
+- `Bank Name` - Bank name
+- `Transaction ID` - Transaction ID
 
-### 3. Create Payment Manually
-**POST** `/api/payments`
-
-**Request Body:**
-```json
-{
-  "lrNo": "MT/25-26/1234",
-  "paymentAmount": 50000,
-  "paymentDate": "2024-01-15",
-  "paymentMethod": "Bank Transfer",
-  "referenceNumber": "TXN123456",
-  "bankName": "HDFC Bank",
-  "notes": "Payment received"
-}
-```
-
-### 4. Save Matched Payments
-**POST** `/api/payments/save`
-
-**Request Body:**
-```json
-{
-  "matchedPayments": [
-    {
-      "payment": { ... },
-      "lrId": "...",
-      "lrNo": "...",
-      "matchType": "exact"
-    }
-  ]
-}
+**Example CSV:**
+```csv
+Invoice No,Payment Date,Payment Amount,Bill Number
+MT/25-26/1109,01-12-2024,12484,MT/25-26/1
+MT/25-26/1110,01-12-2024,12484,MT/25-26/1
 ```
 
 ## Payment Matching Logic
 
-The system uses multiple strategies to match payments with LRs:
+The system matches payments using multiple strategies:
 
-1. **Exact Match by LR Number** (Confidence: 100%)
-   - Matches payment LR number with database LR number
+1. **Invoice Number Match** (Highest Priority)
+   - Extracts LR number from invoice number
+   - Handles formats like: `MT/25-26/1109-TDS-CM-6432443` → `MT/25-26/1109`
 
-2. **Exact Match by Bill Number** (Confidence: 95%)
-   - Matches payment bill number with database bill number
+2. **LR Number Match** (Exact)
+   - Direct match with LR number
 
-3. **Exact Match by Invoice Number** (Confidence: 90%)
-   - Matches payment invoice number with database invoice number
+3. **Bill Number Match**
+   - Matches by bill number
 
-4. **Partial Match by Amount + Date** (Confidence: 70%)
-   - Matches payment amount (±5% variance) and date (±30 days)
+4. **Amount + Date Match** (Partial)
+   - Matches by amount (±5% variance) and date range (±30 days)
 
-## Database Schema
+## Outstanding Payments Report
 
-### Payment Model
-- `id` - Unique identifier
-- `lrId` - Reference to LR (nullable)
-- `lrNo` - LR number (for reference)
-- `billNumber` - Bill number
-- `invoiceNo` - Invoice number
-- `paymentAmount` - Payment amount
-- `paymentDate` - Payment date
-- `paymentMethod` - Payment method
-- `referenceNumber` - Reference/transaction number
-- `bankName` - Bank name
-- `transactionId` - Transaction ID
-- `status` - Payment status (verified, pending, disputed)
-- `source` - Source (oracle_ebs, manual)
-- `notes` - Additional notes
-- `syncedAt` - When payment was synced
-- `syncedBy` - User who synced
+Access the outstanding payments report from the Payment Tracking Dashboard:
 
-### PaymentSyncLog Model
-- Tracks each sync operation
-- Records total, matched, and unmatched counts
-- Stores error messages if sync fails
+1. **View Outstanding Payments**
+   - Shows all LRs with outstanding amounts
+   - Displays: LR No, Date, Vehicle Type, LR Amount, Paid, Outstanding, Payment Count
 
-## Usage Workflow
+2. **Filter Options**
+   - Filter by date range (Start Date, End Date)
+   - Filter by vehicle type (PICKUP, TRUCK, TOROUS)
 
-1. **Initial Setup:**
-   - Configure Oracle EBS credentials in `.env.local`
-   - Find and configure CSV export URL (optional but recommended)
+3. **Export to CSV**
+   - Click "Export CSV" to download outstanding payments report
 
-2. **Sync Payments:**
-   - Call `/api/payments/sync` with credentials
-   - Review matched and unmatched payments
-   - If `autoSave: false`, manually review and save using `/api/payments/save`
+## Payment History
 
-3. **View Payments:**
-   - Use `/api/payments` to query payments
-   - Filter by LR number, date range, or status
+View detailed payment history for any LR:
 
-4. **Manual Entry:**
-   - Use `/api/payments` POST to manually add payments
-   - Useful for unmatched payments or manual corrections
+1. Click the eye icon (👁️) next to any LR in the outstanding payments table
+2. View:
+   - Payment summary (Total Amount, Paid, Outstanding)
+   - All payment records with dates and amounts
+   - Credit memos (negative amounts)
+   - Payment methods and reference numbers
 
 ## Troubleshooting
 
-### Login Issues
-- Verify credentials are correct
-- Check if Oracle EBS requires additional authentication (2FA, etc.)
-- The login form selectors may need adjustment based on your Oracle EBS version
+### CSV URL Not Accessible
+- Check if the URL is correct
+- Verify authentication credentials
+- Check if the CSV file exists on the portal
+- Try accessing the URL directly in a browser
 
-### CSV Download Issues
-- Ensure you have the correct CSV export URL
-- Check if Oracle EBS requires specific permissions to export
-- Verify the download path is writable
+### Payments Not Matching
+- Verify Invoice No format matches LR No format
+- Check if LR numbers exist in the database
+- Review unmatched payments list in sync results
 
-### Matching Issues
-- Review unmatched payments manually
-- Adjust matching logic in `lib/services/paymentMatching.ts`
-- Consider adding custom matching rules for your specific use case
+### Cron Job Not Working
+- Verify environment variables are set correctly
+- Check cron service logs
+- Test the endpoint manually using curl
+- Verify API key is correct (if set)
 
 ## Security Notes
 
-- **Never commit Oracle EBS credentials to git**
-- Store credentials in environment variables only
-- Consider using a secrets management service for production
-- The sync endpoint requires CEO or MANAGER role
+- CSV URLs with authentication should use secure methods (HTTPS)
+- API keys for cron jobs should be strong and kept secret
+- Payment sync logs are stored in the database for audit purposes
+- Only CEO and MANAGER roles can access payment tracking
 
-## Next Steps
+## API Endpoints
 
-1. Create UI components for:
-   - Payment sync interface
-   - Payment list/view
-   - Payment status indicators on LR cards
-   - Outstanding payments dashboard
+### Manual Sync
+- `POST /api/payments/csv-sync` - Sync payments from CSV URL
+- `GET /api/payments/csv-sync?csvUrl=...` - Test CSV URL
 
-2. Add scheduled sync:
-   - Create a cron job to automatically sync payments daily
-   - Add to `app/api/cron/payment-sync/route.ts`
+### Outstanding Payments
+- `GET /api/payments/outstanding` - Get outstanding payments report
+- Query params: `startDate`, `endDate`, `vehicleType`
 
-3. Add payment reconciliation:
-   - Compare total payments vs total LR amounts
-   - Generate reconciliation reports
+### Payment History
+- `GET /api/payments/history/[lrNo]` - Get payment history for an LR
 
-4. Add notifications:
-   - Notify when payments are received
-   - Alert on unmatched payments
+### Cron Sync
+- `POST /api/payments/cron-sync` - Automated sync endpoint
+- `GET /api/payments/cron-sync` - Health check
 
+## Support
+
+For issues or questions:
+1. Check server logs for detailed error messages
+2. Review payment sync logs in the database
+3. Test CSV URL manually before setting up automation
+4. Verify CSV format matches requirements

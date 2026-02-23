@@ -49,6 +49,11 @@ export interface OracleEBSConfig {
   paymentListingUrl?: string; // URL to the payment listing page
   loginUrl?: string;
   downloadTimeout?: number;
+  // Safety settings to prevent account blocking
+  minDelayBetweenActions?: number; // Minimum delay between actions in ms (default: 2000)
+  minDelayBetweenVouchers?: number; // Minimum delay between voucher clicks in ms (default: 5000)
+  maxVouchersPerSync?: number; // Maximum vouchers to process per sync (default: 20)
+  enableHumanLikeBehavior?: boolean; // Add random delays and mouse movements (default: true)
 }
 
 /**
@@ -65,13 +70,32 @@ export class OracleEBSIntegration {
       loginUrl: config.loginUrl || 'https://knode1.koel.co.in:8443/OA_HTML/AppsLocalLogin.jsp',
       paymentListingUrl: config.paymentListingUrl || 'https://knode1.koel.co.in:8443/OA_HTML/OA.jsp?page=/xx_supp/oracle/apps/custom/paymentlisting/webui/PaymentListingSearchPG&retainAM=Y&addBreadCrumb=N',
       downloadTimeout: config.downloadTimeout || 60000, // 60 seconds
+      minDelayBetweenActions: config.minDelayBetweenActions ?? 2000, // 2 seconds default
+      minDelayBetweenVouchers: config.minDelayBetweenVouchers ?? 5000, // 5 seconds default
+      maxVouchersPerSync: config.maxVouchersPerSync ?? 20, // Limit to 20 vouchers per sync
+      enableHumanLikeBehavior: config.enableHumanLikeBehavior ?? true, // Enable by default
     };
+  }
+
+  /**
+   * Add human-like delay with slight randomization
+   */
+  private async humanDelay(baseDelay: number, variance: number = 0.3): Promise<void> {
+    if (!this.config.enableHumanLikeBehavior) {
+      await new Promise(resolve => setTimeout(resolve, baseDelay));
+      return;
+    }
+    
+    // Add random variance (±30% by default) to make delays less predictable
+    const randomFactor = 1 + (Math.random() * 2 - 1) * variance;
+    const delay = Math.max(500, baseDelay * randomFactor); // Minimum 500ms
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
 
   /**
    * Initialize browser instance
    */
-  private async initBrowser() {
+  async initBrowser() {
     if (this.browser) {
       return this.browser;
     }
@@ -84,6 +108,8 @@ export class OracleEBSIntegration {
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--disable-gpu',
+        '--disable-blink-features=AutomationControlled', // Hide automation
+        '--disable-features=IsolateOrigins,site-per-process',
       ],
     });
 
@@ -93,7 +119,7 @@ export class OracleEBSIntegration {
   /**
    * Login to Oracle EBS
    */
-  private async login(page: any): Promise<boolean> {
+  async login(page: any): Promise<boolean> {
     try {
       console.log('[Oracle EBS] Navigating to login page...');
       await page.goto(this.config.loginUrl!, {
@@ -116,8 +142,11 @@ export class OracleEBSIntegration {
         throw new Error('Could not find login form fields');
       }
 
-      await usernameInput.type(this.config.credentials.username, { delay: 50 });
-      await passwordInput.type(this.config.credentials.password, { delay: 50 });
+      // Human-like typing with delays
+      await usernameInput.type(this.config.credentials.username, { delay: 80 + Math.random() * 40 });
+      await this.humanDelay(500); // Small delay between fields
+      await passwordInput.type(this.config.credentials.password, { delay: 80 + Math.random() * 40 });
+      await this.humanDelay(800); // Delay before submitting
 
       // Submit form
       const submitButton = await page.$('input[type="submit"], button[type="submit"], input[value*="Login"]');
@@ -130,6 +159,9 @@ export class OracleEBSIntegration {
 
       // Wait for navigation after login
       await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+      
+      // Add delay after login to appear more human-like
+      await this.humanDelay(this.config.minDelayBetweenActions!);
 
       // Check if login was successful (adjust based on actual behavior)
       const currentUrl = page.url();
@@ -342,6 +374,35 @@ export class OracleEBSIntegration {
   async fetchPaymentsFromTable(paymentListingUrl?: string): Promise<OraclePaymentRecord[]> {
     const browser = await this.initBrowser();
     const page = await browser.newPage();
+    
+    // SAFETY: Hide automation indicators to reduce detection risk
+    await page.evaluateOnNewDocument(() => {
+      // Override webdriver property
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => false,
+      });
+      
+      // Override plugins to appear more human
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      
+      // Override languages
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['en-US', 'en'],
+      });
+      
+      // Override permissions
+      const originalQuery = window.navigator.permissions.query;
+      window.navigator.permissions.query = (parameters: any) => (
+        parameters.name === 'notifications' ?
+          Promise.resolve({ state: Notification.permission } as PermissionStatus) :
+          originalQuery(parameters)
+      );
+    });
+    
+    // Set realistic viewport
+    await page.setViewport({ width: 1920, height: 1080 });
 
     try {
       // Login
@@ -354,6 +415,9 @@ export class OracleEBSIntegration {
         waitUntil: 'networkidle2',
         timeout: 30000,
       });
+      
+      // Add delay after navigation
+      await this.humanDelay(this.config.minDelayBetweenActions!);
 
       // Check if we're on an error page or login page
       const currentUrl = page.url();
@@ -391,6 +455,9 @@ export class OracleEBSIntegration {
       console.log('[Oracle EBS] Page loaded. Title:', pageTitle);
       console.log('[Oracle EBS] Current URL:', currentUrl);
       console.log(`[Oracle EBS] Found ${tableCount} tables on page`);
+      
+      // SAFETY: Add delay after page load to appear more human-like
+      await this.humanDelay(2000);
 
       // Wait for table to load - try multiple selectors
       try {
@@ -402,7 +469,7 @@ export class OracleEBSIntegration {
         });
       }
       
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for data to load (increased from 3s)
+      await this.humanDelay(5000); // Wait for data to load
 
       // Extract payment records from the main table
       const paymentRecords = await page.evaluate(() => {
@@ -630,7 +697,11 @@ export class OracleEBSIntegration {
       console.log(`[Oracle EBS] ${recordsWithInvoices} out of ${paymentRecords.length} records have invoice details`);
 
       // For each payment voucher, click to get invoice details
-      for (let i = 0; i < Math.min(paymentRecords.length, 50); i++) { // Limit to 50 to avoid timeout
+      // SAFETY: Limit to prevent rapid clicking that could trigger security
+      const maxVouchers = Math.min(paymentRecords.length, this.config.maxVouchersPerSync!);
+      console.log(`[Oracle EBS] Processing ${maxVouchers} vouchers (limited for safety)`);
+      
+      for (let i = 0; i < maxVouchers; i++) {
         const record = paymentRecords[i];
         try {
           // Find and click the payment voucher link
@@ -654,7 +725,8 @@ export class OracleEBSIntegration {
           if (invoiceDetails?.href) {
             // Navigate to invoice details page
             await page.goto(invoiceDetails.href, { waitUntil: 'networkidle2', timeout: 15000 });
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // SAFETY: Longer delay between voucher clicks to prevent rapid automation detection
+            await this.humanDelay(this.config.minDelayBetweenVouchers!);
 
             // Extract invoice details from the detail page
             const invoices = await page.evaluate(() => {
@@ -741,7 +813,8 @@ export class OracleEBSIntegration {
 
             // Go back to payment listing
             await page.goBack({ waitUntil: 'networkidle2' });
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            // SAFETY: Delay before processing next voucher
+            await this.humanDelay(this.config.minDelayBetweenVouchers!);
           }
         } catch (error: any) {
           console.warn(`[Oracle EBS] Error extracting invoices for voucher ${record.paymentVoucherNo}:`, error.message);

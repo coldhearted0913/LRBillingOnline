@@ -569,7 +569,12 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
           if (data.success) {
             setDuplicateCheck({ exists: data.exists, lr: data.lr });
             if (data.exists) {
-              toast.error(`LR Number "${value}" already exists!`, { duration: 4000 });
+              const existingStatus = data.lr?.status as string | undefined;
+              if (existingStatus && existingStatus.toLowerCase() === 'cancelled') {
+                toast.error(`LR Number "${value}" is not available. This LR is cancelled.`, { duration: 5000 });
+              } else {
+                toast.error(`LR Number "${value}" already exists!`, { duration: 4000 });
+              }
             }
           }
         } catch (error) {
@@ -650,7 +655,12 @@ export default function LRForm({ editingLr, onBack }: LRFormProps) {
           const checkResponse = await fetch(`/api/lrs/check-duplicate?lrNo=${encodeURIComponent(lrNo)}`);
           const checkData = await checkResponse.json();
           if (checkData.success && checkData.exists) {
-            toast.error(`LR Number "${lrNo}" already exists! Cannot create duplicate.`, { duration: 5000 });
+            const existingStatus = checkData.lr?.status as string | undefined;
+            if (existingStatus && existingStatus.toLowerCase() === 'cancelled') {
+              toast.error(`LR Number "${lrNo}" is not available. This LR is cancelled.`, { duration: 5000 });
+            } else {
+              toast.error(`LR Number "${lrNo}" already exists! Cannot create duplicate.`, { duration: 5000 });
+            }
             document.getElementById('lrNo')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             document.getElementById('lrNo')?.focus();
             return;
