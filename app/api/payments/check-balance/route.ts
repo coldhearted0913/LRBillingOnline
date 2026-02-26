@@ -182,7 +182,7 @@ async function handleCheck(request: NextRequest, userEmail: string) {
   const paidLRs: LRStatus[] = [];
   const unpaidLRs: LRStatus[] = [];
 
-  for (const [lrNo, records] of lrMap) {
+  for (const [lrNo, records] of Array.from(lrMap)) {
     const std = records.standard;
     if (!std) continue;
 
