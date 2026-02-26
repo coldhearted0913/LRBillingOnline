@@ -1,8 +1,8 @@
-import cron from 'node-cron';
+import cron, { ScheduledTask } from 'node-cron';
 import { DailyPaymentSyncService } from './dailyPaymentSync';
 import { prisma } from '@/lib/prisma';
 
-let dailySyncJob: cron.ScheduledTask | null = null;
+let dailySyncJob: ScheduledTask | null = null;
 
 /**
  * Initialize scheduled jobs
