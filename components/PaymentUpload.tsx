@@ -100,7 +100,7 @@ export function PaymentUpload() {
         toast.success(`Found ${data.stats.matched} matching records. Please enter payment date.`);
       } else if (data.success && data.stats?.matched === 0) {
         setResult(data);
-        toast.warning('No payments matched. Please check your file.');
+        toast('No payments matched. Please check your file.', { icon: '⚠️' });
       } else {
         setResult({ success: false, error: data.error || 'Upload failed' });
         toast.error(data.error || 'Failed to process file');
