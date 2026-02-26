@@ -14,8 +14,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Only CEO and MANAGER can update status
-    if (session.user.role !== 'CEO' && session.user.role !== 'MANAGER') {
+    // Only CEO and MANAGER can update status (role is added in auth callbacks)
+    const userRole = (session.user as { role?: string })?.role;
+    if (userRole !== 'CEO' && userRole !== 'MANAGER') {
       return NextResponse.json(
         { error: 'Forbidden. Only CEO and MANAGER can update status.' },
         { status: 403 }
