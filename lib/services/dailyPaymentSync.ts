@@ -213,7 +213,7 @@ export class DailyPaymentSyncService {
               if (exportButton instanceof HTMLAnchorElement && exportButton.href) {
                 return { type: 'link', href: exportButton.href };
               } else {
-                exportButton.click();
+                (exportButton as HTMLElement).click();
                 return { type: 'clicked' };
               }
             }
