@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Records in CSV but not in DB: show with correct amount; Paid → outstanding 0, Not Paid → outstanding = amount
-    for (const lrNo of csvLrNos) {
+    for (const lrNo of Array.from(csvLrNos)) {
       if (dbLrNos.has(lrNo)) continue;
       const csv = csvMap.get(lrNo)!;
       const isPaid = /fully\s*paid|^paid$/i.test(csv.paymentStatus);
