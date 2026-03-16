@@ -663,7 +663,8 @@ export default function Dashboard() {
   
   // Memoized filtered data calculations
   const statsData = useMemo(() => {
-    let statsLrs = lrs;
+    // Exclude cancelled LRs from all top-level stats and summary filters
+    let statsLrs = lrs.filter((lr: LRData) => lr.status !== 'Cancelled');
     
     // Filter by year (dates are in DD-MM-YYYY format)
     if (selectedYear !== 'All Years') {
@@ -744,6 +745,8 @@ export default function Dashboard() {
     const lrCollectedCount = statsData.filter((lr: LRData) => lr.status === 'LR Collected').length;
     const billDoneCount = statsData.filter((lr: LRData) => lr.status === 'Bill Done').length;
     const billSubmittedCount = statsData.filter((lr: LRData) => lr.status === 'Bill Submitted').length;
+    // Cancelled LRs are excluded from statsData, so count them separately from full list
+    const cancelledCount = lrs.filter((lr: LRData) => lr.status === 'Cancelled').length;
     
     return {
       total: statsData.length,
@@ -754,6 +757,7 @@ export default function Dashboard() {
       pendingBills: lrCollectedCount,
       pendingSubmission: billDoneCount,
       thisMonth: statsData.length,
+      cancelled: cancelledCount,
       vehicleTypeBreakdown,
       estimatedRevenue: totalRevenue,
       totalExpenses,
@@ -774,7 +778,7 @@ export default function Dashboard() {
             )
           : 0,
     };
-  }, [statsData]);
+  }, [statsData, lrs]);
 
   // Calculate charts data from real LR data
   const chartsData = useMemo(() => {
@@ -1909,9 +1913,9 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Stats Cards - Responsive Grid */}
+        {/* Stats Cards - Responsive Grid (visible for all roles) */}
         {visibleWidgets.has('stats') && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6 md:mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6 mb-6 md:mb-8">
           <Card 
             className={`rounded-xl border shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer bg-gradient-to-br from-green-50 to-green-100 ${activeStatusFilter === null ? 'ring-2 ring-green-500' : ''}`} 
             style={{ animation: 'slide-up 0.5s ease-out forwards, fade-in 0.3s ease-out forwards' }}
@@ -1982,6 +1986,26 @@ export default function Dashboard() {
                   <CardDescription className="text-purple-700 text-xs md:text-sm">Ready to Submit</CardDescription>
                   <CardTitle className="text-2xl md:text-3xl text-purple-600">{stats.pendingSubmission}</CardTitle>
                   <p className="text-[10px] md:text-xs text-purple-600 mt-0.5">Bills generated, pending submission</p>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+          
+          {/* Cancelled LRs */}
+          <Card 
+            className={`rounded-xl border shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer bg-gradient-to-br from-red-50 to-red-100 ${activeStatusFilter === 'Cancelled' ? 'ring-2 ring-red-500' : ''}`} 
+            style={{ animation: 'slide-up 0.5s ease-out 0.4s forwards, fade-in 0.3s ease-out 0.4s forwards' }}
+            onClick={() => { setActiveStatusFilter('Cancelled'); setSelectedStatuses(new Set()); }}
+          >
+            <CardHeader className="pb-3 md:pb-4">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="bg-red-500 p-2 md:p-3 rounded-lg flex-shrink-0">
+                  <X className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <CardDescription className="text-red-700 text-xs md:text-sm">Cancelled LRs</CardDescription>
+                  <CardTitle className="text-2xl md:text-3xl text-red-600">{stats.cancelled}</CardTitle>
+                  <p className="text-[10px] md:text-xs text-red-600 mt-0.5">Only cancelled LR records</p>
                 </div>
               </div>
             </CardHeader>
