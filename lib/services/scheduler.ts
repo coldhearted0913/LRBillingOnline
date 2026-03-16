@@ -71,9 +71,6 @@ export function initializeScheduler() {
         },
       }).catch(() => {});
     }
-  }, {
-    scheduled: true,
-    timezone: 'Asia/Kolkata', // Adjust to your timezone
   });
 
   console.log('[Scheduler] Daily payment sync scheduled for 6 PM every day');
