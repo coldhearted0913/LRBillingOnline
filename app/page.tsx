@@ -2322,8 +2322,8 @@ export default function Dashboard() {
                   
                   {/* Status options with enhanced styling */}
                   <div className="max-h-[300px] overflow-y-auto">
-                    {LR_STATUS_OPTIONS.map(status => (
-                      <label key={status} className="flex items-center px-4 py-3 hover:bg-blue-50 cursor-pointer transition-all duration-150 border-b border-gray-100 last:border-b-0 group">
+                          {LR_STATUS_OPTIONS.map(status => (
+                        <label key={status} className="flex items-center px-4 py-3 hover:bg-blue-50 cursor-pointer transition-all duration-150 border-b border-gray-100 last:border-b-0 group">
                         <input
                           type="checkbox"
                           checked={tempStatuses.has(status)}
@@ -2343,6 +2343,7 @@ export default function Dashboard() {
                         {status === 'LR Collected' && '📦 '}
                         {status === 'Bill Done' && '🧾 '}
                         {status === 'Bill Submitted' && '✅ '}
+                        {status === 'Cancelled' && '✖ '}
                         {status}
                       </span>
                     </label>
@@ -2350,26 +2351,26 @@ export default function Dashboard() {
                   </div>
                   
                                      {/* OK and Cancel buttons - Enhanced for mobile */}
-                   <div className="px-3 py-3 border-t border-gray-200 flex gap-2">
-                     <button
-                       onClick={() => {
-                         setSelectedStatuses(new Set(tempStatuses));
-                         document.querySelector('.group.open')?.classList.remove('open');
-                       }}
-                       className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-3 rounded text-sm transition-all active:scale-95 min-h-[44px]"
-                     >
-                       OK
-                     </button>
-                     <button
-                       onClick={() => {
-                         setTempStatuses(new Set(selectedStatuses));
-                         document.querySelector('.group.open')?.classList.remove('open');
-                       }}
-                       className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2.5 px-3 rounded text-sm transition-all active:scale-95 min-h-[44px]"
-                     >
-                       Cancel
-                     </button>
-                   </div>
+                  <div className="px-3 py-3 border-t border-gray-200 flex gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedStatuses(new Set(tempStatuses));
+                        document.querySelector('.group.open')?.classList.remove('open');
+                      }}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-3 rounded text-sm transition-all active:scale-95 min-h-[44px]"
+                    >
+                      OK
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTempStatuses(new Set(selectedStatuses));
+                        document.querySelector('.group.open')?.classList.remove('open');
+                      }}
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2.5 px-3 rounded text-sm transition-all active:scale-95 min-h-[44px]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               </div>
               
@@ -2681,7 +2682,9 @@ export default function Dashboard() {
                               <button
                                 type="button"
                                 onClick={() => { setDetailLr(lr); setShowLrDetails(true); }}
-                                className="font-semibold text-[10px] md:text-sm text-gray-900 hover:underline active:opacity-80"
+                                className={`font-semibold text-[10px] md:text-sm text-gray-900 hover:underline active:opacity-80 ${
+                                  lr.status === 'Cancelled' ? 'line-through decoration-red-500 decoration-2' : ''
+                                }`}
                                 title="View LR details"
                               >
                                 {lr['LR No']}
@@ -2690,31 +2693,82 @@ export default function Dashboard() {
                           )}
                           {visibleColumns.has('vehicleNo') && (
                             <td className="px-1 md:px-4 py-3 text-[10px] md:text-sm text-muted-foreground">
-                              {lr['Vehicle Number'] || <span className="text-yellow-600 italic">Not set</span>}
+                              {lr['Vehicle Number'] ? (
+                                <span
+                                  className={lr.status === 'Cancelled'
+                                    ? 'line-through decoration-red-500 decoration-2'
+                                    : ''}
+                                >
+                                  {lr['Vehicle Number']}
+                                </span>
+                              ) : (
+                                <span className="text-yellow-600 italic">Not set</span>
+                              )}
                             </td>
                           )}
                           {visibleColumns.has('lrDate') && (
-                            <td className="px-1 md:px-4 py-3 text-[10px] md:text-sm text-muted-foreground">{lr['LR Date']}</td>
+                            <td className="px-1 md:px-4 py-3 text-[10px] md:text-sm text-muted-foreground">
+                              <span
+                                className={lr.status === 'Cancelled'
+                                  ? 'line-through decoration-red-500 decoration-2'
+                                  : ''}
+                              >
+                                {lr['LR Date']}
+                              </span>
+                            </td>
                           )}
                           {visibleColumns.has('from') && (
                             <td className="px-1 md:px-4 py-3 text-[9px] md:text-sm">
-                              <Badge variant="outline" className="text-[9px] md:text-sm whitespace-nowrap">{lr['FROM'] || '-'}</Badge>
+                              <Badge
+                                variant="outline"
+                                className={`text-[9px] md:text-sm whitespace-nowrap ${
+                                  lr.status === 'Cancelled'
+                                    ? 'line-through decoration-red-500 decoration-2'
+                                    : ''
+                                }`}
+                              >
+                                {lr['FROM'] || '-'}
+                              </Badge>
                             </td>
                           )}
                           {visibleColumns.has('to') && (
                             <td className="px-1 md:px-4 py-3 text-xs md:text-sm min-w-[80px] md:min-w-[100px]">
-                              <div className="font-medium text-gray-700 bg-gray-100 px-1.5 md:px-3 py-1 rounded border border-gray-300 break-words text-[10px] md:text-xs leading-tight" title={getToValue(lr['Consignee'] || '')}>{getToValue(lr['Consignee'] || '')}</div>
+                              <div
+                                className={`font-medium text-gray-700 bg-gray-100 px-1.5 md:px-3 py-1 rounded border border-gray-300 break-words text-[10px] md:text-xs leading-tight ${
+                                  lr.status === 'Cancelled'
+                                    ? 'line-through decoration-red-500 decoration-2'
+                                    : ''
+                                }`}
+                                title={getToValue(lr['Consignee'] || '')}
+                              >
+                                {getToValue(lr['Consignee'] || '')}
+                              </div>
                             </td>
                           )}
                           {visibleColumns.has('vehicleType') && (
                             <td className="px-2 md:px-4 py-3 hidden md:table-cell">
-                              <Badge variant="secondary" className="text-xs md:text-sm">{lr['Vehicle Type']}</Badge>
+                              <Badge
+                                variant="secondary"
+                                className={`text-xs md:text-sm ${
+                                  lr.status === 'Cancelled'
+                                    ? 'line-through decoration-red-500 decoration-2'
+                                    : ''
+                                }`}
+                              >
+                                {lr['Vehicle Type']}
+                              </Badge>
                             </td>
                           )}
                           {visibleColumns.has('submitDate') && (
                             <td className="px-1 md:px-2 py-3 text-[8px] md:text-[10px] text-muted-foreground whitespace-nowrap">
                               {lr['Bill Submission Date'] ? (
-                                <span>{formatDisplayDateEq(lr['Bill Submission Date'])}</span>
+                                <span
+                                  className={lr.status === 'Cancelled'
+                                    ? 'line-through decoration-red-500 decoration-2'
+                                    : ''}
+                                >
+                                  {formatDisplayDateEq(lr['Bill Submission Date'])}
+                                </span>
                               ) : (
                                 <span className="text-gray-400 italic text-[8px]">-</span>
                               )}
@@ -2742,6 +2796,7 @@ export default function Dashboard() {
                                       {status === 'LR Collected' && '📦 '}
                                       {status === 'Bill Done' && '🧾 '}
                                       {status === 'Bill Submitted' && '✅ '}
+                                      {status === 'Cancelled' && '✖ '}
                                       {status}
                                     </option>
                                   ))}
@@ -2778,7 +2833,7 @@ export default function Dashboard() {
                           )}
                           {visibleColumns.has('actions') && (
                             <td className="px-1 md:px-4 py-3">
-                              <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1">
                                 <Button
                                   onClick={() => editLR(lr)}
                                   variant="ghost"
@@ -2786,15 +2841,6 @@ export default function Dashboard() {
                                   className="text-[10px] md:text-sm h-8 md:h-8 px-2 md:px-3 hover:bg-blue-100 active:scale-95 min-w-[44px] touch-manipulation"
                                 >
                                   Edit
-                                </Button>
-                                <Button
-                                  onClick={() => confirmAndUpdateStatus(lr['LR No'], lr.status, 'Cancelled')}
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-[10px] md:text-sm h-8 md:h-8 px-2 md:px-3 border-red-300 text-red-700 hover:bg-red-50 active:scale-95 min-w-[60px] touch-manipulation"
-                                  disabled={lr.status === 'Cancelled'}
-                                >
-                                  Cancel
                                 </Button>
                               </div>
                             </td>
