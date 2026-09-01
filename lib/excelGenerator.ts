@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import path from 'path';
 import fs from 'fs';
 import { LRData } from './database';
-import { VEHICLE_AMOUNTS } from './constants';
+import { VEHICLE_AMOUNTS, MANGESH_EWAY_BILL, MANGESH_PAN } from './constants';
 import { computeReworkAmount } from './utils';
 
 const INVOICE_DIR = path.join(process.cwd(), 'invoices');
@@ -950,6 +950,32 @@ export const generateLRFromMasterCopy = async (
   const worksheet = workbook.getWorksheet(1);
   
   if (!worksheet) throw new Error('LR MASTER COPY template worksheet not found');
+
+  const ewayBillRichText = {
+    richText: [
+      { text: 'E-way Bill : ' },
+      {
+        font: { bold: true, size: 13, color: { argb: 'FFFF3300' }, name: 'Calibri' },
+        text: MANGESH_EWAY_BILL,
+      },
+    ],
+  };
+
+  const panRichText = {
+    richText: [
+      { text: 'PAN : ' },
+      {
+        font: { bold: true, size: 13, color: { argb: 'FFFF3300' }, name: 'Calibri' },
+        text: MANGESH_PAN,
+      },
+    ],
+  };
+
+  // E-way Bill and PAN appear in both consignee (top) and consignor (bottom) copies
+  worksheet.getCell('A2').value = ewayBillRichText;
+  worksheet.getCell('A3').value = panRichText;
+  worksheet.getCell('A33').value = ewayBillRichText;
+  worksheet.getCell('A34').value = panRichText;
   
   // Helper function to split text into lines (max 3 lines for Consignor, max 3 lines for Consignee)
   const splitTextIntoLines = (text: string, maxLines: number): string[] => {

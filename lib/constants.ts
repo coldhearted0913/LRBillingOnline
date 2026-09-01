@@ -1,5 +1,8 @@
 export const LR_PREFIX = 'MT/25-26/';
 
+export const MANGESH_EWAY_BILL = '27AUBPJ7471R1ZW';
+export const MANGESH_PAN = 'AUBPJ7471R';
+
 // Revenue: What we get paid
 export const VEHICLE_AMOUNTS = {
   'PICKUP': 5500,
