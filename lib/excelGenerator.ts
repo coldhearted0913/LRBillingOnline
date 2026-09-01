@@ -973,7 +973,7 @@ export const generateLRFromMasterCopy = async (
 
   const panRichText = {
     richText: [
-      { font: lrAccentFont, text: 'PAN : ' },
+      { font: lrAccentFont, text: 'PAN NO: ' },
       { font: lrAccentFontBold, text: MANGESH_PAN },
     ],
   };
