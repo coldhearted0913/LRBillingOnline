@@ -56,13 +56,13 @@ export async function POST(request: NextRequest) {
         filtered = filtered.filter((lr: any) => {
           return filters.statuses.includes(lr.status || 'LR Done');
         });
-      }
-      
-      // Filter by active status filter (from card clicks)
-      if (filters?.activeStatusFilter) {
+      } else if (filters?.activeStatusFilter) {
         filtered = filtered.filter((lr: any) => {
           return (lr.status || 'LR Done') === filters.activeStatusFilter;
         });
+      } else {
+        // Default "LR This Month" export excludes cancelled LRs
+        filtered = filtered.filter((lr: any) => (lr.status || 'LR Done') !== 'Cancelled');
       }
       
       // Filter by search query

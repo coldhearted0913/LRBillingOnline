@@ -613,11 +613,11 @@ export default function Dashboard() {
     // Filter by statuses
     if (selectedStatuses.size > 0) {
       filtered = filtered.filter((lr: LRData) => lr.status && selectedStatuses.has(lr.status));
-    }
-    
-    // Filter by active status filter (from card clicks)
-    if (activeStatusFilter) {
+    } else if (activeStatusFilter) {
       filtered = filtered.filter((lr: LRData) => lr.status === activeStatusFilter);
+    } else {
+      // Default "LR This Month" view excludes cancelled LRs
+      filtered = filtered.filter((lr: LRData) => lr.status !== 'Cancelled');
     }
     
     // Search filter
@@ -662,33 +662,36 @@ export default function Dashboard() {
   // Using memoizedFilteredLrs directly instead of separate state
   
   // Memoized filtered data calculations
-  const statsData = useMemo(() => {
-    // Exclude cancelled LRs from all top-level stats and summary filters
-    let statsLrs = lrs.filter((lr: LRData) => lr.status !== 'Cancelled');
-    
+  const { statsData, monthFilteredCancelledCount } = useMemo(() => {
+    let dateFilteredLrs = [...lrs];
+
     // Filter by year (dates are in DD-MM-YYYY format)
     if (selectedYear !== 'All Years') {
-      statsLrs = statsLrs.filter((lr: LRData) => {
-      const lrDate = lr['LR Date'];
-      if (!lrDate) return false;
-      const parts = lrDate.split('-');
+      dateFilteredLrs = dateFilteredLrs.filter((lr: LRData) => {
+        const lrDate = lr['LR Date'];
+        if (!lrDate) return false;
+        const parts = lrDate.split('-');
         // parts[2] is the year in DD-MM-YYYY format
         return parts.length === 3 && parts[2] === selectedYear;
       });
     }
-    
+
     // Filter by month
     if (selectedMonth !== 'All Months') {
       const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
-      statsLrs = statsLrs.filter((lr: LRData) => {
+      dateFilteredLrs = dateFilteredLrs.filter((lr: LRData) => {
         const lrDate = lr['LR Date'];
         if (!lrDate) return false;
         const parts = lrDate.split('-');
         return parts.length === 3 && parseInt(parts[1]) === monthIndex;
       });
     }
-    
-    return statsLrs;
+
+    // Exclude cancelled LRs from all top-level stats and summary filters
+    const statsLrs = dateFilteredLrs.filter((lr: LRData) => lr.status !== 'Cancelled');
+    const cancelledCount = dateFilteredLrs.filter((lr: LRData) => lr.status === 'Cancelled').length;
+
+    return { statsData: statsLrs, monthFilteredCancelledCount: cancelledCount };
   }, [lrs, selectedMonth, selectedYear]);
 
   // Memoized stats calculations
@@ -745,8 +748,7 @@ export default function Dashboard() {
     const lrCollectedCount = statsData.filter((lr: LRData) => lr.status === 'LR Collected').length;
     const billDoneCount = statsData.filter((lr: LRData) => lr.status === 'Bill Done').length;
     const billSubmittedCount = statsData.filter((lr: LRData) => lr.status === 'Bill Submitted').length;
-    // Cancelled LRs are excluded from statsData, so count them separately from full list
-    const cancelledCount = lrs.filter((lr: LRData) => lr.status === 'Cancelled').length;
+    const cancelledCount = monthFilteredCancelledCount;
     
     return {
       total: statsData.length,
@@ -778,7 +780,7 @@ export default function Dashboard() {
             )
           : 0,
     };
-  }, [statsData, lrs]);
+  }, [statsData, monthFilteredCancelledCount]);
 
   // Calculate charts data from real LR data
   const chartsData = useMemo(() => {

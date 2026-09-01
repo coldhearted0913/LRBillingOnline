@@ -951,31 +951,45 @@ export const generateLRFromMasterCopy = async (
   
   if (!worksheet) throw new Error('LR MASTER COPY template worksheet not found');
 
+  const lrAccentFont = {
+    size: 13,
+    color: { argb: 'FFFF3300' },
+    name: 'Calibri',
+  };
+
+  const lrAccentFontBold = {
+    bold: true,
+    size: 13,
+    color: { argb: 'FFFF3300' },
+    name: 'Calibri',
+  };
+
   const ewayBillRichText = {
     richText: [
-      { text: 'E-way Bill : ' },
-      {
-        font: { bold: true, size: 13, color: { argb: 'FFFF3300' }, name: 'Calibri' },
-        text: MANGESH_EWAY_BILL,
-      },
+      { font: lrAccentFont, text: 'E-way Bill : ' },
+      { font: lrAccentFontBold, text: MANGESH_EWAY_BILL },
     ],
   };
 
   const panRichText = {
     richText: [
-      { text: 'PAN : ' },
-      {
-        font: { bold: true, size: 13, color: { argb: 'FFFF3300' }, name: 'Calibri' },
-        text: MANGESH_PAN,
-      },
+      { font: lrAccentFont, text: 'PAN : ' },
+      { font: lrAccentFontBold, text: MANGESH_PAN },
     ],
   };
 
+  const panCellAlignment = { horizontal: 'left' as const, vertical: 'top' as const, indent: 0 };
+
   // E-way Bill and PAN appear in both consignee (top) and consignor (bottom) copies
   worksheet.getCell('A2').value = ewayBillRichText;
-  worksheet.getCell('A3').value = panRichText;
   worksheet.getCell('A33').value = ewayBillRichText;
-  worksheet.getCell('A34').value = panRichText;
+
+  for (const cellRef of ['A3', 'A34'] as const) {
+    const cell = worksheet.getCell(cellRef);
+    cell.value = panRichText;
+    cell.alignment = panCellAlignment;
+    cell.font = lrAccentFont;
+  }
   
   // Helper function to split text into lines (max 3 lines for Consignor, max 3 lines for Consignee)
   const splitTextIntoLines = (text: string, maxLines: number): string[] => {
