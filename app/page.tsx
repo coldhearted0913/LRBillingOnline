@@ -2986,31 +2986,14 @@ export default function Dashboard() {
                   {consistencyLoading ? 'Checking…' : 'Verify Data Consistency'}
                 </Button>
               )}
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:ml-auto items-stretch sm:items-center">
-                <div className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs sm:text-sm min-w-[180px]">
-                  <p className="text-purple-700 font-medium">
-                    Provision · {selectedMonth === 'All Months' ? 'All months' : selectedMonth}
-                    {selectedYear !== 'All Years' ? ` ${selectedYear}` : ''}
-                  </p>
-                  <p className="text-purple-900 font-bold text-base">
-                    ₹{provisionCalculation.totalAmount.toLocaleString('en-IN')}
-                  </p>
-                  <p className="text-purple-600 text-[10px] sm:text-xs">
-                    {provisionCalculation.eligibleCount} vehicles
-                    {!includeLdkPickupsInProvision && provisionCalculation.ldkPickupsExcluded > 0
-                      ? ` · ${provisionCalculation.ldkPickupsExcluded} LDK pickup(s) excluded`
-                      : ''}
-                  </p>
-                </div>
-                <Button
-                  onClick={handleGenerateProvision}
-                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 w-full sm:w-auto text-white font-semibold shadow-lg text-xs md:text-sm min-h-[48px] touch-manipulation active:scale-95"
-                  title="Open provision calculator for the selected month"
-                >
-                  <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
-                  Generate Provision
-                </Button>
-              </div>
+              <Button
+                onClick={handleGenerateProvision}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 w-full sm:w-auto text-white font-semibold shadow-lg text-xs md:text-sm min-h-[48px] touch-manipulation active:scale-95"
+                title="Open provision calculator for the selected month"
+              >
+                <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
+                Generate Provision
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -3018,18 +3001,17 @@ export default function Dashboard() {
       
       {/* Sticky bulk action bar removed per request */}
 
-      {/* Provision Calculator Modal — no Cancel/No button; close via X */}
+      {/* Provision Calculator Modal — details only; download Excel at bottom */}
       <Dialog open={showProvisionModal} onOpenChange={setShowProvisionModal}>
-        <DialogContent className="max-w-lg w-[95vw] sm:w-full mx-auto">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full mx-auto max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Provision Calculator</DialogTitle>
+            <DialogTitle>
+              Provision — {selectedMonth === 'All Months' ? 'All Months' : selectedMonth}
+              {selectedYear !== 'All Years' ? ` ${selectedYear}` : ''}
+            </DialogTitle>
             <DialogDescription>
-              Company provision (revenue) for{' '}
-              <span className="font-medium text-foreground">
-                {selectedMonth === 'All Months' ? 'All Months' : selectedMonth}
-                {selectedYear !== 'All Years' ? ` ${selectedYear}` : ''}
-              </span>
-              . Change the month in the top bar to recalculate.
+              Company amount by vehicle type for the month selected in the top bar.
+              Cancelled LRs are excluded. LDK → KOEL pickups are excluded unless you tick the box below.
             </DialogDescription>
           </DialogHeader>
 
@@ -3044,39 +3026,21 @@ export default function Dashboard() {
               <span className="text-sm">
                 <span className="font-medium">Include LDK → KOEL Kagal pickups</span>
                 <span className="block text-xs text-muted-foreground mt-0.5">
-                  Off by default. When off, LDK pickup trips are excluded from the total.
-                  {provisionCalculation.ldkPickupsExcluded > 0 || includeLdkPickupsInProvision
-                    ? ` (${includeLdkPickupsInProvision ? 'currently included' : `${provisionCalculation.ldkPickupsExcluded} excluded`})`
-                    : ''}
+                  {includeLdkPickupsInProvision
+                    ? 'LDK pickups are included in the total below.'
+                    : provisionCalculation.ldkPickupsExcluded > 0
+                      ? `${provisionCalculation.ldkPickupsExcluded} LDK pickup(s) excluded from this total.`
+                      : 'No LDK pickups in this period.'}
                 </span>
               </span>
             </label>
-
-            <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Non-cancelled in period</span>
-                <span className="font-medium">
-                  {provisionCalculation.totalLrs - provisionCalculation.cancelledExcluded}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">In provision total</span>
-                <span className="font-medium">{provisionCalculation.eligibleCount}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Regular / Rework</span>
-                <span className="font-medium">
-                  {provisionCalculation.regularCount} / {provisionCalculation.reworkCount}
-                </span>
-              </div>
-            </div>
 
             <div className="rounded-lg border overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr className="text-left">
-                    <th className="px-3 py-2 font-medium">Category</th>
-                    <th className="px-3 py-2 font-medium text-right">Qty</th>
+                    <th className="px-3 py-2 font-medium">Particulars</th>
+                    <th className="px-3 py-2 font-medium text-right">Vehicles</th>
                     <th className="px-3 py-2 font-medium text-right">Rate</th>
                     <th className="px-3 py-2 font-medium text-right">Amount</th>
                   </tr>
@@ -3089,30 +3053,53 @@ export default function Dashboard() {
                       </td>
                     </tr>
                   ) : (
-                    provisionCalculation.buckets.map((b) => (
-                      <tr key={`${b.kind}-${b.vehicleType}`} className="border-t">
-                        <td className="px-3 py-2">
-                          {b.kind === 'rework' ? 'Rework/Rejection' : 'Regular'}{' '}
-                          {b.vehicleType === 'TOROUS' ? 'Taurus' : b.vehicleType}
-                          {b.kind === 'rework' ? (
-                            <span className="text-xs text-muted-foreground block">80% of regular rate</span>
-                          ) : null}
-                        </td>
-                        <td className="px-3 py-2 text-right">{b.count}</td>
-                        <td className="px-3 py-2 text-right">₹{b.rate.toLocaleString('en-IN')}</td>
-                        <td className="px-3 py-2 text-right font-medium">
-                          ₹{b.subtotal.toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    ))
+                    provisionCalculation.buckets.map((b) => {
+                      const typeLabel =
+                        b.vehicleType === 'TOROUS'
+                          ? 'Taurus'
+                          : b.vehicleType === 'TRUCK'
+                            ? 'Truck'
+                            : 'Pickup';
+                      const label =
+                        b.kind === 'rework'
+                          ? `Rework / Rejection ${typeLabel}`
+                          : `Regular ${typeLabel}`;
+                      return (
+                        <tr key={`${b.kind}-${b.vehicleType}`} className="border-t">
+                          <td className="px-3 py-2.5">
+                            <span className="font-medium">{label}</span>
+                            {b.kind === 'rework' ? (
+                              <span className="text-xs text-muted-foreground block">
+                                80% of regular {typeLabel.toLowerCase()} rate
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">{b.count}</td>
+                          <td className="px-3 py-2.5 text-right tabular-nums">
+                            ₹{b.rate.toLocaleString('en-IN')}
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-medium tabular-nums">
+                            ₹{b.subtotal.toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
                 <tfoot>
                   <tr className="border-t bg-purple-50">
                     <td className="px-3 py-3 font-semibold" colSpan={3}>
-                      Total provision
+                      Total provision amount
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        {provisionCalculation.eligibleCount} vehicle
+                        {provisionCalculation.eligibleCount === 1 ? '' : 's'}
+                        {' · '}
+                        {provisionCalculation.regularCount} regular
+                        {' · '}
+                        {provisionCalculation.reworkCount} rework
+                      </span>
                     </td>
-                    <td className="px-3 py-3 text-right font-bold text-purple-700 text-base">
+                    <td className="px-3 py-3 text-right font-bold text-purple-700 text-lg tabular-nums">
                       ₹{provisionCalculation.totalAmount.toLocaleString('en-IN')}
                     </td>
                   </tr>
@@ -3121,14 +3108,14 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sm:justify-stretch">
             <Button
               onClick={handleDownloadProvisionSheet}
               disabled={provisionLoading || provisionCalculation.eligibleCount === 0}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto"
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full"
             >
               <Download className="mr-2 h-4 w-4" />
-              {provisionLoading ? 'Generating…' : 'Download Provision Sheet'}
+              {provisionLoading ? 'Generating Excel…' : 'Download Provision Excel'}
             </Button>
           </DialogFooter>
         </DialogContent>
