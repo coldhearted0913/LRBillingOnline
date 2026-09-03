@@ -16,7 +16,7 @@ import LRForm from '@/components/LRForm';
 import ReworkBillForm from '@/components/ReworkBillForm';
 import AdditionalBillForm from '@/components/AdditionalBillForm';
 import { LRData } from '@/lib/database';
-import { MONTHS, VEHICLE_AMOUNTS, DRIVER_PAYMENTS, REWORK_DRIVER_PAYMENTS, REWORK_REVENUE_MULTIPLIER, ADDITIONAL_BILL_AMOUNTS, LR_STATUS_OPTIONS, STATUS_COLORS } from '@/lib/constants';
+import { MONTHS, VEHICLE_AMOUNTS, ADDITIONAL_BILL_AMOUNTS, LR_STATUS_OPTIONS, STATUS_COLORS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,48 +35,15 @@ import LoadingSkeleton from '@/components/LoadingSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
 import EmptyState from '@/components/EmptyState';
 import DashboardCharts from '@/components/DashboardCharts';
+import ProfitRatesEditor from '@/components/ProfitRatesEditor';
 import { fetchWithCSRF } from '@/lib/utils/fetchWithCSRF';
-
-type NormalizedVehicleType = 'PICKUP' | 'TRUCK' | 'TOROUS';
-
-type LrFinancials = {
-  vehicleType: NormalizedVehicleType;
-  revenue: number;
-  driverPayment: number;
-  billType: 'regular' | 'rework' | 'additional';
-  regularBaseRevenue: number;
-  additionalRevenuePortion: number;
-  isRework: boolean;
-  isAdditionalRecord: boolean;
-};
-
-type PreparedFinancialEntry = {
-  lr: LRData;
-  dateParts: string[];
-  financials: LrFinancials;
-};
-
-const KNOWN_VEHICLE_TYPES: NormalizedVehicleType[] = ['PICKUP', 'TRUCK', 'TOROUS'];
-
-const normalizeVehicleType = (value: unknown): NormalizedVehicleType => {
-  const fallback: NormalizedVehicleType = 'PICKUP';
-  if (typeof value !== 'string') return fallback;
-  const upper = value.trim().toUpperCase();
-  return KNOWN_VEHICLE_TYPES.includes(upper as NormalizedVehicleType) ? (upper as NormalizedVehicleType) : fallback;
-};
-
-const parseLocations = (value: unknown): string[] => {
-  if (typeof value !== 'string') return [];
-  return value
-    .split('/')
-    .map((loc) => loc.trim())
-    .filter((loc) => loc.length > 0);
-};
-
-const parseNumericField = (value: unknown): number => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
+import {
+  computeLrFinancials,
+  KNOWN_VEHICLE_TYPES,
+  normalizeVehicleType,
+} from '@/lib/utils/lrFinancials';
+import { NormalizedVehicleType, LrFinancials, PreparedFinancialEntry } from '@/lib/types/dashboard';
+import { DEFAULT_PROFIT_RATES, ProfitRates } from '@/lib/types/profitRates';
 
   // Format date strings to dd-mm-yyyy for display, accepting yyyy-mm-dd or dd-mm-yyyy/dd/mm/yyyy
   const formatDisplayDateEq = (input?: unknown): string => {
@@ -94,76 +61,6 @@ const parseNumericField = (value: unknown): number => {
   };
 
   // (moved submission date state into component)
-
-const computeLrFinancials = (lr: LRData): LrFinancials => {
-  const vehicleType = normalizeVehicleType(lr['Vehicle Type']);
-  const lrNo = (lr['LR No'] ?? '').toString();
-  const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
-
-  const consigneeLocations = parseLocations(lr['Consignee']);
-  const toColumnRaw = (lr['TO'] ?? '').toString().trim();
-  const toLocations = parseLocations(toColumnRaw);
-
-  const hasAdditionalDelivery = consigneeLocations.length > 1;
-  const hasAdditionalDeliveryInTO = toLocations.length > 1;
-  const finalHasAdditionalDelivery = hasAdditionalDelivery || hasAdditionalDeliveryInTO;
-  const finalLocationCount = hasAdditionalDelivery
-    ? consigneeLocations.length
-    : hasAdditionalDeliveryInTO
-    ? toLocations.length
-    : 1;
-
-  const from = (lr['FROM'] ?? '').toString().toLowerCase().trim();
-  const to = toColumnRaw.toLowerCase();
-  const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
-
-  const baseRevenue = VEHICLE_AMOUNTS[vehicleType] || 0;
-  const regularDriverPayment = DRIVER_PAYMENTS[vehicleType] || 0;
-  const reworkDriverPayment = REWORK_DRIVER_PAYMENTS[vehicleType] || 0;
-  const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType] || 0;
-
-  let revenue = 0;
-  let driverPayment = 0;
-  let billType: 'regular' | 'rework' | 'additional' = 'regular';
-  let regularBaseRevenue = 0;
-  let additionalRevenuePortion = 0;
-
-  if (isAdditionalRecord) {
-    revenue = parseNumericField(lr['Amount']);
-    driverPayment = 0;
-    billType = 'additional';
-    additionalRevenuePortion = revenue;
-  } else if (finalHasAdditionalDelivery && !isRework) {
-    const additionalMultiplier = Math.max(0, finalLocationCount - 1);
-    const calculatedAdditionalAmount = additionalMultiplier * additionalAmount;
-    revenue = baseRevenue + calculatedAdditionalAmount;
-    driverPayment = regularDriverPayment;
-    billType = 'regular';
-    regularBaseRevenue = baseRevenue;
-    additionalRevenuePortion = calculatedAdditionalAmount;
-  } else if (isRework) {
-    revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
-    driverPayment = reworkDriverPayment;
-    billType = 'rework';
-    regularBaseRevenue = 0;
-  } else {
-    revenue = baseRevenue;
-    driverPayment = regularDriverPayment;
-    billType = 'regular';
-    regularBaseRevenue = revenue;
-  }
-
-  return {
-    vehicleType,
-    revenue,
-    driverPayment,
-    billType,
-    regularBaseRevenue,
-    additionalRevenuePortion,
-    isRework,
-    isAdditionalRecord,
-  };
-};
 
 export default function Dashboard() {
   // (Reverted) No filters drawer / saved views state
@@ -195,6 +92,13 @@ export default function Dashboard() {
   const [showStatsPasswordModal, setShowStatsPasswordModal] = useState(false);
   const [statsPassword, setStatsPassword] = useState('');
   const [statsAuthLoading, setStatsAuthLoading] = useState(false);
+  const [profitRates, setProfitRates] = useState<ProfitRates>(DEFAULT_PROFIT_RATES);
+  const [profitRatesMeta, setProfitRatesMeta] = useState<{
+    updatedAt: string | null;
+    updatedBy: string | null;
+    isCustom: boolean;
+  }>({ updatedAt: null, updatedBy: null, isCustom: false });
+  const [showProfitRatesEditor, setShowProfitRatesEditor] = useState(false);
   const [showLrDetails, setShowLrDetails] = useState(false);
   const [detailLr, setDetailLr] = useState<LRData | null>(null);
   const [showDetailFiles, setShowDetailFiles] = useState(false);
@@ -276,6 +180,36 @@ export default function Dashboard() {
   const isManager = ((session?.user as any)?.role === 'MANAGER');
   // React Query Client
   const queryClient = useQueryClient();
+
+  // CEO-only profit rate overrides for Statistics Card
+  const { data: profitRatesResponse } = useQuery({
+    queryKey: ['profit-rates'],
+    queryFn: async () => {
+      const res = await fetch('/api/profit-rates');
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data?.error || 'Failed to load profit rates');
+      }
+      return data as {
+        rates: ProfitRates;
+        updatedAt: string | null;
+        updatedBy: string | null;
+        isCustom: boolean;
+      };
+    },
+    enabled: status === 'authenticated' && isCEO,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!profitRatesResponse?.rates) return;
+    setProfitRates(profitRatesResponse.rates);
+    setProfitRatesMeta({
+      updatedAt: profitRatesResponse.updatedAt,
+      updatedBy: profitRatesResponse.updatedBy,
+      isCustom: profitRatesResponse.isCustom,
+    });
+  }, [profitRatesResponse]);
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -715,7 +649,7 @@ export default function Dashboard() {
       const vehicleType = normalizeVehicleType(lr['Vehicle Type']);
       vehicleTypeBreakdown[vehicleType] = (vehicleTypeBreakdown[vehicleType] ?? 0) + 1;
       
-      const financials = computeLrFinancials(lr);
+      const financials = computeLrFinancials(lr, profitRates);
       totalRevenue += financials.revenue;
       totalExpenses += financials.driverPayment;
       
@@ -780,14 +714,14 @@ export default function Dashboard() {
             )
           : 0,
     };
-  }, [statsData, monthFilteredCancelledCount]);
+  }, [statsData, monthFilteredCancelledCount, profitRates]);
 
   // Calculate charts data from real LR data
   const chartsData = useMemo(() => {
     const prepared: PreparedFinancialEntry[] = statsData.map((lr: LRData) => {
       const lrDate = (lr['LR Date'] ?? '').toString();
       const dateParts = lrDate ? lrDate.split('-') : [];
-      const financials = computeLrFinancials(lr);
+      const financials = computeLrFinancials(lr, profitRates);
       return { lr, dateParts, financials };
     });
 
@@ -869,7 +803,7 @@ export default function Dashboard() {
     }
 
     return { vehicleData, monthlyData, billTypeData };
-  }, [statsData]);
+  }, [statsData, profitRates]);
 
   // Removed the old useEffect that called filterLRs - now using memoized filtered LRs
   
@@ -2022,37 +1956,58 @@ export default function Dashboard() {
           <Card className="bg-gradient-to-br from-teal-50 to-teal-100 border-teal-300 hover:shadow-lg transition-shadow">
             <CardHeader className="pb-3 md:pb-4">
               <div className="flex items-center justify-between mb-2">
-                <CardDescription className="text-teal-700 text-xs md:text-sm">Statistics</CardDescription>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Require authentication and CEO role to view statistics
-                    if (status !== 'authenticated' || !session) {
-                      router.push('/login');
-                      return;
-                    }
-                    const role = (session.user as any)?.role;
-                    if (role !== 'CEO') {
-                      toast.error('Unauthorized: Only CEO can view statistics');
-                      return;
-                    }
-                    // If currently visible, hide without asking password; otherwise prompt for password
-                    if (showMonthlyProfit) {
-                      setShowMonthlyProfit(false);
-                      return;
-                    }
-                    setShowStatsPasswordModal(true);
-                  }}
-                  className="h-8 w-8 p-0 hover:bg-teal-200"
-                >
-                  {showMonthlyProfit ? (
-                    <Eye className="h-4 w-4 text-teal-700" />
-                  ) : (
-                    <EyeOff className="h-4 w-4 text-teal-700" />
+                <CardDescription className="text-teal-700 text-xs md:text-sm">
+                  Statistics
+                  {showMonthlyProfit && profitRatesMeta.isCustom && (
+                    <span className="ml-2 text-[10px] text-amber-700 font-medium">(custom rates)</span>
                   )}
-                </Button>
+                </CardDescription>
+                <div className="flex items-center gap-1">
+                  {showMonthlyProfit && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Configure profit rates (CEO only)"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowProfitRatesEditor(true);
+                      }}
+                      className="h-8 w-8 p-0 hover:bg-teal-200"
+                    >
+                      <Settings className="h-4 w-4 text-teal-700" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Require authentication and CEO role to view statistics
+                      if (status !== 'authenticated' || !session) {
+                        router.push('/login');
+                        return;
+                      }
+                      const role = (session.user as any)?.role;
+                      if (role !== 'CEO') {
+                        toast.error('Unauthorized: Only CEO can view statistics');
+                        return;
+                      }
+                      // If currently visible, hide without asking password; otherwise prompt for password
+                      if (showMonthlyProfit) {
+                        setShowMonthlyProfit(false);
+                        return;
+                      }
+                      setShowStatsPasswordModal(true);
+                    }}
+                    className="h-8 w-8 p-0 hover:bg-teal-200"
+                  >
+                    {showMonthlyProfit ? (
+                      <Eye className="h-4 w-4 text-teal-700" />
+                    ) : (
+                      <EyeOff className="h-4 w-4 text-teal-700" />
+                    )}
+                  </Button>
+                </div>
               </div>
               {showMonthlyProfit ? (
                 <div 
@@ -3610,11 +3565,24 @@ export default function Dashboard() {
             </DialogTitle>
             <DialogDescription>
               Detailed financial analysis for {selectedMonth === 'All Months' ? 'All Months' : selectedMonth} {selectedYear === 'All Years' ? '' : selectedYear}
+              {profitRatesMeta.isCustom ? ' · Using custom company/transporter rates' : ''}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Total LR Count for Selected Month - Moved to top */}
+            {showMonthlyProfit && (
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs gap-1 border-amber-300 text-amber-900 hover:bg-amber-50"
+                  onClick={() => setShowProfitRatesEditor(true)}
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                  Configure rates
+                </Button>
+              </div>
+            )}
             <Card className="bg-gradient-to-br from-slate-50 to-slate-100 border-slate-300">
               <CardContent className="pt-6">
                 <div className="text-center">
@@ -3713,7 +3681,7 @@ export default function Dashboard() {
                     let vehicleExpenses = 0;
 
                     vehicleLrs.forEach((lr: LRData) => {
-                      const { revenue, driverPayment } = computeLrFinancials(lr);
+                      const { revenue, driverPayment } = computeLrFinancials(lr, profitRates);
                       vehicleRevenue += revenue;
                       vehicleExpenses += driverPayment;
                     });
@@ -3800,7 +3768,7 @@ export default function Dashboard() {
                     <div className="flex justify-between items-center mb-3">
                       <h4 className="font-semibold text-purple-900">Rework Bills (Kolhapur → Solapur)</h4>
                       <Badge variant="secondary" className="bg-purple-200 text-purple-800">
-                        @ 80% rate
+                        @ {(profitRates.reworkRevenueMultiplier * 100).toFixed(0)}% rate
                       </Badge>
                     </div>
                     <div className="grid grid-cols-3 gap-4 text-sm">
@@ -3920,6 +3888,25 @@ export default function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ProfitRatesEditor
+        open={showProfitRatesEditor}
+        onOpenChange={setShowProfitRatesEditor}
+        initialRates={profitRates}
+        updatedAt={profitRatesMeta.updatedAt}
+        updatedBy={profitRatesMeta.updatedBy}
+        isCustom={profitRatesMeta.isCustom}
+        onSaved={(rates) => {
+          setProfitRates(rates);
+          setProfitRatesMeta((prev) => ({
+            ...prev,
+            isCustom: JSON.stringify(rates) !== JSON.stringify(DEFAULT_PROFIT_RATES),
+            updatedAt: new Date().toISOString(),
+            updatedBy: session?.user?.email || prev.updatedBy,
+          }));
+          queryClient.invalidateQueries({ queryKey: ['profit-rates'] });
+        }}
+      />
 
       {/* LR Details Modal */}
       <Dialog open={showLrDetails} onOpenChange={setShowLrDetails}>

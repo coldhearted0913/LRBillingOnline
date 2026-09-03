@@ -1,12 +1,6 @@
 import { LRData } from '@/lib/database';
 import { NormalizedVehicleType, LrFinancials, BillType } from '@/lib/types/dashboard';
-import {
-  VEHICLE_AMOUNTS,
-  DRIVER_PAYMENTS,
-  REWORK_DRIVER_PAYMENTS,
-  REWORK_REVENUE_MULTIPLIER,
-  ADDITIONAL_BILL_AMOUNTS,
-} from '@/lib/constants';
+import { DEFAULT_PROFIT_RATES, ProfitRates } from '@/lib/types/profitRates';
 
 export const KNOWN_VEHICLE_TYPES: NormalizedVehicleType[] = ['PICKUP', 'TRUCK', 'TOROUS'];
 
@@ -30,7 +24,10 @@ export const parseNumericField = (value: unknown): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-export const computeLrFinancials = (lr: LRData): LrFinancials => {
+export const computeLrFinancials = (
+  lr: LRData,
+  rates: ProfitRates = DEFAULT_PROFIT_RATES
+): LrFinancials => {
   const vehicleType = normalizeVehicleType(lr['Vehicle Type']);
   const lrNo = (lr['LR No'] ?? '').toString();
   const isAdditionalRecord = lrNo.startsWith('ADDITIONAL-');
@@ -52,10 +49,10 @@ export const computeLrFinancials = (lr: LRData): LrFinancials => {
   const to = toColumnRaw.toLowerCase();
   const isRework = !isAdditionalRecord && from === 'kolhapur' && to === 'solapur';
 
-  const baseRevenue = VEHICLE_AMOUNTS[vehicleType] || 0;
-  const regularDriverPayment = DRIVER_PAYMENTS[vehicleType] || 0;
-  const reworkDriverPayment = REWORK_DRIVER_PAYMENTS[vehicleType] || 0;
-  const additionalAmount = ADDITIONAL_BILL_AMOUNTS[vehicleType] || 0;
+  const baseRevenue = rates.vehicleAmounts[vehicleType] || 0;
+  const regularDriverPayment = rates.driverPayments[vehicleType] || 0;
+  const reworkDriverPayment = rates.reworkDriverPayments[vehicleType] || 0;
+  const additionalAmount = rates.additionalBillAmounts[vehicleType] || 0;
 
   let revenue = 0;
   let driverPayment = 0;
@@ -77,7 +74,7 @@ export const computeLrFinancials = (lr: LRData): LrFinancials => {
     regularBaseRevenue = baseRevenue;
     additionalRevenuePortion = calculatedAdditionalAmount;
   } else if (isRework) {
-    revenue = baseRevenue * REWORK_REVENUE_MULTIPLIER;
+    revenue = baseRevenue * rates.reworkRevenueMultiplier;
     driverPayment = reworkDriverPayment;
     billType = 'rework';
     regularBaseRevenue = 0;
@@ -99,4 +96,3 @@ export const computeLrFinancials = (lr: LRData): LrFinancials => {
     isAdditionalRecord,
   };
 };
-

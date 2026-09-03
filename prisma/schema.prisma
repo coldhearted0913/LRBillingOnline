@@ -223,3 +223,15 @@ model PaymentCSVSnapshot {
   @@index([uploadedAt])
   @@map("payment_csv_snapshots")
 }
+
+// Singleton config for Statistics Card profit-rate overrides (CEO-editable).
+// Does not affect bill/invoice generation amounts.
+model ProfitRateConfig {
+  id        String   @id @default("default")
+  ratesJson String   @map("rates_json")
+  updatedBy String?  @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("profit_rate_configs")
+}
