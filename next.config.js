@@ -16,6 +16,13 @@ const nextConfig = {
   },
   // Security headers including CSP
   async headers() {
+    const isDev = process.env.NODE_ENV !== 'production';
+    // 'unsafe-eval' is only required by Next.js in development. Drop it in
+    // production to shrink the XSS attack surface. 'unsafe-inline' is still
+    // needed for Next.js's inline bootstrap scripts and Tailwind styles.
+    const scriptSrc = isDev
+      ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'"
+      : "script-src 'self' 'unsafe-inline'";
     return [
       {
         source: '/:path*',
@@ -24,7 +31,7 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // 'unsafe-eval' needed for Next.js dev mode
+              scriptSrc,
               "style-src 'self' 'unsafe-inline'", // 'unsafe-inline' needed for Tailwind CSS
               "img-src 'self' data: https: blob:",
               "font-src 'self' data:",

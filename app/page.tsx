@@ -1817,21 +1817,6 @@ export default function Dashboard() {
                 <span className="sm:hidden">New</span>
               </Button>
               
-              {/* Payment Tracking - CEO and MANAGER only */}
-              {(isCEO || isManager) && (
-                <Button 
-                  onClick={() => router.push('/payments')} 
-                  size="lg"
-                  className="bg-purple-600 text-white hover:bg-purple-700 shadow-lg font-semibold text-xs sm:text-sm md:text-base px-2 sm:px-3 md:px-4 active:scale-95 transition-transform duration-150 hover:shadow-xl hover:scale-105"
-                  title="Payment Tracking Dashboard"
-                >
-                  <DollarSign className="mr-1 sm:mr-2 h-4 w-4 md:h-5 md:w-5" />
-                  <span className="hidden md:inline">Payment Tracking</span>
-                  <span className="hidden sm:inline md:hidden">Tracking</span>
-                  <span className="sm:hidden">Track</span>
-                </Button>
-              )}
-              
               {/* User Profile Dropdown - Always visible, inline with buttons */}
               {session && (
                 <div className="border-l border-white/30 pl-2">
@@ -2986,14 +2971,16 @@ export default function Dashboard() {
                   {consistencyLoading ? 'Checking…' : 'Verify Data Consistency'}
                 </Button>
               )}
-              <Button
-                onClick={handleGenerateProvision}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 w-full sm:w-auto text-white font-semibold shadow-lg text-xs md:text-sm min-h-[48px] touch-manipulation active:scale-95"
-                title="Open provision calculator for the selected month"
-              >
-                <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
-                Generate Provision
-              </Button>
+              {(isCEO || isManager) && (
+                <Button
+                  onClick={handleGenerateProvision}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 w-full sm:w-auto text-white font-semibold shadow-lg text-xs md:text-sm min-h-[48px] touch-manipulation active:scale-95"
+                  title="Open provision calculator for the selected month"
+                >
+                  <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
+                  Generate Provision
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -59,7 +59,7 @@ export async function PUT(request: NextRequest) {
   } catch (error: any) {
     console.error('[Update Status] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to update status', details: error.message },
+      { error: 'Failed to update status' },
       { status: 500 }
     );
   }
