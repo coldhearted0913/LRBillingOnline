@@ -4,6 +4,11 @@ import fs from 'fs';
 import { LRData } from './database';
 import { VEHICLE_AMOUNTS, MANGESH_EWAY_BILL, MANGESH_PAN } from './constants';
 import { computeReworkAmount } from './utils';
+import {
+  getProvisionEligibleLrs,
+  getProvisionUnitAmount,
+  isProvisionReworkRoute,
+} from './utils/provisionCalculator';
 
 const INVOICE_DIR = path.join(process.cwd(), 'invoices');
 const TEMPLATES_DIR = process.cwd(); // Current directory for templates
@@ -792,7 +797,12 @@ export const generateMangeshInvoiceForAdditional = async (
 // Generate Provision Sheet from PROVISION FORMAT.xlsx
 export const generateProvisionSheet = async (
   allLrs: LRData[],
-  submissionDate: string
+  submissionDate: string,
+  options: {
+    month?: string;
+    year?: string;
+    includeLdkPickups?: boolean;
+  } = {}
 ): Promise<string> => {
   const folder = ensureInvoiceDir(submissionDate);
 
@@ -827,10 +837,13 @@ export const generateProvisionSheet = async (
     applyFullBorders(rowNumber);
   };
 
-  const eligible = (allLrs || []).filter(lr => (lr.status || '').toLowerCase() !== 'bill submitted');
-  const isRework = (lr: LRData) => (lr['FROM'] || '').toLowerCase() === 'kolhapur' && (lr['TO'] || '').toLowerCase() === 'solapur';
-  const rework = eligible.filter(isRework);
-  const regular = eligible.filter(lr => !isRework(lr));
+  const eligible = getProvisionEligibleLrs(allLrs || [], {
+    month: options.month,
+    year: options.year,
+    includeLdkPickups: options.includeLdkPickups === true,
+  });
+  const rework = eligible.filter(isProvisionReworkRoute);
+  const regular = eligible.filter((lr) => !isProvisionReworkRoute(lr));
 
   // Sort by LR No ascending (numeric-aware)
   const lrComparator = (a: LRData, b: LRData) => {
@@ -917,12 +930,7 @@ export const generateProvisionSheet = async (
       nextMonthCol += 1;
     }
     const col = labelToColumnIndex[label];
-    const vehicleType = lr['Vehicle Type'];
-    const baseAmount = (VEHICLE_AMOUNTS as any)[vehicleType] || 0;
-    const fromVal = (lr['FROM'] || '').toString().trim().toLowerCase();
-    const toVal = (lr['TO'] || '').toString().trim().toLowerCase();
-    const isReworkRoute = fromVal === 'kolhapur' && toVal === 'solapur';
-    const amount = isReworkRoute ? Math.round(baseAmount * 0.8) : baseAmount;
+    const amount = getProvisionUnitAmount(lr);
     const cell = worksheet.getCell(rowNum, col);
     cell.value = amount;
     cell.border = {

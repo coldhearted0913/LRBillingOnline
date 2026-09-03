@@ -42,6 +42,7 @@ import {
   KNOWN_VEHICLE_TYPES,
   normalizeVehicleType,
 } from '@/lib/utils/lrFinancials';
+import { computeProvisionCalculation } from '@/lib/utils/provisionCalculator';
 import { NormalizedVehicleType, LrFinancials, PreparedFinancialEntry } from '@/lib/types/dashboard';
 import { DEFAULT_PROFIT_RATES, ProfitRates } from '@/lib/types/profitRates';
 
@@ -89,6 +90,8 @@ export default function Dashboard() {
   const [showBillTypeBreakdown, setShowBillTypeBreakdown] = useState(false);
   const [showMonthlyProfit, setShowMonthlyProfit] = useState(false);
   const [provisionLoading, setProvisionLoading] = useState(false);
+  const [showProvisionModal, setShowProvisionModal] = useState(false);
+  const [includeLdkPickupsInProvision, setIncludeLdkPickupsInProvision] = useState(false);
   const [showStatsPasswordModal, setShowStatsPasswordModal] = useState(false);
   const [statsPassword, setStatsPassword] = useState('');
   const [statsAuthLoading, setStatsAuthLoading] = useState(false);
@@ -627,6 +630,17 @@ export default function Dashboard() {
 
     return { statsData: statsLrs, monthFilteredCancelledCount: cancelledCount };
   }, [lrs, selectedMonth, selectedYear]);
+
+  // Provision calculator — follows top-bar month/year; LDK pickups excluded by default
+  const provisionCalculation = useMemo(() => {
+    return computeProvisionCalculation(lrs, {
+      month: selectedMonth,
+      year: selectedYear,
+      includeLdkPickups: includeLdkPickupsInProvision,
+      vehicleAmounts: profitRates.vehicleAmounts,
+      reworkMultiplier: profitRates.reworkRevenueMultiplier,
+    });
+  }, [lrs, selectedMonth, selectedYear, includeLdkPickupsInProvision, profitRates]);
 
   // Memoized stats calculations
   const stats = useMemo(() => {
@@ -1568,22 +1582,32 @@ export default function Dashboard() {
     }
   };
 
-  // Generate Provision sheet and download
-  const handleGenerateProvision = async () => {
+  // Open provision calculator (uses selected month/year from top bar)
+  const handleGenerateProvision = () => {
+    setShowProvisionModal(true);
+  };
+
+  const handleDownloadProvisionSheet = async () => {
     setProvisionLoading(true);
     try {
       const res = await fetch('/api/provision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          month: selectedMonth,
+          year: selectedYear,
+          includeLdkPickups: includeLdkPickupsInProvision,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data?.error || 'Failed to generate');
       }
-      // data.filePath is relative to invoices; reuse existing downloader
       downloadFile(data.filePath);
-      toast.success('Provision sheet generated');
+      toast.success(
+        `Provision sheet generated · ₹${Number(data.calculation?.totalAmount || 0).toLocaleString('en-IN')}`
+      );
+      setShowProvisionModal(false);
     } catch (e: any) {
       toast.error(e.message || 'Failed to generate provision');
     } finally {
@@ -2962,21 +2986,153 @@ export default function Dashboard() {
                   {consistencyLoading ? 'Checking…' : 'Verify Data Consistency'}
                 </Button>
               )}
-              <Button
-                onClick={handleGenerateProvision}
-                disabled={provisionLoading}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 w-full sm:w-auto text-white font-semibold shadow-lg text-xs md:text-sm min-h-[48px] touch-manipulation active:scale-95 disabled:opacity-50"
-                title="Generate Provision sheet from PROVISION FORMAT.xlsx for all non-submitted bills"
-              >
-                <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
-                {provisionLoading ? 'Generating Provision...' : 'Generate Provision'}
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:ml-auto items-stretch sm:items-center">
+                <div className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs sm:text-sm min-w-[180px]">
+                  <p className="text-purple-700 font-medium">
+                    Provision · {selectedMonth === 'All Months' ? 'All months' : selectedMonth}
+                    {selectedYear !== 'All Years' ? ` ${selectedYear}` : ''}
+                  </p>
+                  <p className="text-purple-900 font-bold text-base">
+                    ₹{provisionCalculation.totalAmount.toLocaleString('en-IN')}
+                  </p>
+                  <p className="text-purple-600 text-[10px] sm:text-xs">
+                    {provisionCalculation.eligibleCount} vehicles
+                    {!includeLdkPickupsInProvision && provisionCalculation.ldkPickupsExcluded > 0
+                      ? ` · ${provisionCalculation.ldkPickupsExcluded} LDK pickup(s) excluded`
+                      : ''}
+                  </p>
+                </div>
+                <Button
+                  onClick={handleGenerateProvision}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 w-full sm:w-auto text-white font-semibold shadow-lg text-xs md:text-sm min-h-[48px] touch-manipulation active:scale-95"
+                  title="Open provision calculator for the selected month"
+                >
+                  <FileText className="mr-2 h-4 w-4 md:h-4 md:w-4" />
+                  Generate Provision
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
       
       {/* Sticky bulk action bar removed per request */}
+
+      {/* Provision Calculator Modal — no Cancel/No button; close via X */}
+      <Dialog open={showProvisionModal} onOpenChange={setShowProvisionModal}>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full mx-auto">
+          <DialogHeader>
+            <DialogTitle>Provision Calculator</DialogTitle>
+            <DialogDescription>
+              Company provision (revenue) for{' '}
+              <span className="font-medium text-foreground">
+                {selectedMonth === 'All Months' ? 'All Months' : selectedMonth}
+                {selectedYear !== 'All Years' ? ` ${selectedYear}` : ''}
+              </span>
+              . Change the month in the top bar to recalculate.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <label className="flex items-start gap-3 rounded-lg border border-input bg-background p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 accent-purple-600"
+                checked={includeLdkPickupsInProvision}
+                onChange={(e) => setIncludeLdkPickupsInProvision(e.target.checked)}
+              />
+              <span className="text-sm">
+                <span className="font-medium">Include LDK → KOEL Kagal pickups</span>
+                <span className="block text-xs text-muted-foreground mt-0.5">
+                  Off by default. When off, LDK pickup trips are excluded from the total.
+                  {provisionCalculation.ldkPickupsExcluded > 0 || includeLdkPickupsInProvision
+                    ? ` (${includeLdkPickupsInProvision ? 'currently included' : `${provisionCalculation.ldkPickupsExcluded} excluded`})`
+                    : ''}
+                </span>
+              </span>
+            </label>
+
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Non-cancelled in period</span>
+                <span className="font-medium">
+                  {provisionCalculation.totalLrs - provisionCalculation.cancelledExcluded}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">In provision total</span>
+                <span className="font-medium">{provisionCalculation.eligibleCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Regular / Rework</span>
+                <span className="font-medium">
+                  {provisionCalculation.regularCount} / {provisionCalculation.reworkCount}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr className="text-left">
+                    <th className="px-3 py-2 font-medium">Category</th>
+                    <th className="px-3 py-2 font-medium text-right">Qty</th>
+                    <th className="px-3 py-2 font-medium text-right">Rate</th>
+                    <th className="px-3 py-2 font-medium text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {provisionCalculation.buckets.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-4 text-center text-muted-foreground">
+                        No eligible vehicles for this period
+                      </td>
+                    </tr>
+                  ) : (
+                    provisionCalculation.buckets.map((b) => (
+                      <tr key={`${b.kind}-${b.vehicleType}`} className="border-t">
+                        <td className="px-3 py-2">
+                          {b.kind === 'rework' ? 'Rework/Rejection' : 'Regular'}{' '}
+                          {b.vehicleType === 'TOROUS' ? 'Taurus' : b.vehicleType}
+                          {b.kind === 'rework' ? (
+                            <span className="text-xs text-muted-foreground block">80% of regular rate</span>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 text-right">{b.count}</td>
+                        <td className="px-3 py-2 text-right">₹{b.rate.toLocaleString('en-IN')}</td>
+                        <td className="px-3 py-2 text-right font-medium">
+                          ₹{b.subtotal.toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t bg-purple-50">
+                    <td className="px-3 py-3 font-semibold" colSpan={3}>
+                      Total provision
+                    </td>
+                    <td className="px-3 py-3 text-right font-bold text-purple-700 text-base">
+                      ₹{provisionCalculation.totalAmount.toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              onClick={handleDownloadProvisionSheet}
+              disabled={provisionLoading || provisionCalculation.eligibleCount === 0}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {provisionLoading ? 'Generating…' : 'Download Provision Sheet'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       {/* Bill Generation Modal */}
       <Dialog open={showDatePicker} onOpenChange={setShowDatePicker}>
