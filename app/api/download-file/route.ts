@@ -18,11 +18,13 @@ export async function GET(request: NextRequest) {
     }
     
     // Construct full file path (relative to invoices folder)
-    const fullPath = path.join(process.cwd(), 'invoices', filePath);
-    
-    // Security check: ensure path is within invoices directory
-    const invoicesDir = path.join(process.cwd(), 'invoices');
-    if (!fullPath.startsWith(invoicesDir)) {
+    const invoicesDir = path.resolve(process.cwd(), 'invoices');
+    const fullPath = path.resolve(invoicesDir, filePath);
+
+    // Security check: ensure the resolved path is strictly inside the invoices
+    // directory. Comparing against `invoicesDir + path.sep` prevents both path
+    // traversal (../) and sibling-directory prefix bypasses (e.g. `invoices2`).
+    if (fullPath !== invoicesDir && !fullPath.startsWith(invoicesDir + path.sep)) {
       return NextResponse.json(
         { success: false, error: 'Invalid file path' },
         { status: 403 }

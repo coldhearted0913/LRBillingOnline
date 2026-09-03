@@ -111,8 +111,11 @@ export const authOptions: NextAuthOptions = {
           });
           
           if (!dbUser || !dbUser.isActive) {
-            // User not found or inactive - return current token instead of null
-            console.log('User not found or inactive, keeping current session');
+            // User was deleted or deactivated after the token was issued.
+            // Flag the token as inactive so middleware/session treat it as
+            // logged out on the next request.
+            token.isActive = false;
+            token.lastChecked = Date.now();
             return token;
           }
           
@@ -121,7 +124,8 @@ export const authOptions: NextAuthOptions = {
           token.lastChecked = Date.now();
         } catch (error) {
           console.error('JWT callback error:', error);
-          // Return current token instead of failing
+          // On a transient DB error, keep the existing token rather than
+          // locking the user out due to an infrastructure blip.
           return token;
         }
       }

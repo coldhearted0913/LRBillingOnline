@@ -112,31 +112,11 @@ const fromPrismaFormat = (prismaLr: any): LRData => {
 // Get all LRs (optimized with select to reduce data transfer)
 export const getAllLRs = async (): Promise<LRData[]> => {
   try {
-    // Primary path: select including attachments and payments
+    // Primary path: select including attachments
     const lrs = await prisma.lR.findMany({
       orderBy: { createdAt: 'desc' },
-      include: {
-        payments: {
-          where: { status: 'verified' },
-          orderBy: { paymentDate: 'desc' },
-          take: 1, // Get latest payment date
-        },
-      },
     });
-    return lrs.map(lr => {
-      const lrData = fromPrismaFormat(lr);
-      // Add payment date from latest payment
-      if (lr.payments && lr.payments.length > 0) {
-        lrData["Payment Date"] = lr.payments[0].paymentDate.toISOString().split('T')[0];
-        // If payment exists, update status to show payment date (DD-MM-YYYY format)
-        const paymentDate = lr.payments[0].paymentDate;
-        const day = paymentDate.getDate().toString().padStart(2, '0');
-        const month = (paymentDate.getMonth() + 1).toString().padStart(2, '0');
-        const year = paymentDate.getFullYear();
-        lrData.status = `${day}-${month}-${year}`;
-      }
-      return lrData;
-    });
+    return lrs.map(lr => fromPrismaFormat(lr));
   } catch (error) {
     console.warn('[getAllLRs] attachments column not available yet; falling back without it. Error:', (error as any)?.message);
     try {
@@ -422,10 +402,12 @@ export const getLRsByMonth = async (year: number, month: number): Promise<LRData
     // Format month as 2 digits (e.g., "03" for March)
     const monthStr = month.toString().padStart(2, '0');
     
-    // Query with WHERE clause to filter at DB level (much faster than fetching all rows)
+    // lr_date is stored as DD-MM-YYYY (10 chars). Match any day, fixed month/year.
+    // The previous pattern had trailing "__" which required a 12-char value and
+    // therefore never matched, silently returning zero rows.
     const lrs = await prisma.$queryRaw`
       SELECT * FROM lrs 
-      WHERE lr_date LIKE ${`__-${monthStr}-${year}__`}
+      WHERE lr_date LIKE ${`__-${monthStr}-${year}`}
       ORDER BY created_at DESC
     ` as any[];
     

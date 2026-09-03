@@ -4,8 +4,7 @@ import { authOptions } from '@/lib/auth';
 
 // Ensure API is always dynamic and not statically cached
 export const dynamic = 'force-dynamic';
-import { getAllLRs, addLR, deleteMultipleLRs, getLRsByMonth } from '@/lib/database';
-import '@/lib/init'; // Initialize scheduler
+import { getAllLRs, addLR, deleteMultipleLRs, getLRsByMonth, getLRByNumber } from '@/lib/database';
 import { LRSchema } from '@/lib/validations/schemas';
 import { applyApiMiddleware } from '@/lib/middleware/apiMiddleware';
 import { sanitizeLRData } from '@/lib/utils/sanitize';
@@ -54,9 +53,7 @@ export async function POST(request: NextRequest) {
 
   try {
     let lrData = await request.json();
-    
-    console.log('[POST /api/lrs] Received data:', JSON.stringify(lrData, null, 2));
-    
+
     // Sanitize user input to prevent XSS and injection attacks
     lrData = sanitizeLRData(lrData);
     
@@ -86,13 +83,10 @@ export async function POST(request: NextRequest) {
       remark: lrData['Remark'] || lrData['remark'] || '',
     };
     
-    console.log('[POST /api/lrs] Mapped data:', JSON.stringify(mappedData, null, 2));
-    
     // Validate with Zod schema
     const validation = LRSchema.safeParse(mappedData);
     
     if (!validation.success) {
-      console.error('[POST /api/lrs] Validation errors:', validation.error.issues);
       const errors = validation.error.issues.map(err => ({
         field: err.path.join('.'),
         message: err.message
@@ -108,11 +102,31 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    console.log('[POST /api/lrs] Validation passed, saving to DB...');
+    // POST creates a NEW LR only. Reject if the LR No already exists so a
+    // create request can never silently overwrite an existing record
+    // (edits must go through PUT /api/lrs/[lrNo]).
+    const lrNo = lrData['LR No'];
+    if (lrNo) {
+      const existing = await getLRByNumber(lrNo);
+      if (existing) {
+        return NextResponse.json(
+          { success: false, error: 'An LR with this number already exists' },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Never allow client-supplied privileged fields on creation. Status always
+    // starts at the default, and billing/amount fields are set later by the
+    // billing flow — not by the create request.
+    delete (lrData as any).status;
+    delete (lrData as any)['Amount'];
+    delete (lrData as any)['Bill Number'];
+    delete (lrData as any)['Bill Submission Date'];
+
     const success = await addLR(lrData);
     
     if (success) {
-      console.log('[POST /api/lrs] LR created successfully');
       return NextResponse.json(
         { success: true, message: 'LR created successfully' },
         { headers: { 'Cache-Control': 'no-store' } }
@@ -159,6 +173,16 @@ export async function DELETE(request: NextRequest) {
   if (middlewareResponse) return middlewareResponse;
 
   try {
+    // Only CEO and MANAGER can delete LRs (defense-in-depth alongside middleware auth)
+    const session = await getServerSession(authOptions);
+    const userRole = (session?.user as any)?.role;
+    if (!session?.user || (userRole !== 'CEO' && userRole !== 'MANAGER')) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden. Only CEO and MANAGER can delete LRs.' },
+        { status: 403 }
+      );
+    }
+
     const { lrNumbers } = await request.json();
     
     if (!Array.isArray(lrNumbers) || lrNumbers.length === 0) {

@@ -16,7 +16,8 @@ export async function GET() {
   const results = TEMPLATES.map((name) => {
     const filePath = path.join(cwd, name);
     const exists = fs.existsSync(filePath);
-    return { name, exists, path: exists ? filePath : null };
+    // Do not leak absolute server paths in the response.
+    return { name, exists };
   });
 
   const allOk = results.every(r => r.exists);
@@ -24,7 +25,6 @@ export async function GET() {
   return NextResponse.json({
     status: allOk ? 'ok' : 'missing',
     templates: results,
-    cwd,
     timestamp: new Date().toISOString(),
   }, { status: allOk ? 200 : 500 });
 }

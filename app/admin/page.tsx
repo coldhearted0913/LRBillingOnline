@@ -1,23 +1,38 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Database, Download, RefreshCw, Trash2, Eye, Upload } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { Database, Download, RefreshCw, Trash2, Eye, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { PaymentUpload } from '@/components/PaymentUpload';
+import LoadingSkeleton from '@/components/LoadingSkeleton';
 import { LR_STATUS_OPTIONS } from '@/lib/constants';
 
 export default function AdminDashboard() {
+  const { data: session, status: authStatus } = useSession();
+  const router = useRouter();
   const [lrs, setLrs] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [selectedLr, setSelectedLr] = useState<any>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
+  const userRole = (session?.user as any)?.role;
+  const hasAccess = userRole === 'CEO' || userRole === 'MANAGER';
+
   useEffect(() => {
+    if (authStatus === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [authStatus, router]);
+
+  useEffect(() => {
+    if (!hasAccess) return;
+
     loadData();
-    
+
     // Auto-refresh every 5 seconds if enabled
     let interval: NodeJS.Timeout;
     if (autoRefresh) {
@@ -25,11 +40,12 @@ export default function AdminDashboard() {
         loadData();
       }, 5000);
     }
-    
+
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [autoRefresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh, hasAccess]);
 
   const loadData = async () => {
     setLoading(true);
@@ -49,8 +65,8 @@ export default function AdminDashboard() {
   const handleStatusChange = async (lrNo: string, newStatus: string) => {
     // Optimistically update UI immediately (before API call)
     const previousLrs = [...lrs];
-    setLrs(prevLrs => 
-      prevLrs.map(lr => 
+    setLrs(prevLrs =>
+      prevLrs.map(lr =>
         lr['LR No'] === lrNo ? { ...lr, status: newStatus } : lr
       )
     );
@@ -143,6 +159,30 @@ export default function AdminDashboard() {
     }
   };
 
+  if (authStatus === 'loading') {
+    return <LoadingSkeleton />;
+  }
+
+  if (!session) {
+    return null;
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600">Access Denied</h1>
+          <p className="text-muted-foreground mt-2">
+            Only CEO and MANAGER can access the admin panel.
+          </p>
+          <a href="/" className="text-blue-600 hover:underline mt-4 inline-block">
+            ← Back to Main Dashboard
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
       {/* Header */}
@@ -161,11 +201,6 @@ export default function AdminDashboard() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Payment Upload Section */}
-        <div className="mb-8">
-          <PaymentUpload />
-        </div>
-
         {/* Quick Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
@@ -215,9 +250,9 @@ export default function AdminDashboard() {
                   <Download className="mr-2 h-3 w-3" />
                   Export JSON
                 </Button>
-                <Button 
-                  onClick={() => setAutoRefresh(!autoRefresh)} 
-                  size="sm" 
+                <Button
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  size="sm"
                   variant={autoRefresh ? "default" : "outline"}
                   className="w-full"
                 >
@@ -257,7 +292,6 @@ export default function AdminDashboard() {
                     <th className="px-3 py-2 text-left">TO</th>
                     <th className="px-3 py-2 text-left">Vehicle</th>
                     <th className="px-3 py-2 text-left">Status</th>
-                    <th className="px-3 py-2 text-left">Payment Date</th>
                     <th className="px-3 py-2 text-left">Created</th>
                     <th className="px-3 py-2 text-left">Actions</th>
                   </tr>
@@ -274,14 +308,12 @@ export default function AdminDashboard() {
                       <td className="px-3 py-2">
                         <select
                           key={`status-${lr['LR No']}-${lr.status || 'default'}`}
-                          value={lr.status || 'LR Done'}
+                          value={LR_STATUS_OPTIONS.includes(lr.status) ? lr.status : 'LR Done'}
                           onChange={(e) => {
                             const newStatus = e.target.value;
                             handleStatusChange(lr['LR No'], newStatus);
                           }}
-                          className={`text-xs px-2 py-1 border rounded bg-white w-full ${
-                            lr['Payment Date'] ? 'border-green-300 bg-green-50' : ''
-                          }`}
+                          className="text-xs px-2 py-1 border rounded bg-white w-full"
                           disabled={loading}
                         >
                           {LR_STATUS_OPTIONS.map((status) => (
@@ -289,43 +321,23 @@ export default function AdminDashboard() {
                               {status}
                             </option>
                           ))}
-                          {/* Show current status if it's a date format (payment date) and not in standard options */}
-                          {lr.status && 
-                           /^\d{2}-\d{2}-\d{4}$/.test(lr.status) && 
-                           !LR_STATUS_OPTIONS.includes(lr.status) && (
-                            <option value={lr.status}>{lr.status}</option>
-                          )}
                         </select>
-                        {lr['Payment Date'] && (
-                          <p className="text-xs text-green-600 mt-1">
-                            Payment: {new Date(lr['Payment Date']).toLocaleDateString()}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-xs">
-                        {lr['Payment Date'] ? (
-                          <span className="text-green-600 font-medium">
-                            {new Date(lr['Payment Date']).toLocaleDateString()}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
                       </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
                         {lr.created_at ? new Date(lr.created_at).toLocaleDateString() : '-'}
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="ghost"
                             onClick={() => viewLRDetails(lr)}
                             title="View Details"
                           >
                             <Eye className="h-3 w-3" />
                           </Button>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="ghost"
                             onClick={() => deleteLR(lr['LR No'])}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -355,7 +367,7 @@ export default function AdminDashboard() {
                   onClick={() => setSelectedLr(null)}
                   className="absolute top-4 right-4"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <X className="h-4 w-4" />
                 </Button>
               </CardHeader>
               <CardContent>
@@ -382,4 +394,3 @@ export default function AdminDashboard() {
     </div>
   );
 }
-

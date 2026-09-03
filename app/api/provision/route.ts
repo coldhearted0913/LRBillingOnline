@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { getAllLRs } from '@/lib/database';
 import { generateProvisionSheet } from '@/lib/excelGenerator';
 import { computeProvisionCalculation } from '@/lib/utils/provisionCalculator';
 
 export async function POST(request: NextRequest) {
   try {
+    // Provision exposes financial totals — restrict to CEO and MANAGER.
+    const session = await getServerSession(authOptions);
+    const userRole = (session?.user as any)?.role;
+    if (!session?.user || (userRole !== 'CEO' && userRole !== 'MANAGER')) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden. Only CEO and MANAGER can generate provision.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
     const {
       submissionDate,
